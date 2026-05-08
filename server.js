@@ -87,13 +87,13 @@ const server = http.createServer(async (req, res) => {
   const m = req.method;
 
   // --- 状态 ---
-  if (p === '/api/status') return sendJSON(res, 200, getStatus());
+  if (p === '/api/status') return sendJSON(res, 200, await getStatus());
 
   // --- OCR 图片转文字 ---
   if (p === '/api/ocr' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body?.name) return sendJSON(res, 400, { error: '缺少文件名' });
-    const fp = getFilePath(body.name);
+    const fp = await getFilePath(body.name);
     if (!fp) return sendJSON(res, 404, { error: '文件不存在' });
     const ext = path.extname(body.name).toLowerCase();
     if (!['.jpg','.jpeg','.png','.webp','.bmp','.gif'].includes(ext)) {
@@ -113,7 +113,7 @@ const server = http.createServer(async (req, res) => {
   // --- 文件 ---
   if (p === '/api/files' && m === 'GET') {
     const dirRel = url.searchParams.get('dir') || '';
-    const result = { files: listFiles(dirRel), breadcrumb: breadcrumb(dirRel), currentDir: dirRel };
+    const result = { files: await listFiles(dirRel), breadcrumb: breadcrumb(dirRel), currentDir: dirRel };
     return sendJSON(res, 200, result);
   }
   if (p === '/api/files' && m === 'POST') {
@@ -126,13 +126,13 @@ const server = http.createServer(async (req, res) => {
     else buf = raw;
     const parts = parseMultipart(buf, match[1]);
     const subDir = url.searchParams.get('dir') || '';
-    const result = uploadFiles(parts, MAX_STORAGE, subDir);
+    const result = await uploadFiles(parts, MAX_STORAGE, subDir);
     if (result.error) return sendJSON(res, result.error === 'no file' ? 400 : 413, result);
     return sendJSON(res, 200, result);
   }
   if (p.startsWith('/api/files/') && m === 'DELETE') {
     const name = decodeURIComponent(p.slice('/api/files/'.length));
-    const result = deleteFile(name);
+    const result = await deleteFile(name);
     if (result.error) return sendJSON(res, 404, result);
     return sendJSON(res, 200, result);
   }
@@ -141,7 +141,7 @@ const server = http.createServer(async (req, res) => {
     const name = decodeURIComponent(p.slice('/api/files/rename/'.length));
     const body = parseJSON(await readBody(req));
     if (!body?.newName) return sendJSON(res, 400, { error: 'no new name' });
-    const oldPath = getFilePath(name);
+    const oldPath = await getFilePath(name);
     if (!oldPath) return sendJSON(res, 404, { error: 'not found' });
     const newPath = path.join(path.dirname(oldPath), body.newName);
     if (fs.existsSync(newPath)) return sendJSON(res, 409, { error: 'name exists' });
@@ -150,7 +150,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (p.startsWith('/api/dl/')) {
     const name = decodeURIComponent(p.slice('/api/dl/'.length));
-    const fp = getFilePath(name);
+    const fp = await getFilePath(name);
     if (!fp) { res.writeHead(404); return res.end('404'); }
     const stat = fs.statSync(fp);
     const mimeMap = { '.pdf':'application/pdf','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png',
@@ -167,7 +167,7 @@ const server = http.createServer(async (req, res) => {
   // 内联预览（支持 Range 请求——视频拖动/PDF 翻页的基础）
   if (p.startsWith('/api/view/')) {
     const name = decodeURIComponent(p.slice('/api/view/'.length));
-    const fp = getFilePath(name);
+    const fp = await getFilePath(name);
     if (!fp) { res.writeHead(404); return res.end('404'); }
     const ext = path.extname(name).toLowerCase();
     const mimeMap = { '.pdf':'application/pdf','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png',
@@ -204,7 +204,7 @@ const server = http.createServer(async (req, res) => {
   // M3U 播放列表（点击自动用 VLC/系统播放器打开）
   if (p.startsWith('/api/m3u/')) {
     const name = decodeURIComponent(p.slice('/api/m3u/'.length));
-    const fp = getFilePath(name);
+    const fp = await getFilePath(name);
     if (!fp) { res.writeHead(404); return res.end('404'); }
     const fileUrl = `https://${req.headers.host}/api/view/${encodeURIComponent(name)}`;
     const m3u = `#EXTM3U\n#EXTINF:-1,${name}\n${fileUrl}\n`;
@@ -344,7 +344,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (p.startsWith('/api/preview/')) {
     const name = decodeURIComponent(p.slice('/api/preview/'.length));
-    const preview = getFilePreview(name);
+    const preview = await getFilePreview(name);
     if (!preview) { res.writeHead(404); return res.end('404'); }
     if (preview.redirect) { res.writeHead(302, { Location: preview.redirect }); return res.end(); }
     if (preview.preview === false) return sendJSON(res, 200, preview);
@@ -357,7 +357,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/files/move' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body?.name || body.targetDir === undefined) return sendJSON(res, 400, { error: '缺少参数' });
-    const srcPath = getFilePath(body.name);
+    const srcPath = await getFilePath(body.name);
     if (!srcPath) return sendJSON(res, 404, { error: '文件不存在' });
     const targetDir = path.join(FILES_DIR, body.targetDir || '');
     if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
@@ -370,13 +370,13 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/folders' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body?.name) return sendJSON(res, 400, { error: '缺少文件夹名' });
-    const result = createFolder(body.name);
+    const result = await createFolder(body.name);
     if (result.error) return sendJSON(res, 409, result);
     return sendJSON(res, 200, result);
   }
   if (p.startsWith('/api/folders/') && m === 'DELETE') {
     const name = decodeURIComponent(p.slice('/api/folders/'.length));
-    const result = deleteFolder(name);
+    const result = await deleteFolder(name);
     if (result.error) return sendJSON(res, 400, result);
     return sendJSON(res, 200, result);
   }
@@ -384,17 +384,17 @@ const server = http.createServer(async (req, res) => {
     const name = decodeURIComponent(p.slice('/api/folders/rename/'.length));
     const body = parseJSON(await readBody(req));
     if (!body?.newName) return sendJSON(res, 400, { error: '缺少新名称' });
-    const result = renameFolder(name, body.newName);
+    const result = await renameFolder(name, body.newName);
     if (result.error) return sendJSON(res, 400, result);
     return sendJSON(res, 200, result);
   }
 
   // --- 回收站 ---
-  if (p === '/api/trash' && m === 'GET') return sendJSON(res, 200, listTrash());
-  if (p === '/api/trash' && m === 'DELETE') return sendJSON(res, 200, emptyTrash());
+  if (p === '/api/trash' && m === 'GET') return sendJSON(res, 200, await listTrash());
+  if (p === '/api/trash' && m === 'DELETE') return sendJSON(res, 200, await emptyTrash());
   if (p.startsWith('/api/trash/restore/') && m === 'POST') {
     const name = decodeURIComponent(p.slice('/api/trash/restore/'.length));
-    const result = restoreFromTrash(name);
+    const result = await restoreFromTrash(name);
     if (result.error) return sendJSON(res, 400, result);
     return sendJSON(res, 200, result);
   }
@@ -402,7 +402,7 @@ const server = http.createServer(async (req, res) => {
   // --- 笔记 ---
   if (p === '/api/notes' && m === 'GET') {
     const q = url.searchParams.get('q') || '';
-    const notes = listNotes();
+    const notes = await listNotes();
     if (q) {
       const filtered = notes.filter(n =>
         n.title.includes(q) || (n.preview || '').includes(q)
@@ -414,17 +414,17 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/notes' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body || body.title === undefined) return sendJSON(res, 400, { error: 'bad request' });
-    return sendJSON(res, 200, saveNote(body));
+    return sendJSON(res, 200, await saveNote(body));
   }
   if (p.startsWith('/api/notes/') && m === 'GET') {
     const id = p.slice('/api/notes/'.length).replace(/\.json$/, '');
-    const note = getNote(id);
+    const note = await getNote(id);
     if (!note) return sendJSON(res, 404, { error: 'not found' });
     return sendJSON(res, 200, note);
   }
   if (p.startsWith('/api/notes/') && m === 'DELETE') {
     const id = p.slice('/api/notes/'.length).replace(/\.json$/, '');
-    const result = deleteNote(id);
+    const result = await deleteNote(id);
     if (result.error) return sendJSON(res, 404, result);
     return sendJSON(res, 200, result);
   }
@@ -486,7 +486,7 @@ const server = http.createServer(async (req, res) => {
   // --- 壁纸专用：自动压缩大图 ---
   if (p.startsWith('/api/wallpaper/')) {
     const fname = decodeURIComponent(p.slice('/api/wallpaper/'.length));
-    const fpath = getFilePath(fname);
+    const fpath = await getFilePath(fname);
     if (!fpath) { res.writeHead(404); return res.end('404'); }
     try {
       const sharp = require('sharp');
@@ -571,7 +571,7 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/api/stream/') && m === 'GET') {
     const name = decodeURIComponent(p.slice('/api/stream/'.length));
     const quality = url.searchParams.get('q') || '720';
-    const fp = getFilePath(name);
+    const fp = await getFilePath(name);
     if (!fp) { res.writeHead(404); return res.end('404'); }
     const stat = fs.statSync(fp);
     const presets = {
