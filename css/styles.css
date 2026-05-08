@@ -136,6 +136,15 @@
   .drop-zone .hint { color:var(--sub); font-size:.8rem; }
   .drop-zone .hint strong { color:var(--accent); }
   .file-list { display:flex; flex-direction:column; gap:.25rem; }
+  .file-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:.5rem; min-height:40px; }
+  .file-card { background:var(--card); border:1px solid var(--border); border-radius:8px; overflow:hidden; transition:transform .15s,box-shadow .15s; }
+  .file-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.2); }
+  .file-card-preview { width:100%; height:90px; background:var(--bg); display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; }
+  .file-card-preview img { width:100%; height:100%; object-fit:cover; }
+  .file-card-icon { font-size:2rem; }
+  .file-card-name { padding:.3rem .4rem; font-size:.72rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+  .file-card-name:hover { color:var(--accent); }
+  .file-card-size { padding:0 .4rem .3rem; font-size:.65rem; color:var(--sub); }
   .file-row {
     display:flex; align-items:center; justify-content:space-between;
     padding:.7rem 1.1rem; border-radius:var(--radius); background:var(--card); border-radius:var(--radius);
