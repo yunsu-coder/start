@@ -240,14 +240,14 @@
   .modal-body .file-info .fi-icon { font-size:3rem; margin-bottom:.5rem; }
 
   .search-box { margin:1rem auto; max-width:500px; display:flex; gap:.3rem; }
-  .search-box input { border-radius:var(--radius) 0 0 var(--radius);  { flex:1; padding:.5rem .8rem; border:1px solid var(--border); border-radius:20px; outline:none; font-size:.9rem; background:var(--card); color:var(--text); }
-  .search-box button { border-radius:0 var(--radius) var(--radius) 0;  { padding:.5rem 1rem; border:none; background:var(--accent); color:#fff; border-radius:20px; cursor:pointer; }
+  .search-box input { border-radius:var(--radius) 0 0 var(--radius); flex:1; padding:.5rem .8rem; border:1px solid var(--border); border-radius:20px; outline:none; font-size:.9rem; background:var(--card); color:var(--text); }
+  .search-box button { border-radius:0 var(--radius) var(--radius) 0; padding:.5rem 1rem; border:none; background:var(--accent); color:#fff; border-radius:20px; cursor:pointer; }
   .clock-date { text-align:center; margin:1rem 0 1.5rem; }
   #clock { font-size:3.5rem; font-weight:100; letter-spacing:4px; font-variant-numeric:tabular-nums; }
   #date { font-size:.85rem; color:var(--sub); display:block; margin-top:.3rem; }
   .search-box { margin:0 auto 1.5rem; max-width:480px; display:flex; gap:0; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; background:var(--card); }
-  .search-box input { border-radius:var(--radius) 0 0 var(--radius);  { flex:1; padding:.6rem 1rem; border:none; outline:none; font-size:.9rem; background:transparent; color:var(--text); }
-  .search-box button { border-radius:0 var(--radius) var(--radius) 0;  { padding:.6rem 1.2rem; border:none; background:var(--accent); color:#fff; cursor:pointer; font-size:.9rem; }
+  .search-box input { border-radius:var(--radius) 0 0 var(--radius); flex:1; padding:.6rem 1rem; border:none; outline:none; font-size:.9rem; background:transparent; color:var(--text); }
+  .search-box button { border-radius:0 var(--radius) var(--radius) 0; padding:.6rem 1.2rem; border:none; background:var(--accent); color:#fff; cursor:pointer; font-size:.9rem; }
   #status { text-align:center; margin:.8rem 0; display:flex; justify-content:center; gap:1rem; font-size:.75rem; color:var(--sub); }
   #status .dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:4px; }
   #status .dot.green { background:var(--ok); }
@@ -444,6 +444,7 @@
   .ai-msg.assistant .bubble { background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px; box-shadow:var(--shadow); }
   .ai-msg .bubble pre { background:var(--editor-bg);padding:.5rem;border-radius:6px;overflow-x:auto;font-size:.8rem; }
   .ai-msg .bubble code { font-size:.8rem;background:var(--hover);padding:1px 4px;border-radius:3px; }
+
 /* Toast dismiss */
 .toast.dismiss { cursor:pointer; }
 .toast .t-close { margin-left:8px; font-size:14px; opacity:0.6; cursor:pointer; }
