@@ -233,7 +233,7 @@ async function uploadFiles(fileList) {
         const form = new FormData(); form.append('file', file);
         const r = await fetch(uploadUrl, { method: 'POST', body: form });
         if (r.ok) return true;
-        try { const e = await r.json(); toast('❌ ' + e.error); } catch {}
+        try { const e = await r.json(); toast(e.error, 'error'); } catch {}
         return false;
       })
     );
@@ -243,7 +243,7 @@ async function uploadFiles(fileList) {
     await updateStorageBar();
   }
   prog.textContent = '';
-  if (ok > 0) toast(`✅ ${ok} 个文件上传成功`);
+  if (ok > 0) toast(`${ok} 个文件上传成功`, 'success');
   loadFiles();
 }
 
@@ -305,7 +305,7 @@ async function loadFiles() {
       if (f.isDir) {
         // 文件夹：点击进入目录
         return `
-        <div class="file-row" style="cursor:default;" onclick="toggleFileCheck(this)"
+        <div class="file-row" style="cursor:default;" onclick="toggleFileCheck(this,event)"
              ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '${escAttr(f.relPath)}')">
           <input type="checkbox" class="file-check" data-name="${escAttr(f.relPath)}" onclick="event.stopPropagation();updateBatchBar();" style="flex-shrink:0;">
           <span class="fname"><span class="fname-text" onclick="event.stopPropagation();navigateTo('${escAttr(f.relPath)}')" title="进入目录">📁 ${escHtml(f.name)}</span></span>
@@ -319,7 +319,7 @@ async function loadFiles() {
       }
       // 文件：点击预览
       return `
-        <div class="file-row" style="cursor:default;" onclick="toggleFileCheck(this)">
+        <div class="file-row" style="cursor:default;" onclick="toggleFileCheck(this,event)">
           <input type="checkbox" class="file-check" data-name="${escAttr(f.relPath)}" onclick="event.stopPropagation();updateBatchBar();" style="flex-shrink:0;">
           <span class="fname"><span class="fname-text" onclick="event.stopPropagation();previewFile('${escAttr(f.relPath)}')" 
                 draggable="true" ondragstart="handleDragStart(event, '${escAttr(f.relPath)}')" ondragend="handleDragEnd(event)" title="点击预览 / 拖拽移动">📄 ${escHtml(f.name)}</span></span>
@@ -377,9 +377,9 @@ async function newFile() {
     const blob = new Blob([content || ''], {type:'text/plain'});
     const fd = new FormData(); fd.append('file', blob, name);
     const r = await fetch('/api/files' + (currentDir ? '?dir=' + encodeURIComponent(currentDir) : ''), {method:'POST', body:fd});
-    if (!r.ok) { toast('创建失败'); return; }
-    toast('\u2705 ' + name + ' 已创建'); loadFiles();
-  } catch(e) { toast('创建失败: ' + e.message); }
+    if (!r.ok) { toast('创建失败', 'error'); return; }
+    toast(name + ' 已创建', 'success'); loadFiles();
+  } catch(e) { toast('创建失败: ' + e.message, 'error'); }
 }
 
 // ===== 文件预览 =====
@@ -489,13 +489,13 @@ document.addEventListener('keydown', e => {
 
 function copyLink(name) {
   const url = location.origin + '/api/dl/' + encodeURIComponent(name);
-  navigator.clipboard.writeText(url).then(() => toast('链接已复制', 'success')).catch(() => toast('❌ 复制失败'));
+  navigator.clipboard.writeText(url).then(() => toast('链接已复制', 'success')).catch(() => toast('复制失败', 'error'));
 }
 function downloadFile(name) { window.open('/api/dl/' + encodeURIComponent(name), '_blank'); }
 async function delFile(name) {
   if (!confirm(`确定删除「${name}」？`)) return;
   const r = await fetch('/api/files/' + encodeURIComponent(name), { method: 'DELETE' });
-  if (r.ok) { toast('🗑️ 已移入回收站'); loadFiles(); updateStorageBar(); } else { toast('❌ 删除失败'); }
+  if (r.ok) { toast('已移入回收站', 'success'); loadFiles(); updateStorageBar(); } else { toast('删除失败', 'error'); }
 }
 
 // ===== OCR 识别 =====
@@ -521,10 +521,35 @@ async function ocrImage(name) {
 
 // ===== 拖拽移动 =====
 let dragItems = [];
+let lastCheckedFile = null;
 
-function toggleFileCheck(row) {
+function toggleFileCheck(row, e) {
   const cb = row.querySelector('.file-check');
-  if (cb) { cb.checked = !cb.checked; updateBatchBar(); }
+  if (!cb) return;
+  // Shift+click range selection
+  if (e && e.shiftKey && lastCheckedFile) {
+    const allCbs = [...document.querySelectorAll('.file-check')];
+    const idx1 = allCbs.indexOf(cb);
+    const idx2 = allCbs.indexOf(lastCheckedFile);
+    if (idx1 !== -1 && idx2 !== -1) {
+      const start = Math.min(idx1, idx2);
+      const end = Math.max(idx1, idx2);
+      for (let i = start; i <= end; i++) {
+        allCbs[i].checked = cb.checked || lastCheckedFile.checked;
+      }
+      updateBatchBar();
+      return;
+    }
+  }
+  cb.checked = !cb.checked;
+  lastCheckedFile = cb;
+  updateBatchBar();
+}
+
+function clearSelection() {
+  document.querySelectorAll('.file-check').forEach(cb => cb.checked = false);
+  document.getElementById('selectAll').checked = false;
+  updateBatchBar();
 }
 
 function handleDragStart(e, name) {
@@ -576,7 +601,7 @@ async function handleDrop(e, targetDir) {
       if (r.ok) ok++;
     } catch {}
   }
-  toast(`✅ ${ok}/${valid.length} 个文件已移动`);
+  toast(`${ok}/${valid.length} 个文件已移动`, 'success');
   loadFiles();
 }
 function updateBatchBar() {
@@ -606,7 +631,7 @@ async function batchDelete() {
     const r = await fetch('/api/files/' + encodeURIComponent(cb.dataset.name), { method: 'DELETE' });
     if (r.ok) ok++; else fail++;
   }
-  toast(`🗑️ ${ok} 个已删除` + (fail ? `，${fail} 个失败` : ''));
+  toast(`${ok} 个已删除` + (fail ? `，${fail} 个失败` : ''), ok === (ok+fail) ? 'success' : 'warning');
   loadFiles(); updateStorageBar();
 }
 
@@ -639,7 +664,7 @@ async function createFolder() {
   const folderPath = currentDir ? currentDir + '/' + name.trim() : name.trim();
   const r = await fetch('/api/folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: folderPath }) });
   const data = await r.json();
-  if (data.error) { toast('❌ ' + data.error); return; }
+  if (data.error) { toast(data.error, 'error'); return; }
   toast('文件夹已创建', 'success');
   loadFiles();
 }
@@ -647,7 +672,7 @@ async function createFolder() {
 async function deleteFolder(name) {
   if (!confirm('确定删除文件夹「' + name + '」？内容将移入回收站')) return;
   await fetch('/api/folders/' + encodeURIComponent(name), { method: 'DELETE' });
-  toast('🗑️ 文件夹已移入回收站');
+  toast('文件夹已移入回收站', 'success');
   loadFiles(); updateStorageBar();
 }
 
@@ -656,7 +681,7 @@ async function renameFolder(name) {
   if (!newName || !newName.trim()) return;
   const r = await fetch('/api/folders/rename/' + encodeURIComponent(name), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ newName: newName.trim() }) });
   const data = await r.json();
-  if (data.error) { toast('❌ ' + data.error); return; }
+  if (data.error) { toast(data.error, 'error'); return; }
   toast('已重命名', 'success');
   loadFiles();
 }
@@ -691,14 +716,14 @@ async function loadTrash() {
 async function emptyTrash() {
   if (!confirm('确定清空回收站？此操作不可恢复！')) return;
   await fetch('/api/trash', { method: 'DELETE' });
-  toast('🗑️ 回收站已清空');
+  toast('回收站已清空', 'success');
   loadTrash(); updateStorageBar();
 }
 
 async function restoreTrash(name) {
   const r = await fetch('/api/trash/restore/' + encodeURIComponent(name), { method: 'POST' });
   if (r.ok) { toast('已恢复', 'success'); loadTrash(); loadFiles(); updateStorageBar(); }
-  else { toast('❌ 恢复失败'); }
+  else { toast('恢复失败', 'error'); }
 }
 
 // ===== 笔记 =====
@@ -852,8 +877,8 @@ document.addEventListener('paste', e => {
         const name = 'paste_' + Date.now() + '.' + item.type.split('/')[1].replace('jpeg','jpg');
         const fd = new FormData(); fd.append('file', file, name);
         fetch('/api/files' + (currentDir ? '?dir=' + encodeURIComponent(currentDir) : ''), { method: 'POST', body: fd })
-          .then(r => { if (r.ok) { toast('\U0001f4f8 截图已上传'); loadFiles(); } })
-          .catch(() => toast('\u274c 上传失败'));
+          .then(r => { if (r.ok) { toast('截图已上传', 'success'); loadFiles(); } })
+          .catch(() => toast('上传失败', 'error'));
       }
       break;
     }
@@ -874,7 +899,7 @@ async function saveNote() {
     const data = await r.json();
     currentNoteId = data.id; markClean();
     toast('已保存', 'success'); loadNotesList();
-  } catch(e) { toast('❌ 保存失败'); }
+  } catch(e) { toast('保存失败', 'error'); }
 }
 
 
@@ -900,8 +925,8 @@ function togglePin() {
 
 function copyNoteContent() {
   const content = document.getElementById('noteContent').value;
-  if (!content) { toast('\u26a0\ufe0f 内容为空'); return; }
-  navigator.clipboard.writeText(content).then(() => toast('\U0001f4cb 已复制')).catch(() => toast('\u274c 复制失败'));
+  if (!content) { toast('内容为空', 'warning'); return; }
+  navigator.clipboard.writeText(content).then(() => toast('已复制', 'success')).catch(() => toast('复制失败', 'error'));
 }
 
 let noteFullscreen = false;
@@ -923,8 +948,8 @@ async function deleteNote() {
     document.getElementById('noteTitle').value = '';
     document.getElementById('noteContent').value = '';
     markClean(); stopAutoSave();
-    toast('🗑️ 已删除'); loadNotesList();
-  } catch(e) { toast('❌ 删除失败'); }
+    toast('已删除', 'success'); loadNotesList();
+  } catch(e) { toast('删除失败', 'error'); }
 }
 
 function startAutoSave() { stopAutoSave(); autoSaveTimer = setInterval(() => { if (noteDirty) saveNoteSilent(); }, 30000); }
@@ -1330,8 +1355,8 @@ document.addEventListener('mouseup', function(e) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(note),
       });
-      toast('✅ 已保存到笔记');
-    } catch(e) { toast('❌ 保存失败'); }
+      toast('已保存到笔记', 'success');
+    } catch(e) { toast('保存失败', 'error'); }
     popup.remove();
   });
   document.body.appendChild(popup);
@@ -1464,11 +1489,11 @@ async function uploadNoteImage(blob, name) {
       ta.value = ta.value.replace(placeholder, md);
     } else {
       ta.value = ta.value.replace(placeholder, '');
-      toast('❌ 图片上传失败');
+      toast('图片上传失败', 'error');
     }
   } catch(e) {
     ta.value = ta.value.replace(placeholder, '');
-    toast('❌ 上传失败：' + e.message);
+    toast('上传失败：' + e.message, 'error');
   }
   renderLive();
 }
