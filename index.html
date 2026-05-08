@@ -173,9 +173,14 @@
       <div id="noteList"></div>
     </div>
     <div class="note-editor" id="noteEditor" style="display:none;">
-      <input class="title" id="noteTitle" placeholder="笔记标题...">
-      <textarea id="noteContent" placeholder="Markdown 内容..." oninput="renderLive()"></textarea>
-      <div class="preview" id="notePreview"></div>
+      <div class="edit-pane">
+        <input class="title" id="noteTitle" placeholder="笔记标题...">
+        <textarea id="noteContent" placeholder="Markdown 内容..." oninput="renderLive()"></textarea>
+      </div>
+      <div class="preview-pane">
+        <div class="pane-header">预览</div>
+        <div class="preview" id="notePreview"></div>
+      </div>
     </div>
   </div>
 </div>
