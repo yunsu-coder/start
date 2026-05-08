@@ -877,7 +877,7 @@ async function newNote() {
   document.getElementById('noteEditor').style.display = 'flex';
   document.getElementById('noteTitle').value = '';
   document.getElementById('noteContent').value = '';
-  document.getElementById('notePreview').innerHTML = content ? md2html(content) : '';
+  document.getElementById('notePreview').innerHTML = '';
   document.getElementById('noteTagsInput').value = '';
   document.getElementById('notePinBtn')?.classList.remove('pinned');
   document.getElementById('noteTitle').focus();
