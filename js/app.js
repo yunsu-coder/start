@@ -11,7 +11,8 @@ function switchPanel(name) {
     stopAutoSave();
   }
   currentPanel = name;
-  location.hash = name; // 保存当前面板，刷新后恢复
+  location.hash = name;
+  try{localStorage.setItem('lastPanel',name)}catch{}
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.querySelector(`[data-panel="${name}"]`).classList.add('active');
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -72,11 +73,17 @@ function applyTheme(t) {
 
 // ===== Toast =====
 let toastTimer;
-function toast(msg) {
+const TOAST_ICONS = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
+function toast(msg, type = 'info', duration = 3000) {
   const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
+  const icon = TOAST_ICONS[type] || '';
+  t.innerHTML = icon ? '<span style="margin-right:6px">' + icon + '</span>' + msg : msg;
+  t.classList.add('show');
+  t.style.pointerEvents = 'auto';
+  t.style.cursor = 'pointer';
+  t.onclick = function() { this.classList.remove('show'); this.onclick = null; };
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+  toastTimer = setTimeout(function() { t.classList.remove('show'); setTimeout(function() { t.onclick = null; }, 300); }, duration);
 }
 
 // ===== 时钟 =====
@@ -92,6 +99,39 @@ document.getElementById('searchForm').addEventListener('submit', e => {
   e.preventDefault();
   const q = document.getElementById('q').value.trim();
   if (q) window.open('https://www.bing.com/search?q=' + encodeURIComponent(q), '_blank');
+});
+
+
+// ===== 键盘快捷键 =====
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && !e.shiftKey && !e.metaKey) {
+    const panels = ['home','files','notes','scrape','read'];
+    const idx = parseInt(e.key) - 1;
+    if (idx >= 0 && idx < panels.length) { e.preventDefault(); switchPanel(panels[idx]); }
+  }
+  if (e.ctrlKey && e.key === 's') {
+    if (currentPanel === 'notes' && document.getElementById('noteEditor').style.display !== 'none') { e.preventDefault(); saveNote(); }
+  }
+  if (e.ctrlKey && (e.key === 'b' || e.key === 'B') && currentPanel === 'notes') {
+    const ta = document.getElementById('noteContent');
+    if (ta && document.activeElement === ta) { e.preventDefault(); insertMd('**','**'); }
+  }
+  if (e.ctrlKey && (e.key === 'i' || e.key === 'I') && currentPanel === 'notes') {
+    const ta = document.getElementById('noteContent');
+    if (ta && document.activeElement === ta) { e.preventDefault(); insertMd('*','*'); }
+  }
+    if (e.ctrlKey && e.shiftKey && e.key === 'N') { e.preventDefault(); if (currentPanel === 'notes') newNote(); else { switchPanel('notes'); setTimeout(newNote, 100); } }
+  if (e.ctrlKey && e.key === 'k') {
+    e.preventDefault();
+    const searchMap = { files:'fileSearch', notes:'noteSearch', scrape:'scrapeUrls' };
+    const el = document.getElementById(searchMap[currentPanel] || '');
+    if (el) { el.focus(); el.select(); }
+  }
+  if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey) {
+    const modal = document.getElementById('previewModal');
+    if (modal?.classList.contains('show')) return;
+    if (currentPanel !== 'home') { e.preventDefault(); switchPanel('home'); }
+  }
 });
 
 // ===== 书签 =====
@@ -237,7 +277,11 @@ async function loadFiles() {
 
     // 搜索过滤
     const q = (document.getElementById('fileSearch')?.value || '').trim().toLowerCase();
+  const extFilter = document.getElementById('fileExtFilter')?.value || '';
+  const imgExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico'];
     let filtered = q ? files.filter(f => f.name.toLowerCase().includes(q)) : files;
+  if (imgFilterOn) filtered = filtered.filter(f => !f.isDir && imgExts.includes(f.name.split('.').pop().toLowerCase()));
+  if (extFilter) filtered = filtered.filter(f => !f.isDir && f.name.toLowerCase().endsWith('.' + extFilter));
 
     // 排序
     const sort = document.getElementById('fileSort')?.value || 'date-desc';
@@ -291,7 +335,7 @@ async function loadFiles() {
 
     // 网格视图
     const grid = document.getElementById('fileGrid');
-    const imgExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico'];
+    var imgExts2 = ['jpg','jpeg','png','gif','webp','svg','bmp','ico'];
     grid.innerHTML = filtered.map(f => {
       if (f.isDir) {
         return `<div class="file-card" onclick="navigateTo('${escAttr(f.relPath)}')"
@@ -323,6 +367,20 @@ async function loadFiles() {
 
 function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function escAttr(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"'); }
+
+// ===== 新建文件 =====
+async function newFile() {
+  const name = prompt('文件名（如: 笔记.md）:');
+  if (!name) return;
+  const content = prompt('初始内容（可选）:', '');
+  try {
+    const blob = new Blob([content || ''], {type:'text/plain'});
+    const fd = new FormData(); fd.append('file', blob, name);
+    const r = await fetch('/api/files' + (currentDir ? '?dir=' + encodeURIComponent(currentDir) : ''), {method:'POST', body:fd});
+    if (!r.ok) { toast('创建失败'); return; }
+    toast('\u2705 ' + name + ' 已创建'); loadFiles();
+  } catch(e) { toast('创建失败: ' + e.message); }
+}
 
 // ===== 文件预览 =====
 async function previewFile(name) {
@@ -431,7 +489,7 @@ document.addEventListener('keydown', e => {
 
 function copyLink(name) {
   const url = location.origin + '/api/dl/' + encodeURIComponent(name);
-  navigator.clipboard.writeText(url).then(() => toast('📋 链接已复制')).catch(() => toast('❌ 复制失败'));
+  navigator.clipboard.writeText(url).then(() => toast('链接已复制', 'success')).catch(() => toast('❌ 复制失败'));
 }
 function downloadFile(name) { window.open('/api/dl/' + encodeURIComponent(name), '_blank'); }
 async function delFile(name) {
@@ -555,6 +613,9 @@ async function batchDelete() {
 // ===== 文件夹 & 回收站 =====
 let fileViewMode = localStorage.getItem('fileView') || 'list';
 
+let imgFilterOn = false;
+function toggleImgFilter() { imgFilterOn = !imgFilterOn; loadFiles(); }
+
 function toggleFileView() {
   fileViewMode = fileViewMode === 'list' ? 'grid' : 'list';
   localStorage.setItem('fileView', fileViewMode);
@@ -579,7 +640,7 @@ async function createFolder() {
   const r = await fetch('/api/folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: folderPath }) });
   const data = await r.json();
   if (data.error) { toast('❌ ' + data.error); return; }
-  toast('✅ 文件夹已创建');
+  toast('文件夹已创建', 'success');
   loadFiles();
 }
 
@@ -596,7 +657,7 @@ async function renameFolder(name) {
   const r = await fetch('/api/folders/rename/' + encodeURIComponent(name), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ newName: newName.trim() }) });
   const data = await r.json();
   if (data.error) { toast('❌ ' + data.error); return; }
-  toast('✅ 已重命名');
+  toast('已重命名', 'success');
   loadFiles();
 }
 
@@ -636,7 +697,7 @@ async function emptyTrash() {
 
 async function restoreTrash(name) {
   const r = await fetch('/api/trash/restore/' + encodeURIComponent(name), { method: 'POST' });
-  if (r.ok) { toast('✅ 已恢复'); loadTrash(); loadFiles(); updateStorageBar(); }
+  if (r.ok) { toast('已恢复', 'success'); loadTrash(); loadFiles(); updateStorageBar(); }
   else { toast('❌ 恢复失败'); }
 }
 
@@ -737,7 +798,9 @@ async function newNote() {
   document.getElementById('noteEditor').style.display = 'flex';
   document.getElementById('noteTitle').value = '';
   document.getElementById('noteContent').value = '';
-  document.getElementById('notePreview').innerHTML = '';
+  document.getElementById('notePreview').innerHTML = content ? md2html(content) : '';
+  document.getElementById('noteTagsInput').value = '';
+  document.getElementById('notePinBtn')?.classList.remove('pinned');
   document.getElementById('noteTitle').focus();
   document.querySelectorAll('.note-list-item').forEach(el => el.classList.remove('active'));
   markClean(); startAutoSave();
@@ -748,9 +811,14 @@ async function openNote(id) {
   try {
     const note = await (await fetch('/api/notes/' + id)).json();
     currentNoteId = id;
+    try{localStorage.setItem('lastNote',id)}catch{}
     document.getElementById('noteEditor').style.display = 'flex';
     document.getElementById('noteTitle').value = note.title;
     document.getElementById('noteContent').value = note.content;
+    const tagsEl = document.getElementById('noteTagsInput');
+    if (tagsEl) tagsEl.value = (note.tags||[]).join(', ');
+    const pinBtn = document.getElementById('notePinBtn');
+    if (pinBtn) { pinBtn.classList.toggle('pinned', !!note.pinned); pinBtn.title = note.pinned ? '取消置顶' : '置顶'; }
     renderLive(); markClean();
     document.querySelectorAll('.note-list-item').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.note-list-item').forEach(el => { if (el.getAttribute('onclick')?.includes(id)) el.classList.add('active'); });
@@ -759,23 +827,94 @@ async function openNote(id) {
 }
 
 document.addEventListener('DOMContentLoaded', () => { const t = document.getElementById('noteTitle'); if (t) t.addEventListener('input', markDirty); });
+// Selection word count in notes
+document.getElementById('noteContent')?.addEventListener('mouseup', updateSelectionCount);
+document.getElementById('noteContent')?.addEventListener('keyup', updateSelectionCount);
+function updateSelectionCount() {
+  const ta = document.getElementById('noteContent');
+  const wc = document.getElementById('wordCount');
+  if (!ta || !wc) return;
+  const sel = ta.value.substring(ta.selectionStart, ta.selectionEnd);
+  if (sel) {
+    const cn = (sel.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g)||[]).length;
+    const en = sel.replace(/[\u4e00-\u9fff\u3400-\u4dbf]/g,'').split(/\s+/).filter(Boolean).length;
+    wc.textContent += ' | 选中: ' + (cn + en) + ' 字符';
+  }
+}
+document.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items || currentPanel !== 'files') return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (file) {
+        const name = 'paste_' + Date.now() + '.' + item.type.split('/')[1].replace('jpeg','jpg');
+        const fd = new FormData(); fd.append('file', file, name);
+        fetch('/api/files' + (currentDir ? '?dir=' + encodeURIComponent(currentDir) : ''), { method: 'POST', body: fd })
+          .then(r => { if (r.ok) { toast('\U0001f4f8 截图已上传'); loadFiles(); } })
+          .catch(() => toast('\u274c 上传失败'));
+      }
+      break;
+    }
+  }
+});
 
 async function saveNote() {
   const title = document.getElementById('noteTitle').value.trim();
   const content = document.getElementById('noteContent').value;
-  if (!title && !content) { toast('⚠️ 标题和内容不能都为空'); return; }
-  const body = { title: title || '无标题', content };
+  if (!title && !content) { toast('标题和内容不能都为空', 'warning'); return; }
+  const tagsEl = document.getElementById('noteTagsInput');
+  const tags = tagsEl ? tagsEl.value.split(/[,，\s]+/).filter(Boolean) : [];
+  const pinned = document.getElementById('notePinBtn')?.classList.contains('pinned') || false;
+  const body = { title: title || '无标题', content, tags, pinned };
   if (currentNoteId) body.id = currentNoteId;
   try {
     const r = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await r.json();
     currentNoteId = data.id; markClean();
-    toast('✅ 已保存'); loadNotesList();
+    toast('已保存', 'success'); loadNotesList();
   } catch(e) { toast('❌ 保存失败'); }
 }
 
+
+function filterTag(tag) {
+  const inp = document.getElementById('noteSearch');
+  inp.value = tag.startsWith('tag:') ? tag : ('tag:' + tag);
+  loadNotesList();
+}
+
+async function delNote(id) {
+  if (!confirm('删除笔记？')) return;
+  await fetch('/api/notes/' + id, { method: 'DELETE' });
+  if (currentNoteId === id) { currentNoteId = null; document.getElementById('noteEditor').style.display = 'none'; }
+  loadNotesList();
+}
+
+function togglePin() {
+  const btn = document.getElementById('notePinBtn');
+  if (!btn) return;
+  btn.classList.toggle('pinned');
+  btn.title = btn.classList.contains('pinned') ? '取消置顶' : '置顶';
+}
+
+function copyNoteContent() {
+  const content = document.getElementById('noteContent').value;
+  if (!content) { toast('\u26a0\ufe0f 内容为空'); return; }
+  navigator.clipboard.writeText(content).then(() => toast('\U0001f4cb 已复制')).catch(() => toast('\u274c 复制失败'));
+}
+
+let noteFullscreen = false;
+function toggleNoteFullscreen() {
+  const editor = document.getElementById('noteEditor');
+  const sidebar = document.querySelector('.notes-sidebar');
+  const layout = document.querySelector('.notes-layout');
+  if (!noteFullscreen) { sidebar.style.display = 'none'; layout.style.height = 'calc(100vh - 160px)'; noteFullscreen = true; }
+  else { sidebar.style.display = ''; layout.style.height = ''; noteFullscreen = false; }
+}
+
 async function deleteNote() {
-  if (!currentNoteId) { toast('⚠️ 还没有保存的笔记'); return; }
+  if (!currentNoteId) { toast('还没有保存的笔记', 'warning'); return; }
   if (!confirm('确定删除这篇笔记？')) return;
   try {
     await fetch('/api/notes/' + currentNoteId, { method: 'DELETE' });
@@ -795,7 +934,10 @@ async function saveNoteSilent() {
   const title = document.getElementById('noteTitle').value.trim();
   const content = document.getElementById('noteContent').value;
   if (!title && !content) return;
-  const body = { title: title || '无标题', content };
+  const tagsEl = document.getElementById('noteTagsInput');
+  const tags = tagsEl ? tagsEl.value.split(/[,，\s]+/).filter(Boolean) : [];
+  const pinned = document.getElementById('notePinBtn')?.classList.contains('pinned') || false;
+  const body = { title: title || '无标题', content, tags, pinned };
   if (currentNoteId) body.id = currentNoteId;
   try {
     const r = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -819,10 +961,41 @@ function exportPDF() {
 
 function insertMd(before, after) {
   const ta = document.getElementById('noteContent');
+  if (!ta) return;
   const s = ta.selectionStart, e = ta.selectionEnd, txt = ta.value.substring(s, e);
-  ta.value = ta.value.substring(0, s) + before + txt + after + ta.value.substring(e);
-  ta.focus(); ta.setSelectionRange(s + before.length, s + before.length + txt.length);
+  const beforeLen = before.length;
+  ta.focus();
+  // Use execCommand fallback for simple cases
+  if (ta.setRangeText) {
+    ta.setRangeText(before + txt + after);
+  } else {
+    ta.value = ta.value.substring(0, s) + before + txt + after + ta.value.substring(e);
+  }
+  const newPos = s + beforeLen + txt.length + after.length;
+  ta.selectionStart = ta.selectionEnd = newPos;
   renderLive();
+  markDirty();
+}
+
+function insertTable() {
+  const rows = prompt('行数（不含表头）:', '3');
+  const cols = prompt('列数:', '4');
+  if (!rows || !cols) return;
+  const n = parseInt(rows), m = parseInt(cols);
+  if (n < 1 || m < 1) return;
+  let table = '| ' + Array(m).fill('标题').join(' | ') + ' |\n';
+  table += '| ' + Array(m).fill('---').join(' | ') + ' |\n';
+  for (let i = 0; i < n; i++) {
+    table += '| ' + Array(m).fill('').join(' | ') + ' |\n';
+  }
+  const ta = document.getElementById('noteContent');
+  if (!ta) return;
+  const s = ta.selectionStart;
+  ta.value = ta.value.substring(0, s) + table + ta.value.substring(ta.selectionEnd);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = s + table.length;
+  renderLive();
+  markDirty();
 }
 
 // ===== 阅读器 =====
@@ -847,13 +1020,15 @@ async function loadReaderBooks() {
       const ext = b.name.split('.').pop().toLowerCase();
       const progress = JSON.parse(localStorage.getItem('read-' + b.name) || '{}');
       const pct = progress.pct ? ' · ' + progress.pct + '%' : '';
-      return '<div class="book-card" onclick="openBook(\'' + escAttr(b.name) + '\')">' +
-        '<span class="cover">' + (icons[ext]||'📘') + '</span>' +
+      return '<div class="book-card" style="position:relative;" onclick="openBook(\'' + escAttr(b.name) + '\')">' +
+        '<button class="book-del-btn" onclick="event.stopPropagation();delReaderBook(' + escAttr(b.name) + ')" title="移除">&times;</button><span class="cover">' + (icons[ext]||'📘') + '</span>' +
         '<span class="btitle">' + escHtml(b.name) + '</span>' +
         '<span class="bprogress">' + fmtFileSize(b.size) + pct + '</span></div>';
     }).join('');
   } catch(e) { console.error(e); }
 }
+
+function delReaderBook(name) { if (!confirm('从书架移除 ' + name.split('/').pop() + '？')) return; localStorage.removeItem('read-' + name); toast('已移除', 'info'); loadReaderBooks(); }
 
 function fmtFileSize(b) { return b<1024?b+'B':b<1048576?(b/1024).toFixed(1)+'K':(b/1048576).toFixed(1)+'M'; }
 
@@ -861,6 +1036,7 @@ async function openBook(name) {
   const ext = name.split('.').pop().toLowerCase();
   currentBook = name;
   readerType = ext;
+  try{localStorage.setItem('lastReaderBook',name)}catch{}
   readerEpubRendition = null;
   readerEpubBook = null;
   document.getElementById('readerShelf').style.display = 'none';
@@ -1087,7 +1263,7 @@ function toggleAutoScroll() {
     if (content.scrollTop >= content.scrollHeight - content.clientHeight - 10) {
       clearInterval(autoScrollTimer); autoScrollTimer = null;
       btn.textContent = '⏯ 自动滚屏'; btn.style.background = ''; btn.style.color = '';
-      toast('📖 已到末尾');
+      toast('已到末尾', 'info');
     }
   }, 30);
   updateScrollBtn();

@@ -20,7 +20,7 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const PORT = 3000;
+const PORT = 3001;
 const ROOT = __dirname;
 
 // ===== 工具函数 =====
