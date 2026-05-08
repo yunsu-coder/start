@@ -178,28 +178,6 @@
         <div class="pane"><div class="pane-header">编辑</div><textarea id="noteContent" placeholder="Markdown 内容..." oninput="renderLive()"></textarea></div>
         <div class="pane"><div class="pane-header">预览</div><div class="preview" id="notePreview"></div></div>
       </div>
-      <div class="toolbar">
-        <button class="btn-sm" onclick="insertMd('**','**')" title="加粗 Ctrl+B"><b>B</b></button>
-        <button class="btn-sm" onclick="insertMd('*','*')" title="斜体 Ctrl+I"><i>I</i></button>
-        <button class="btn-sm" onclick="insertMd('~~','~~')" title="删除线">S</button>
-        <span class="sep"></span>
-        <button class="btn-sm" onclick="insertMd('# ','')" title="标题1">H1</button>
-        <button class="btn-sm" onclick="insertMd('## ','')" title="标题2">H2</button>
-        <button class="btn-sm" onclick="insertMd('### ','')" title="标题3">H3</button>
-        <span class="sep"></span>
-        <button class="btn-sm" onclick="insertMd('> ','')" title="引用">❝</button>
-        <button class="btn-sm" onclick="insertMd('\`\`\`\n','\n\`\`\`')" title="代码块">&lt;/&gt;</button>
-        <button class="btn-sm" onclick="insertMd('- ','')" title="无序列表">•</button>
-        <button class="btn-sm" onclick="insertMd('1. ','')" title="有序列表">1.</button>
-        <button class="btn-sm" onclick="insertTable()" title="表格">⊞</button>
-        <button class="btn-sm" onclick="insertMd('---\n','')" title="分割线">—</button>
-        <span class="sep"></span>
-        <button class="btn-sm" onclick="insertImage()" title="插入图片">🖼</button>
-        <button class="btn-sm" onclick="insertMd('[','](url)')" title="链接">🔗</button>
-        <span style="flex:1"></span>
-        <button class="btn-sm danger" onclick="deleteNote()">🗑 删除</button>
-        <button class="btn-sm accent" onclick="saveNote()">💾 保存</button>
-      </div>
     </div>
   </div>
 </div>
