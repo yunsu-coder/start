@@ -25,6 +25,7 @@ function switchPanel(name) {
   if (name === 'scrape') loadScrapeSessions();
   if (name === 'read') loadReaderBooks();
   if (name === 'translate' && typeof loadHistory === 'function') loadHistory();
+  if (name === 'wallpaper') loadWallpapers();
 }
 
 document.querySelectorAll('.nav-item').forEach(btn => {

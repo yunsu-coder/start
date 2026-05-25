@@ -15,6 +15,7 @@ const { getStatus, listFiles, uploadFiles, deleteFile, getFilePath, getFilePrevi
 const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache, scrapeTieba } = require('./lib/scraper');
 const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, deleteHistory } = require('./lib/translate');
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMD } = require('./lib/export');
+const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, WALLPAPER_DIR } = require('./lib/wallpaper');
 
 // ===== 加载环境变量 =====
 const envPath = path.join(__dirname, '.env');
@@ -1152,6 +1153,71 @@ const server = http.createServer(async (req, res) => {
     return fs.createReadStream(libPath).pipe(res);
   }
   
+  // 从采集会话中保存图片为壁纸
+  if (p.startsWith('/api/scrape/save-wallpaper/') && m === 'POST') {
+    const sid = p.slice('/api/scrape/save-wallpaper/'.length);
+    const body = parseJSON(await readBody(req));
+    const wp = saveWallpaperFromUrl(body.url, body.filename, sid);
+    sendJSON(res, 200, wp.id ? { ok: true, wallpaper: wp } : { error: wp.error }); return;
+  }
+  // 壁纸上传
+  if (p === '/api/wallpapers/upload' && m === 'POST') {
+    const raw = await readBody(req, 50 * 1024 * 1024);
+    const boundary = (req.headers['content-type'] || '').match(/boundary=(.+)/);
+    if (!boundary) { sendJSON(res, 400, { error: 'no boundary' }); return; }
+    const parts = parseMultipart(raw, boundary[1]);
+    const filePart = parts.find(p => p.filename);
+    if (!filePart) { sendJSON(res, 400, { error: 'no file' }); return; }
+    const ext = (filePart.filename || '').replace(/.*(\.[^.]+)/, '$1') || '.jpg';
+    const safeName = 'wallpaper_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + ext;
+    const wp = saveWallpaperFromUrl('', safeName, '');
+    // 保存原始图片数据
+    const fp = require('path').join(WALLPAPER_DIR, safeName);
+    require('fs').writeFileSync(fp, filePart.data);
+    sendJSON(res, 200, { ok: true, wallpaper: { ...wp, filename: safeName, path: '/wallpaper/' + safeName } }); return;
+  }
+
+  // ===== 壁纸 API =====
+  if (p === '/api/wallpapers' && m === 'GET') { sendJSON(res, 200, { list: listWallpapers(), current: getCurrentWallpaper() }); return; }
+  if (p.startsWith('/api/wallpapers/save-file?path=') && m === 'GET') {
+    const relPath = new URL('http://x' + p).searchParams.get('path');
+    const fp = getFilePath(relPath);
+    if (!fp) { sendJSON(res, 404, { error: 'file not found' }); return; }
+    const ext = require('path').extname(fp).toLowerCase() || '.jpg';
+    const safeName = 'wallpaper_' + Date.now() + ext;
+    const destFp = require('path').join(WALLPAPER_DIR, safeName);
+    require('fs').copyFileSync(fp, destFp);
+    const wp = saveWallpaperFromUrl('', safeName, '');
+    sendJSON(res, 200, { ok: true, wallpaper: { ...wp, filename: safeName, path: '/wallpaper/' + safeName } }); return;
+  }
+  if (p === '/api/wallpaper/current' && m === 'PUT') {
+    const body = parseJSON(await readBody(req));
+    const wp = setCurrentWallpaper(body.id);
+    sendJSON(res, 200, wp ? { ok: true, wallpaper: wp } : { error: 'not found' }); return;
+  }
+  if (p === '/api/wallpaper/random' && m === 'POST') {
+    const wp = setRandomWallpaper();
+    sendJSON(res, 200, wp ? { ok: true, wallpaper: wp } : { error: 'no wallpapers' }); return;
+  }
+  if (p.startsWith('/api/wallpaper/del/') && m === 'DELETE') {
+    const id = p.slice('/api/wallpaper/del/'.length);
+    sendJSON(res, 200, deleteWallpaper(id)); return;
+  }
+  if (p === '/api/wallpaper/save' && m === 'POST') {
+    const body = parseJSON(await readBody(req));
+    const wp = saveWallpaperFromUrl(body.url, body.filename, body.sessionId);
+    sendJSON(res, 200, wp.id ? { ok: true, wallpaper: wp } : { error: wp.error }); return;
+  }
+  if (p.startsWith('/wallpaper/')) {
+    const fname = p.slice('/wallpaper/'.length);
+    const fp = path.join(WALLPAPER_DIR, fname);
+    if (!fs.existsSync(fp)) { res.writeHead(404); return res.end(); }
+    const ext = path.extname(fp).toLowerCase();
+    const mime = { '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp' };
+    res.writeHead(200, { 'Content-Type': mime[ext]||'image/*', 'Cache-Control': 'public, max-age=31536000' });
+    return fs.createReadStream(fp).pipe(res);
+  }
+
   serveStatic(p, res);
 });
 

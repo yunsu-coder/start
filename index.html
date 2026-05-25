@@ -34,6 +34,9 @@
   <button class="nav-item" data-panel="chat">
     <span class="nav-icon mi">smart_toy</span><span>对话</span>
   </button>
+  <button class="nav-item" data-panel="wallpaper">
+    <span class="nav-icon mi">wallpaper</span><span>壁纸</span>
+  </button>
   <button class="theme-btn mi" id="themeBtn" title="主题">dark_mode</button>
 </nav>
 
@@ -366,6 +369,53 @@
         <textarea id="chatInput" rows="1" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" onkeydown="handleChatKey(event)"></textarea>
         <button id="chatSendBtn" onclick="sendChat()"><span class="mi">send</span></button>
       </div>
+
+
+<!-- 壁纸面板 -->
+<div class="panel" id="panel-wallpaper" style="display:none;">
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+    <h2 style="margin:0;font-size:1.1rem;">🖼️ 壁纸库</h2>
+    <div style="margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap;">
+      <button class="btn accent" onclick="shuffleWallpaper()"><span class="mi">shuffle</span> 随机</button>
+      <button class="btn" onclick="openWpGallery()"><span class="mi">add_photo_alternate</span> 添加</button>
+      <input type="file" id="wpFileInput" accept="image/*" style="display:none;" multiple onchange="uploadWallpaperFiles(this.files)">
+    </div>
+  </div>
+  <div id="wpCurrent" style="display:none;margin-bottom:1.5rem;">
+    <div style="font-size:.75rem;color:var(--sub);margin-bottom:.4rem;">当前壁纸</div>
+    <div style="position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.4);">
+      <img id="wpCurrentImg" src="" style="width:100%;height:100%;object-fit:cover;">
+      <div style="position:absolute;bottom:0;left:0;right:0;padding:.5rem;background:linear-gradient(transparent,rgba(0,0,0,.7));display:flex;gap:.3rem;">
+        <button class="btn-sm" onclick="shuffleWallpaper()"><span class="mi">shuffle</span> 随机</button>
+        <button class="btn-sm" onclick="openWpGallery()"><span class="mi">photo_library</span> 换图</button>
+        <button class="btn-sm" onclick="setWallpaperOpacity()"><span class="mi">opacity</span> 透明度</button>
+      </div>
+    </div>
+  </div>
+  <div id="wpOpacitySlider" style="display:none;margin-bottom:1rem;align-items:center;gap:.5rem;">
+    <span style="font-size:.75rem;color:var(--sub);">透明度</span>
+    <input type="range" id="wpOpacity" min="10" max="100" value="100" style="flex:1;" oninput="applyWallpaperOpacity(this.value)">
+    <span id="wpOpacityVal" style="font-size:.75rem;width:2.5rem;">100%</span>
+  </div>
+  <div id="wpGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.8rem;"></div>
+  <div id="wpEmpty" style="text-align:center;padding:3rem 0;color:var(--sub);display:none;">
+    <div style="font-size:3rem;margin-bottom:.5rem;">🖼️</div>
+    <div>还没有壁纸</div>
+    <div style="font-size:.8rem;margin-top:.3rem;">点击右上角「添加」从文件中选择图片</div>
+  </div>
+  <div id="wpGalleryModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:var(--card);border-radius:12px;width:90vw;max-width:800px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:.8rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;">
+        <span style="font-weight:600;font-size:.95rem;">📁 从文件中选择图片</span>
+        <div style="margin-left:auto;display:flex;gap:.4rem;">
+          <button class="btn-sm" onclick="openWpGallery2()"><span class="mi">add_photo_alternate</span> 上传</button>
+          <button class="btn-sm" onclick="closeWpGallery()"><span class="mi">close</span></button>
+        </div>
+      </div>
+      <div id="wpGalleryList" style="overflow-y:auto;flex:1;padding:.8rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.5rem;align-content:start;"></div>
+    </div>
+  </div>
+</div>
     </div>
   </div>
 </div>
@@ -387,6 +437,7 @@
 <script src="/js/reader-panel.js?v=1777704498"></script>
 <script src="/js/works-panel.js?v=1777704498"></script>
 <script src="/js/scrape.js?v=1777704498"></script>
+<script src="/js/wallpaper.js"></script>
 <script src="/js/translate-panel.js?v=1777704498"></script>
 <script src="/js/chat.js?v=1777704498"></script>
 </body>
