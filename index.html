@@ -6,338 +6,7 @@
 <title>一苇</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
-<link rel="stylesheet" href="/css/styles.css">
-<style>
-  /* ── ① 青蓝科技（默认）── */
-  :root, body[data-theme="azure"] {
-    --bg: #0d0d12; --card: #15151e; --text: #e4e4ee; --sub: #7e7e9a;
-    --border: #1e1e2e; --accent: #5b8dee; --accent2: #a78bfa;
-    --hover: #1c1c2a; --shadow: 0 1px 4px rgba(0,0,0,0.4);
-    --danger: #f87171; --ok: #4ade80; --warn: #fbbf24;
-    --editor-bg: #0f0f1a; --preview-bg: #15151e;
-    --nav-bg: rgba(21,21,30,0.85); --glow: 0 0 20px rgba(91,141,238,0.15);
-  }
-  /* ── ② 暗夜绿 ── */
-  body[data-theme="emerald"] {
-    --bg: #0d1210; --card: #151d18; --text: #e4eee8; --sub: #7e9a8a;
-    --border: #1e2e24; --accent: #34d399; --accent2: #6ee7b7;
-    --hover: #1c2a22; --shadow: 0 1px 4px rgba(0,0,0,0.4);
-    --danger: #f87171; --ok: #4ade80; --warn: #fbbf24;
-    --editor-bg: #0f1a14; --preview-bg: #151d18;
-    --nav-bg: rgba(21,29,24,0.85); --glow: 0 0 20px rgba(52,211,153,0.15);
-  }
-  /* ── ③ 暖橙棕 ── */
-  body[data-theme="ember"] {
-    --bg: #1a1410; --card: #241d16; --text: #eee4dc; --sub: #9a8a7a;
-    --border: #2e241a; --accent: #f59e0b; --accent2: #fbbf24;
-    --hover: #2a2018; --shadow: 0 1px 4px rgba(0,0,0,0.4);
-    --danger: #f87171; --ok: #4ade80; --warn: #fbbf24;
-    --editor-bg: #1a1610; --preview-bg: #241d16;
-    --nav-bg: rgba(36,29,22,0.85); --glow: 0 0 20px rgba(245,158,11,0.15);
-  }
-  /* ── ④ 极简白 ── */
-  body[data-theme="snow"] {
-    --bg: #f8f8fa; --card: #ffffff; --text: #1a1a28; --sub: #6b6b80;
-    --border: #e2e2ec; --accent: #4f6fd4; --accent2: #7c6ff7;
-    --hover: #f0f0f8; --shadow: 0 1px 3px rgba(0,0,0,0.06);
-    --danger: #ef4444; --ok: #22c55e; --warn: #f59e0b;
-    --editor-bg: #fafafc; --preview-bg: #ffffff;
-    --nav-bg: rgba(255,255,255,0.85); --glow: 0 0 20px rgba(79,111,212,0.08);
-  }
-  /* ── ⑤ 墨绿金 ── */
-  body[data-theme="midnight"] {
-    --bg: #0f1410; --card: #171e18; --text: #e4ece6; --sub: #7e9684;
-    --border: #1e2a20; --accent: #ca8a04; --accent2: #eab308;
-    --hover: #1c261e; --shadow: 0 1px 4px rgba(0,0,0,0.4);
-    --danger: #f87171; --ok: #4ade80; --warn: #fbbf24;
-    --editor-bg: #101a12; --preview-bg: #171e18;
-    --nav-bg: rgba(23,30,24,0.85); --glow: 0 0 20px rgba(202,138,4,0.15);
-  }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--text); min-height: 100vh;
-    transition: background .3s, color .3s;
-  }
-  .navbar {
-    display:flex; align-items:center; justify-content:center; gap:1.6rem;
-    background:var(--nav-bg); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
-    border-bottom:1px solid var(--border);
-    padding:.5rem 1rem; position:sticky; top:0; z-index:100;
-  }
-  .nav-item {
-    display:flex; flex-direction:column; align-items:center; gap:.1rem;
-    cursor:pointer; padding:.35rem .6rem; border-radius:8px;
-    transition:background .2s; color:var(--sub); font-size:.7rem;
-    border:none; background:none; min-width:50px;
-  }
-  .nav-item:hover { background:var(--hover); }
-  .nav-item.active { color:var(--accent); text-shadow:0 0 12px rgba(91,141,238,0.3); }
-  .nav-item .nav-icon { font-size:1.3rem; }
-  .nav-item .nav-icon.mi { font-size:22px; }
-  .theme-btn {
-    margin-left:auto; border:none; background:var(--card);
-    cursor:pointer; font-size:1.2rem; padding:.3rem .5rem; border-radius:8px;
-    border:1px solid var(--border);
-  }
-  .panel { display:none; max-width:900px; margin:0 auto; padding:1.5rem 1rem; }
-  .panel.active { display:block; }
-
-  .time { font-size:3rem; font-weight:200; text-align:center; margin:.3rem 0; }
-  .date { color:var(--sub); font-size:.9rem; text-align:center; }
-  .search { margin:1.2rem 0 1.5rem; }
-  .search form { display:flex; gap:.5rem; }
-  .search input {
-    flex:1; padding:.7rem 1rem; border:1px solid var(--border);
-    border-radius:12px; font-size:1rem; background:var(--card);
-    color:var(--text); outline:none;
-  }
-  .search input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(91,141,238,0.15); }
-  .search button {
-    padding:.7rem 1.5rem; border:none; border-radius:12px;
-    background:var(--accent); color:#fff; font-size:1rem; cursor:pointer;
-  }
-  .search button:hover { opacity:.85; }
-  .section { margin-bottom:1.2rem; }
-  .section-title { font-size:.78rem; letter-spacing:.05em; color:var(--sub); margin-bottom:.4rem; padding-left:.2rem; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(105px,1fr)); gap:.4rem; }
-  .link {
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    padding:.7rem .3rem; background:var(--card); border:1px solid var(--border);
-    border-radius:10px; text-decoration:none; color:var(--text);
-    transition:transform .2s,box-shadow .2s,background .2s,border-color .2s;
-    box-shadow:var(--shadow); min-height:66px;
-  }
-  .link:hover {
-    transform:translateY(-3px);
-    box-shadow:0 8px 24px rgba(0,0,0,0.3), var(--glow);
-    border-color:var(--accent); background:var(--hover);
-  }
-  .link .icon { font-size:1.5rem; margin-bottom:.15rem; transition:transform .2s; }
-  .link:hover .icon { transform:scale(1.15); }
-  .link .name { font-size:.72rem; text-align:center; word-break:break-all; }
-  .status-bar { display:flex; gap:1rem; justify-content:center; margin:1rem 0; font-size:.72rem; color:var(--sub); flex-wrap:wrap; }
-  .dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:.2rem; }
-  .dot.green { background:var(--ok); } .dot.yellow { background:#eab308; } .dot.red { background:var(--danger); }
-
-  .storage-bar { margin-bottom:1.5rem; }
-  .storage-bar .label { display:flex; justify-content:space-between; font-size:.8rem; margin-bottom:.3rem; }
-  .bar { height:8px; background:var(--border); border-radius:4px; overflow:hidden; }
-  .bar .fill { height:100%; border-radius:4px; transition:width .3s; }
-  .bar .fill.low { background:var(--ok); } .bar .fill.mid { background:#eab308; } .bar .fill.high { background:var(--danger); }
-  .drop-zone {
-    border:2px dashed var(--border); border-radius:14px; padding:2.5rem 1rem;
-    text-align:center; transition:border .2s,background .2s; cursor:pointer; margin-bottom:1rem;
-  }
-  .drop-zone:hover, .drop-zone.drag-over { border-color:var(--accent); background:var(--hover); }
-  .drop-zone .icon { font-size:2.2rem; margin-bottom:.4rem; }
-  .drop-zone .hint { color:var(--sub); font-size:.8rem; }
-  .drop-zone .hint strong { color:var(--accent); }
-  .file-list { display:flex; flex-direction:column; gap:.25rem; min-height:40px; border-radius:8px; transition:background .2s; }
-  .file-list.drag-over { background:var(--hover); }
-  .file-list.drag-over { background:var(--hover); }
-
-  /* 网格视图 */
-  .file-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:.5rem; min-height:40px; border-radius:8px; transition:background .2s; }
-  .file-grid.drag-over { background:var(--hover); }
-  .file-card { background:var(--card); border:1px solid var(--border); border-radius:8px; overflow:hidden; transition:transform .15s,box-shadow .15s; }
-  .file-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.2); }
-  .file-card.drag-over { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent); }
-  .file-card-preview { width:100%; height:90px; background:var(--bg); display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; }
-  .file-card-icon { font-size:2rem; }
-  .file-card-name { padding:.3rem .4rem; font-size:.72rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
-  .file-card-name:hover { color:var(--accent); }
-  .file-card-size { padding:0 .4rem .3rem; font-size:.65rem; color:var(--sub); }
-
-  .file-row {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:.5rem .7rem; background:var(--card); border-radius:8px;
-    border:1px solid var(--border); gap:.5rem;
-  }
-  .file-row .fname { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.85rem; }
-  .file-row .fname-text { cursor:pointer; display:inline-block; }
-  .file-row .fname-text:hover { color:var(--accent); }
-  .file-row .fsize { color:var(--sub); font-size:.72rem; min-width:55px; text-align:right; }
-  .file-row .actions { display:flex; gap:.2rem; }
-  .file-row.drag-over { border-color:var(--accent); background:var(--hover); box-shadow:0 0 0 2px var(--accent); }
-  .file-row[draggable="true"]:active { opacity:0.6; }
-  .btn-sm {
-    padding:.2rem .5rem; border:1px solid var(--border); border-radius:5px;
-    cursor:pointer; font-size:.7rem; background:var(--card); color:var(--text);
-    transition:background .15s;
-  }
-  .btn-sm:hover { background:var(--hover); }
-  .btn-sm.danger { color:var(--danger); border-color:var(--danger); }
-  .btn-sm.danger:hover { background:#fef2f2; }
-  .empty-state { text-align:center; padding:2rem; color:var(--sub); font-size:.85rem; }
-
-  .notes-topbar { display:flex; gap:.5rem; align-items:center; margin-bottom:.8rem; flex-wrap:wrap; }
-  .notes-topbar .auto-save { font-size:.72rem; color:var(--ok); margin-left:auto; }
-  .notes-layout { display:flex; gap:.8rem; height:calc(100vh - 180px); }
-  .notes-sidebar { width:190px; border-right:1px solid var(--border); flex-shrink:0; overflow-y:auto; padding-right:.3rem; }
-  .btn-new { width:100%; padding:.45rem; margin-bottom:.4rem; border:1px solid var(--border); border-radius:7px; cursor:pointer; background:var(--card); color:var(--accent); font-size:.8rem; }
-  .btn-new:hover { background:var(--hover); }
-  .note-list-item {
-    padding:.45rem .5rem; cursor:pointer; border-radius:5px; font-size:.75rem;
-    border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:.1rem;
-  }
-  .note-list-item:hover { background:var(--hover); }
-  .note-list-item.active { background:var(--hover); color:var(--accent); font-weight:500; }
-  .note-list-item .ntitle { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .note-list-item .ndate { font-size:.62rem; color:var(--sub); }
-  .note-editor { flex:1; display:flex; flex-direction:column; gap:.4rem; min-width:0; }
-  .note-editor .toolbar { display:flex; gap:.4rem; flex-wrap:wrap; }
-  .note-editor input.title { padding:.4rem .6rem; border:1px solid var(--border); border-radius:7px; background:var(--card); color:var(--text); font-size:.95rem; outline:none; }
-  .split-pane { display:flex; gap:.5rem; flex:1; min-height:0; }
-  .split-pane .pane { flex:1; display:flex; flex-direction:column; min-width:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
-  .split-pane .pane-header { font-size:.72rem; color:var(--sub); padding:.3rem .6rem; border-bottom:1px solid var(--border); background:var(--card); flex-shrink:0; }
-  .split-pane textarea { flex:1; padding:.6rem; border:none; background:var(--editor-bg); color:var(--text); font-size:.85rem; resize:none; font-family:"SF Mono","Fira Code",monospace; outline:none; line-height:1.6; }
-  .split-pane .preview { flex:1; padding:.6rem; background:var(--preview-bg); overflow-y:auto; line-height:1.7; font-size:.85rem; }
-  .split-pane .preview h1,.split-pane .preview h2,.split-pane .preview h3 { margin:.6em 0 .3em; }
-  .split-pane .preview p { margin:.3em 0; }
-  .split-pane .preview code { background:var(--hover); padding:1px 5px; border-radius:3px; font-size:.8rem; }
-  .split-pane .preview pre { background:var(--hover); padding:.6rem; border-radius:6px; overflow-x:auto; }
-  .split-pane .preview pre code { background:none; padding:0; }
-  .btn { padding:.4rem 1rem; border:none; border-radius:7px; cursor:pointer; font-size:.8rem; transition:all .2s; }
-  .btn:hover { opacity:.9; transform:translateY(-1px); }
-  .btn.accent { background:var(--accent); color:#fff; }
-  .btn.accent:hover { box-shadow:0 4px 12px rgba(91,141,238,0.3); }
-  .btn.outline { background:transparent; border:1px solid var(--border); color:var(--text); }
-  .btn.danger { background:var(--danger); color:#fff; }
-
-  /* 采集模块 */
-  .scrape-form { display:flex; flex-direction:column; gap:.8rem; margin-bottom:1.5rem; }
-  .scrape-form textarea {
-    width:100%; padding:.7rem; border:1px solid var(--border); border-radius:10px;
-    background:var(--card); color:var(--text); font-size:.85rem; resize:vertical;
-    min-height:80px; font-family:inherit; outline:none;
-  }
-  .scrape-form textarea:focus { border-color:var(--accent); }
-  .scrape-opts { display:flex; gap:1rem; align-items:center; flex-wrap:wrap; }
-  .scrape-opts label { font-size:.85rem; display:flex; align-items:center; gap:.3rem; cursor:pointer; }
-  .scrape-opts input[type="radio"] { accent-color:var(--accent); }
-  .scrape-progress { font-size:.85rem; color:var(--accent); margin-bottom:1rem; }
-  .scrape-sessions { display:flex; flex-direction:column; gap:.8rem; }
-  .scrape-card {
-    background:var(--card); border:1px solid var(--border); border-radius:10px;
-    padding:.8rem; box-shadow:var(--shadow);
-  }
-  .scrape-card .sc-header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:.5rem; }
-  .scrape-card .sc-title { font-weight:500; font-size:.9rem; word-break:break-all; }
-  .scrape-card .sc-meta { font-size:.72rem; color:var(--sub); }
-  .scrape-card .sc-preview { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.5rem; }
-  .scrape-card .sc-preview img { width:80px; height:60px; object-fit:cover; border-radius:6px; border:1px solid var(--border); cursor:pointer; }
-  .scrape-card .sc-preview img:hover { transform:scale(1.05); }
-  .scrape-card .sc-actions { display:flex; gap:.3rem; margin-top:.5rem; }
-  .sc-more-badge {
-    display:inline-flex; align-items:center; justify-content:center;
-    width:80px; height:60px; border-radius:6px; border:1px dashed var(--border);
-    color:var(--accent); font-size:.8rem; font-weight:600; cursor:pointer;
-  }
-  .sc-more-badge:hover { background:var(--hover); }
-  .sc-expand { margin-top:.4rem; padding:.5rem; background:var(--bg); border-radius:8px; border:1px solid var(--border); }
-
-  /* 贴吧采集 */
-  .tieba-section { margin-top:1rem; padding-top:1rem; border-top:1px solid var(--border); }
-  .tieba-form { display:flex; flex-direction:column; gap:.7rem; }
-  .tieba-form .tieba-row { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
-  .tieba-form input[type="text"] {
-    flex:1; min-width:150px; padding:.55rem .7rem;
-    border:1px solid var(--border); border-radius:8px;
-    background:var(--card); color:var(--text); font-size:.85rem; outline:none;
-  }
-  .tieba-form input[type="text"]:focus { border-color:var(--accent); }
-  .tieba-form select {
-    padding:.5rem .7rem; border:1px solid var(--border); border-radius:8px;
-    background:var(--card); color:var(--text); font-size:.8rem; outline:none;
-  }
-  .tieba-form select:focus { border-color:var(--accent); }
-  .tieba-form .tieba-label { font-size:.8rem; color:var(--sub); white-space:nowrap; }
-  .tieba-result { margin-top:.5rem; }
-  .tieba-result .sc-meta a { color:var(--accent); text-decoration:none; }
-  .tieba-result .sc-meta a:hover { text-decoration:underline; }
-
-  .toast {
-    position:fixed; bottom:2rem; left:50%; transform:translateX(-50%);
-    padding:.6rem 1.2rem; border-radius:10px; background:#333; color:#fff;
-    font-size:.85rem; z-index:999; opacity:0; transition:opacity .3s; pointer-events:none;
-  }
-  .toast.show { opacity:1; }
-
-  /* 预览弹窗 */
-  .modal-overlay {
-    position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000;
-    display:none; align-items:center; justify-content:center; padding:1rem;
-  }
-  .modal-overlay.show { display:flex; }
-  .modal {
-    background:var(--card); border-radius:12px; max-width:90vw; max-height:90vh;
-    width:700px; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.2);
-  }
-  .modal-header {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:.8rem 1rem; border-bottom:1px solid var(--border);
-  }
-  .modal-header .m-title { font-weight:600; font-size:.9rem; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .modal-header .m-close {
-    border:none; background:none; font-size:1.3rem; cursor:pointer; color:var(--sub);
-    padding:0 .3rem;
-  }
-  .modal-header .m-close:hover { color:var(--text); }
-  .modal-body { flex:1; overflow:auto; padding:1rem; }
-  .modal-body img { max-width:100%; max-height:70vh; display:block; margin:0 auto; border-radius:6px; }
-  .modal-body pre {
-    background:var(--editor-bg); padding:1rem; border-radius:8px;
-    font-size:.8rem; line-height:1.5; overflow-x:auto; white-space:pre-wrap; word-break:break-all;
-  }
-  .modal-body .file-info { text-align:center; padding:2rem; color:var(--sub); }
-  .modal-body .file-info .fi-icon { font-size:3rem; margin-bottom:.5rem; }
-
-  @media (max-width:700px) {
-    .notes-layout { flex-direction:column; height:auto; }
-    .notes-sidebar { width:100%; border-right:none; border-bottom:1px solid var(--border); display:flex; overflow-x:auto; padding-bottom:.3rem; gap:.3rem; }
-    .notes-sidebar .btn-new { flex-shrink:0; width:auto; }
-    .note-list-item { flex-shrink:0; min-width:90px; border-bottom:none; }
-    .split-pane { flex-direction:column; min-height:500px; }
-    .grid { grid-template-columns:repeat(auto-fill,minmax(85px,1fr)); }
-    .navbar { gap:.8rem; }
-    #readerContent { height:calc(100vh - 100px) !important; }
-  }
-
-  /* 阅读器 */
-  .book-card {
-    display:flex;flex-direction:column;align-items:center;padding:1rem .5rem;
-    background:var(--card);border:1px solid var(--border);border-radius:10px;
-    cursor:pointer;transition:transform .15s,box-shadow .15s;text-align:center;
-    box-shadow:var(--shadow);
-  }
-  .book-card:hover { transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.1); }
-  .book-card .cover { font-size:2.5rem;margin-bottom:.3rem; }
-  .book-card .btitle { font-size:.8rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%; }
-  .book-card .bprogress { font-size:.65rem;color:var(--sub);margin-top:.2rem; }
-
-  /* 阅读器主题 */
-  .reader-light { background:#fff;color:#333; }
-  .reader-sepia { background:#f4ecd8;color:#5b4636; }
-  .reader-dark { background:#1a1a2e;color:#ccc; }
-  .reader-content-inner { max-width:750px;margin:0 auto;padding:2rem 1.5rem;line-height:1.9; }
-  .reader-content-inner h1,.reader-content-inner h2,.reader-content-inner h3 { margin:1em 0 .5em; }
-  .reader-content-inner p { margin:.8em 0;text-indent:2em; }
-
-  /* EPUB 样式修复 */
-  #readerContent iframe { width:100%;height:100%;border:none; }
-  #readerContent img { max-width:100%;height:auto; }
-
-  .preview table { border-collapse:collapse; margin:.8em 0; width:100%; }
-  .preview th { background:var(--accent); color:#fff; padding:6px 10px; border:1px solid var(--accent); }
-  .preview td { border:1px solid var(--border); padding:6px 10px; }
-  .preview tr:nth-child(even) td { background:var(--hover); }
-  .preview blockquote { border-left:3px solid var(--accent); margin:.8em 0; padding:.3em 1em; color:var(--sub); }
-  .preview li.task { list-style:none; margin-left:-1.5em; }
-  .preview li.task.done { text-decoration:line-through; opacity:0.6; }
-  .preview del { opacity:0.6; }
-  .preview hr { border:none; border-top:1px solid var(--border); margin:1em 0; }
-</style>
+<link rel="stylesheet" href="/css/styles.css?v=1777704498">
 <script src="/lib/jszip/dist/jszip.min.js"></script>
 <script src="/lib/epubjs/dist/epub.min.js"></script>
 </head>
@@ -359,6 +28,12 @@
   <button class="nav-item" data-panel="read">
     <span class="nav-icon mi">menu_book</span><span>阅读</span>
   </button>
+  <button class="nav-item" data-panel="translate">
+    <span class="nav-icon mi">translate</span><span>翻译</span>
+  </button>
+  <button class="nav-item" data-panel="chat">
+    <span class="nav-icon mi">smart_toy</span><span>对话</span>
+  </button>
   <button class="theme-btn mi" id="themeBtn" title="主题">dark_mode</button>
 </nav>
 
@@ -369,7 +44,7 @@
   <div class="search">
     <form id="searchForm">
       <input type="text" id="q" placeholder="Bing 搜索..." autofocus>
-      <button type="submit">搜索</button>
+      <button type="submit"><span class="mi">search</span> 搜索</button>
     </form>
   </div>
   <div class="status-bar" id="status"></div>
@@ -420,7 +95,7 @@
   <div id="batchBar" style="display:none;align-items:center;gap:.5rem;margin-bottom:.5rem;padding:.4rem .6rem;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:.8rem;">
     <label style="display:flex;align-items:center;gap:.3rem;cursor:pointer;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> 全选</label>
     <span id="selectedCount" style="color:var(--accent);"></span>
-    <button class="btn-sm danger" onclick="batchDelete()" style="margin-left:auto;">🗑 删除选中</button>
+    <button class="btn-sm danger" onclick="batchDelete()" style="margin-left:auto;"><span class="mi">delete</span> 删除选中</button>
   </div>
   <div class="file-list" id="fileList" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '')"></div>
   <div class="file-grid" id="fileGrid" style="display:none;" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '')"></div>
@@ -428,34 +103,90 @@
 </div>
 </div>
 
-<!-- 笔记 -->
+<!-- 笔记 + 章节写作 -->
 <div class="panel" id="panel-notes">
-  <div class="notes-topbar"><h2 style="margin:0;"><span class="mi">edit_note</span> Markdown 笔记</h2><span class="auto-save" id="saveIndicator"></span></div>
+  <div class="notes-topbar">
+    <h2 style="margin:0;"><span id="writingModeTitle"><span class="mi">note</span> 笔记</span></h2>
+    <span class="auto-save" id="saveIndicator"></span>
+  </div>
   <div class="notes-layout">
     <div class="notes-sidebar">
-      <button class="btn-new" onclick="newNote()">＋ 新建笔记</button>
-      <input type="text" id="noteSearch" placeholder="搜索笔记..." oninput="loadNotesList()" style="width:100%;padding:.4rem .6rem;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;margin-top:.3rem;">
+      <!-- 侧栏标签：笔记 / 小说 -->
+      <div style="display:flex;gap:.2rem;margin-bottom:.4rem;">
+        <button id="tabNotes" class="btn-sm" style="flex:1;background:var(--accent);color:#fff;border:none;font-weight:500;" onclick="switchNoteTab('notes')"><span class="mi">note</span> 笔记</button>
+        <button id="tabNovel" class="btn-sm" style="flex:1;background:var(--hover);color:var(--text);border:1px solid var(--border);" onclick="switchNoteTab('novel')"><span class="mi">book</span> 小说</button>
+        <button class="btn-sm" onclick="showWorkDialog()" style="padding:.3rem .5rem;" title="作品管理">⚙️</button>
+      </div>
+      <div id="noteFilterRow" style="margin-bottom:.4rem;">
+        <select id="workFilter" onchange="filterByWork(this.value)" style="width:100%;padding:.3rem .4rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.75rem;outline:none;display:none;">
+          <option value="">全部作品</option>
+        </select>
+      </div>
+      <!-- 搜索 + 新建（默认显示笔记模式） -->
+      <div style="display:flex;gap:.3rem;margin-bottom:.3rem;">
+        <input type="text" id="noteSearch" placeholder="搜索标题..." oninput="loadNotesList()" style="flex:1;padding:.4rem .6rem;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
+        <button class="btn-sm" id="btnQuickNew" onclick="newNote()" style="white-space:nowrap;">＋</button>
+        <button id="btnNewChapter" onclick="newNote()" style="display:none;border:none;border-radius:7px;background:var(--accent);color:#fff;font-size:.9rem;cursor:pointer;width:30px;height:30px;align-items:center;justify-content:center;flex-shrink:0;">
+          <span class="mi" style="vertical-align:middle;font-size:1rem;">add</span>
+        </button>
+      </div>
       <div id="noteList"></div>
     </div>
-    <div class="note-editor" id="noteEditor" style="display:none;">
-      <input class="title" id="noteTitle" placeholder="笔记标题...">
+    <div class="note-editor" id="noteEditor" style="display:none;flex-direction:column;">
+      <input class="title" id="noteTitle" placeholder="标题...">
+      <!-- 字数统计 + 作品关联 -->
+      <div style="display:flex;align-items:center;gap:.5rem;font-size:.72rem;color:var(--sub);padding:.2rem 0;">
+        <span id="wordCount">📊 0 字</span>
+        <span id="readTime"></span>
+        <span style="flex:1;"></span>
+        <span style="color:var(--border);">|</span>
+        <span class="mi" style="font-size:.85rem;">book</span>
+        <select id="noteWorkId" onchange="markDirty()" style="padding:.2rem .3rem;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--text);font-size:.72rem;outline:none;">
+          <option value="">无作品</option>
+        </select>
+        <span style="color:var(--sub);">#</span>
+        <input type="number" id="noteChapterOrder" value="0" min="0" step="1" onchange="markDirty()" style="width:40px;padding:.2rem;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--text);font-size:.72rem;outline:none;">
+      </div>
       <div class="toolbar">
         <button class="btn-sm" onclick="insertMd('**','**')">B</button>
         <button class="btn-sm" onclick="insertMd('*','*')"><i>I</i></button>
         <button class="btn-sm" onclick="insertMd('`','`')">&lt;/&gt;</button>
         <button class="btn-sm" onclick="insertMd('\n- ','')">•</button>
         <button class="btn-sm" onclick="insertMd('\n# ','+')">H</button>
-        <button class="btn-sm" onclick="insertImage()" title="插入图片">🖼️</button>
-        <button class="btn outline" onclick="exportPDF()" style="margin-left:auto;"><span class="mi">picture_as_pdf</span> 导出 PDF</button>
+        <button class="btn-sm" onclick="insertImage()" title="插入图片"><span class="mi">image</span></button>
+        <div style="margin-left:auto;display:flex;gap:.2rem;">
+<button class="btn-sm" onclick="exportNote('md')" title="导出 Markdown"><span class="mi">download</span></button>
+<button class="btn-sm" onclick="exportNote('txt')" title="导出 TXT"><span class="mi">description</span></button>
+<button class="btn-sm" onclick="exportNote('pdf')" title="导出 PDF">📕</button>
+<button class="btn-sm" onclick="exportNote('docx')" title="导出 Word">📘</button>
+</div>
       </div>
       <div class="split-pane">
-        <div class="pane"><div class="pane-header">编辑</div><textarea id="noteContent" placeholder="Markdown 内容..." oninput="renderLive()"></textarea></div>
+        <div class="pane"><div class="pane-header">编辑</div><textarea id="noteContent" placeholder="开始写作…" oninput="renderLive();updateWordCount()"></textarea></div>
         <div class="pane"><div class="pane-header">预览</div><div class="preview" id="notePreview"></div></div>
       </div>
       <div class="toolbar" style="justify-content:flex-end;">
         <button class="btn danger" onclick="deleteNote()">删除</button>
-        <button class="btn accent" onclick="saveNote()">💾 保存</button>
+        <button class="btn accent" onclick="saveNote()"><span class="mi">save</span> 保存</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- 作品管理弹窗 -->
+<div class="modal-overlay" id="workDialog" onclick="if(event.target===this)hideWorkDialog()">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header"><span class="m-title"><span class="mi">library_books</span> 作品管理</span><button class="m-close" onclick="hideWorkDialog()">✕</button></div>
+    <div class="modal-body">
+      <div style="display:flex;gap:.5rem;margin-bottom:.8rem;">
+        <input type="text" id="workTitleInput" placeholder="作品标题（如：火影同人 - 羁绊）" style="flex:1;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.85rem;outline:none;">
+        <button class="btn accent" onclick="saveWorkFromDialog()">创建</button>
+      </div>
+      <div style="display:flex;gap:.5rem;margin-bottom:.8rem;">
+        <input type="text" id="workFandomInput" placeholder="作品来源（如：火影忍者）" style="flex:1;padding:.4rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
+        <input type="text" id="workDescInput" placeholder="简介（可选）" style="flex:2;padding:.4rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
+      </div>
+      <div id="workList"></div>
     </div>
   </div>
 </div>
@@ -474,31 +205,31 @@
   <div class="scrape-form">
     <textarea id="scrapeUrls" placeholder="支持多种模式：&#10;① 枚举：/page/{1,4,7,9,12}.html&#10;② 步长：/page/{1:+3,+3,+2,max=50}.html&#10;③ 范围：/page/{1-50}.html&#10;④ 智能展开：粘贴两行不同数字自动展开&#10;⑤ 多行直接输入"></textarea>
     <div class="scrape-opts">
-      <label><input type="radio" name="scrapeType" value="images" checked> 📷 图片</label>
-      <label><input type="radio" name="scrapeType" value="text"> 📄 文本</label>
-      <label><input type="radio" name="scrapeType" value="both"> 📷📄 图文+文档</label>
-      <label><input type="radio" name="scrapeType" value="video"> 🎬 视频</label>
-      <label><input type="radio" name="scrapeType" value="music"> 🎵 音频</label>
-      <button class="btn accent" onclick="startScrape()" style="margin-left:auto;">🚀 开始采集</button>
+      <label><input type="radio" name="scrapeType" value="images" checked> <span class="mi">image</span> 图片</label>
+      <label><input type="radio" name="scrapeType" value="text"> <span class="mi">text_snippet</span> 文本</label>
+      <label><input type="radio" name="scrapeType" value="both"> <span class="mi">image</span><span class="mi">description</span> 图文+文档</label>
+      <label><input type="radio" name="scrapeType" value="video"> <span class="mi">smart_display</span> 视频</label>
+      <label><input type="radio" name="scrapeType" value="music"> <span class="mi">music_note</span> 音频</label>
+      <button class="btn accent" onclick="startScrape()" style="margin-left:auto;"><span class="mi">travel_explore</span> 开始采集</button>
     </div>
   </div>
   <div class="scrape-progress" id="scrapeProgress"></div>
   <div id="scrapeBatchBar" style="display:none;align-items:center;gap:.5rem;margin-bottom:.5rem;padding:.4rem .6rem;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:.8rem;">
     <label style="display:flex;align-items:center;gap:.3rem;cursor:pointer;"><input type="checkbox" id="scrapeSelectAll" onchange="toggleScrapeSelectAll()"> 全选</label>
     <span id="scrapeSelectedCount" style="color:var(--accent);"></span>
-    <button class="btn-sm" onclick="batchTransferScrape()" style="margin-left:auto;">📁 批量转存</button>
-    <button class="btn-sm danger" onclick="batchDelScrape()">🗑 批量删除</button>
+    <button class="btn-sm" onclick="batchTransferScrape()" style="margin-left:auto;"><span class="mi">folder</span> 批量转存</button>
+    <button class="btn-sm danger" onclick="batchDelScrape()"><span class="mi">delete</span> 批量删除</button>
   </div>
   <div class="scrape-sessions" id="scrapeSessions"></div>
   <div class="empty-state" id="scrapeEmpty">还没有采集记录，输入 URL 开始采集吧</div>
 
   <!-- 贴吧采集 -->
   <div class="tieba-section">
-    <h3 style="margin-bottom:.6rem;font-size:.9rem;">📋 百度贴吧采集</h3>
+    <h3 style="margin-bottom:.6rem;font-size:.9rem;"><span class="mi">forum</span> 百度贴吧采集</h3>
     <div class="tieba-form">
       <div class="tieba-row">
         <input type="text" id="tiebaKw" placeholder="贴吧名称，如：孙笑川" style="flex:1;">
-        <button class="btn accent" onclick="startTiebaScrape()" id="tiebaBtn">🚀 开始抓取</button>
+        <button class="btn accent" onclick="startTiebaScrape()" id="tiebaBtn"><span class="mi">forum</span> 开始抓取</button>
       </div>
       <div class="tieba-row" style="gap:1rem;">
         <span class="tieba-label">页数</span>
@@ -525,6 +256,65 @@
 </div>
 
 <!-- 阅读器 -->
+<!-- 翻译 -->
+<div class="panel" id="panel-translate">
+  <div class="tl-lang-row">
+    <select id="tlFrom">
+      <option value="auto">自动检测</option>
+      <option value="zh">中文</option>
+      <option value="en">English</option>
+      <option value="ja">日本語</option>
+      <option value="ko">한국어</option>
+      <option value="fr">Français</option>
+      <option value="de">Deutsch</option>
+      <option value="es">Español</option>
+      <option value="pt">Português</option>
+    </select>
+    <button class="tl-swap" id="tlSwap" title="互换语言"><span class="mi">swap_horiz</span></button>
+    <select id="tlTo">
+      <option value="en">English</option>
+      <option value="zh" selected>中文</option>
+      <option value="ja">日本語</option>
+      <option value="ko">한국어</option>
+      <option value="fr">Français</option>
+      <option value="de">Deutsch</option>
+      <option value="es">Español</option>
+      <option value="pt">Português</option>
+    </select>
+    <span class="tl-detect" id="tlDetect"></span>
+  </div>
+
+  <div class="tl-panes">
+    <div class="tl-pane">
+      <div class="tl-pane-header"><span class="mi">edit</span> 原文</div>
+      <textarea id="tlInput" placeholder="输入文字后按 1 保存到历史…"></textarea>
+    </div>
+    <div class="tl-pane">
+      <div class="tl-pane-header">
+        <span class="mi">g_translate</span> 译文
+        <span class="tl-grammar-badge" id="tlGrammarBadge"></span>
+      </div>
+      <div class="tl-output" id="tlOutput" style="border-bottom:1px solid var(--border);"><span class="placeholder">等待输入…</span></div>
+      <div class="tl-grammar" id="tlGrammar"></div>
+    </div>
+  </div>
+
+  <div class="tl-actions">
+    <button class="btn accent" id="tlSpeakSrc"><span class="mi">volume_up</span> 读原文</button>
+    <button class="btn accent" id="tlSpeakTgt"><span class="mi">volume_up</span> 读译文</button>
+    <button class="btn outline" id="tlSaveNote"><span class="mi">note_add</span> 存笔记</button>
+    <span class="tl-hint">按 <kbd>1</kbd> 保存到历史</span>
+  </div>
+
+  <div class="tl-history">
+    <div class="tl-history-header">
+      <span><span class="mi">history</span> 翻译历史</span>
+      <button class="btn-sm" id="tlClearHistory">清空全部</button>
+    </div>
+    <div class="tl-history-list" id="tlHistoryList"></div>
+  </div>
+</div>
+
 <div class="panel" id="panel-read" style="padding:0;max-width:100%;">
   <!-- 书架 -->
   <div id="readerShelf" style="padding:1.5rem 1rem;max-width:900px;margin:0 auto;">
@@ -541,7 +331,7 @@
         <option value="16">16px</option><option value="18" selected>18px</option><option value="20">20px</option><option value="22">22px</option><option value="24">24px</option>
       </select>
       <select id="readerTheme" onchange="updateReaderSettings()" style="font-size:.75rem;padding:.2rem;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text);">
-        <option value="light">☀️ 日间</option><option value="sepia">📜 护眼</option><option value="dark">🌙 夜间</option>
+        <option value="light">日间</option><option value="sepia">护眼</option><option value="dark">夜间</option>
       </select>
       <button class="btn-sm" onclick="toggleTOC()">☰ 目录</button>
       <button class="btn-sm" onclick="toggleAutoScroll()" id="autoScrollBtn" title="自动滚屏 / 滚轮调速 / +/- 键调速">⏯ 自动滚屏</button>
@@ -561,6 +351,25 @@
   </div>
 </div>
 
+<!-- 对话 -->
+<div class="panel" id="panel-chat">
+  <div class="chat-container">
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-welcome">
+        <div class="chat-welcome-icon mi">smart_toy</div>
+        <h3>Claude Code 对话</h3>
+        <p>DeepSeek V4 Pro · 支持代码、写作、翻译等</p>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <div class="chat-input-row">
+        <textarea id="chatInput" rows="1" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" onkeydown="handleChatKey(event)"></textarea>
+        <button id="chatSendBtn" onclick="sendChat()"><span class="mi">send</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 预览弹窗 -->
 <div class="modal-overlay" id="previewModal" onclick="if(event.target===this)closePreview()">
   <div class="modal">
@@ -571,7 +380,14 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/js/app.js"></script>
-<script src="/js/scrape.js"></script>
+<!-- app.js → 分拆为 5 个模块 -->
+<script src="/js/core.js?v=1777704498"></script>
+<script src="/js/files-panel.js?v=1777704498"></script>
+<script src="/js/notes-panel.js?v=1777704498"></script>
+<script src="/js/reader-panel.js?v=1777704498"></script>
+<script src="/js/works-panel.js?v=1777704498"></script>
+<script src="/js/scrape.js?v=1777704498"></script>
+<script src="/js/translate-panel.js?v=1777704498"></script>
+<script src="/js/chat.js?v=1777704498"></script>
 </body>
 </html>

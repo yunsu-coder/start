@@ -352,7 +352,7 @@ async function startTiebaScrape() {
       toast('✅ 抓取完成：' + data.threadCount + ' 个帖子' + errWarn);
 
       // 显示结果
-      let html = '<div class="scrape-card"><div class="sc-header"><div>';
+      let html = '<div class="scrape-card tilt-card"><div class="sc-header"><div>';
       html += '<div class="sc-title">📋 ' + escHtml(kw) + '吧</div>';
       html += '<div class="sc-meta">' + new Date(data.time).toLocaleString('zh-CN') + ' · ' + data.threadCount + '个帖子 · ' + (data.textSize > 1024 ? (data.textSize/1024).toFixed(1)+'KB' : data.textSize+'B') + '</div>';
       html += '</div></div>';
