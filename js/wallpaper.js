@@ -2,16 +2,47 @@
 
 let wpList = [];
 let wpCurrent = null;
+let carouselTimer = null;
+let carouselInterval = 600000; // 10min
 
 async function loadWallpapers() {
   try {
     const r = await fetch('/api/wallpapers');
     const data = await r.json();
     wpList = data.list || [];
-    wpCurrent = data.current || null;
+    wpCurrent = data.current || null; // 可能 null
   } catch(e) { wpList = []; wpCurrent = null; }
   renderWallpapers();
-  applyWallpaperToHome();
+  applyWallpaper();
+}
+
+// ===== 全屏壁纸：用一个 overlay 铺在 body 上 =====
+(function initWallpaperOverlay() {
+  if (document.getElementById('wpOverlay')) return;
+  const div = document.createElement('div');
+  div.id = 'wpOverlay';
+  div.style.cssText = `
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 0; pointer-events: none;
+    background-size: cover; background-position: center; background-repeat: no-repeat;
+    opacity: 0; transition: opacity .6s ease;
+  `;
+  document.body.prepend(div);
+})();
+
+function applyWallpaper() {
+  const overlay = document.getElementById('wpOverlay');
+  if (!overlay) return;
+  if (!wpCurrent) {
+    overlay.style.opacity = '0';
+    overlay.style.backgroundImage = '';
+    document.body.style.backgroundColor = '';
+    return;
+  }
+  const url = wpCurrent.path + '?t=' + Date.now();
+  const opacity = parseInt(localStorage.getItem('wpOpacity') || '100') / 100;
+  overlay.style.backgroundImage = `url('${url}')`;
+  overlay.style.opacity = opacity;
 }
 
 function renderWallpapers() {
@@ -28,10 +59,14 @@ function renderWallpapers() {
   }
   if (empty) empty.style.display = 'none';
 
-  if (current && wpCurrent) {
-    current.style.display = 'block';
-    const img = document.getElementById('wpCurrentImg');
-    if (img) img.src = wpCurrent.path + '?t=' + Date.now();
+  if (current) {
+    if (wpCurrent) {
+      current.style.display = 'block';
+      const img = document.getElementById('wpCurrentImg');
+      if (img) img.src = wpCurrent.path + '?t=' + Date.now();
+    } else {
+      current.style.display = 'none';
+    }
   }
 
   grid.innerHTML = wpList.map(wp => `
@@ -48,24 +83,8 @@ function renderWallpapers() {
   `).join('');
 }
 
-function applyWallpaperToHome() {
-  const home = document.getElementById('panel-home');
-  if (!home) return;
-  if (!wpCurrent) {
-    home.style.backgroundImage = '';
-    home.style.opacity = '';
-    return;
-  }
-  const url = wpCurrent.path + '?t=' + Date.now();
-  const opacity = localStorage.getItem('wpOpacity') || '100';
-  home.style.backgroundImage = `url('${url}')`;
-  home.style.backgroundSize = 'cover';
-  home.style.backgroundPosition = 'center';
-  home.style.backgroundRepeat = 'no-repeat';
-  home.style.opacity = opacity / 100;
-}
-
 async function setWallpaper(id) {
+  stopCarousel();
   const r = await fetch('/api/wallpaper/current', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
@@ -75,19 +94,20 @@ async function setWallpaper(id) {
     wpCurrent = data.wallpaper;
     wpList = wpList.map(w => ({ ...w, current: w.id === id }));
     renderWallpapers();
-    applyWallpaperToHome();
+    applyWallpaper();
     toast('✅ 壁纸已更换');
   }
 }
 
 async function shuffleWallpaper() {
+  stopCarousel();
   const r = await fetch('/api/wallpaper/random', { method: 'POST' });
   const data = await r.json();
   if (data.ok) {
     wpCurrent = data.wallpaper;
     wpList = wpList.map(w => ({ ...w, current: w.id === wpCurrent.id }));
     renderWallpapers();
-    applyWallpaperToHome();
+    applyWallpaper();
     toast('🎲 随机切换');
   } else {
     toast('⚠️ ' + (data.error || '壁纸库为空'));
@@ -99,10 +119,13 @@ async function delWallpaper(id) {
   const r = await fetch('/api/wallpaper/del/' + id, { method: 'DELETE' });
   const data = await r.json();
   if (data.ok) {
+    const wasCurrent = wpCurrent && wpCurrent.id === id;
     wpList = wpList.filter(w => w.id !== id);
-    if (wpCurrent && wpCurrent.id === id) wpCurrent = wpList[0] || null;
+    if (wasCurrent) {
+      wpCurrent = null;
+    }
     renderWallpapers();
-    applyWallpaperToHome();
+    applyWallpaper();
     toast('🗑️ 已删除');
   }
 }
@@ -115,26 +138,21 @@ function setWallpaperOpacity() {
 
 function applyWallpaperOpacity(val) {
   localStorage.setItem('wpOpacity', val);
-  const home = document.getElementById('panel-home');
-  if (home) home.style.opacity = val / 100;
+  const overlay = document.getElementById('wpOverlay');
+  if (overlay) overlay.style.opacity = val / 100;
   const valEl = document.getElementById('wpOpacityVal');
   if (valEl) valEl.textContent = val + '%';
 }
 
-async function openWpGallery() {
+function openWpGallery() {
   const modal = document.getElementById('wpGalleryModal');
-  if (!modal) return;
-  modal.style.display = 'flex';
+  if (modal) modal.classList.add('show');
   loadGalleryFiles();
 }
 
 function closeWpGallery() {
   const modal = document.getElementById('wpGalleryModal');
-  if (modal) modal.style.display = 'none';
-}
-
-function openWpGallery2() {
-  document.getElementById('wpFileInput').click();
+  if (modal) modal.classList.remove('show');
 }
 
 async function loadGalleryFiles() {
@@ -143,22 +161,23 @@ async function loadGalleryFiles() {
   list.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--sub);">⏳ 加载中...</div>';
   try {
     const r = await fetch('/api/files');
-    const files = await r.json();
-    const imgs = files.filter(f => !f.isDir && /\.(jpg|jpeg|png|gif|webp)$/i.test(f.name));
+    const data = await r.json();
+    const imgs = (data.files || []).filter(f => !f.isDir && /\.(jpg|jpeg|png|gif|webp)$/i.test(f.name));
     if (!imgs.length) {
-      list.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--sub);">暂无图片文件</div>';
+      list.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--sub);">文件中转站暂无图片</div>';
       return;
     }
     list.innerHTML = imgs.map(f => `
-      <label style="cursor:pointer;display:block;">
-        <img src="/api/dl/${encodeURIComponent(f.relPath)}" loading="lazy"
-          style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;display:block;"
-          onclick="saveWpFromFile('${f.relPath.replace(/'/g, "\\'")}')">
-        <div style="font-size:.7rem;color:var(--sub);margin-top:.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${f.name}">${f.name}</div>
-      </label>
+      <div style="cursor:pointer;border-radius:8px;overflow:hidden;border:2px solid var(--border);transition:border-color .2s;"
+           onclick="saveWpFromFile('${f.relPath.replace(/'/g, "\\'")}')"
+           onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <img src="/api/dl/${encodeURIComponent(f.relPath)}?t=${Date.now()}" loading="lazy"
+          style="width:100%;aspect-ratio:1;object-fit:cover;display:block;">
+        <div style="font-size:.7rem;color:var(--sub);padding:.2rem .3rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;">${f.name}</div>
+      </div>
     `).join('');
   } catch(e) {
-    list.innerHTML = '<div style="grid-column:1/-1;color:var(--danger);">❌ 加载失败</div>';
+    list.innerHTML = '<div style="grid-column:1/-1;color:var(--danger);text-align:center;">❌ 加载失败</div>';
   }
 }
 
@@ -211,3 +230,49 @@ async function saveToWallpaper(sid, fname) {
     }
   } catch(e) { toast('❌ ' + e.message); }
 }
+
+// ===== 壁纸轮播 =====
+function toggleCarousel() {
+  const btn = document.getElementById('carouselBtn');
+  if (carouselTimer) {
+    stopCarousel();
+    if (btn) btn.textContent = 'play_circle';
+    toast('⏸️ 轮播已停止');
+    return;
+  }
+  if (wpList.length < 2) {
+    toast('⚠️ 至少需要 2 张壁纸');
+    return;
+  }
+  startCarousel();
+  if (btn) btn.textContent = 'pause_circle';
+  toast('▶️ 轮播已开始（每 ' + (carouselInterval / 1000) + 's 切换）');
+}
+
+function startCarousel() {
+  stopCarousel();
+  carouselTimer = setInterval(async () => {
+    const r = await fetch('/api/wallpaper/next', { method: 'POST' });
+    const data = await r.json();
+    if (data.ok) {
+      wpCurrent = data.wallpaper;
+      wpList = wpList.map(w => ({ ...w, current: w.id === wpCurrent.id }));
+      renderWallpapers();
+      applyWallpaper();
+    }
+  }, carouselInterval);
+}
+
+function stopCarousel() {
+  if (carouselTimer) {
+    clearInterval(carouselTimer);
+    carouselTimer = null;
+  }
+  const btn = document.getElementById('carouselBtn');
+  if (btn) btn.textContent = 'play_circle';
+}
+
+// 页面离开时暂停轮播
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && carouselTimer) stopCarousel();
+});

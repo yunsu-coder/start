@@ -415,7 +415,7 @@
 
   .tl-actions { display:flex; align-items:center; gap:.5rem; margin-top:.6rem; flex-wrap:wrap; }
   .tl-hint { font-size:.75rem; color:var(--sub); margin-left:auto; display:flex; align-items:center; gap:.3rem; }
-  .tl-hint kbd {
+  .tl-hint kbd, .note-editor kbd {
     display:inline-flex; align-items:center; justify-content:center;
     min-width:22px; height:22px; padding:0 5px; border-radius:4px;
     background:var(--card); border:1px solid var(--border);
@@ -1004,3 +1004,58 @@
 .tool-ok { color: #27ae60; font-weight: 500; }
 .tool-exit { color: var(--sub); font-size: .7rem; margin-top: .2rem; display: inline-block; }
 .chat-content { line-height: 1.7; }
+
+
+/* ===== 壁纸浮窗按钮 ===== */
+.wp-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 99;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transition: transform .2s, box-shadow .2s;
+}
+.wp-fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+.wp-fab:active {
+  transform: scale(0.95);
+}
+
+/* ===== 壁纸全屏覆盖层 ===== */
+#wpOverlay {
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: opacity .6s ease, background-image .6s ease;
+}
+/* 所有面板在壁纸之上，但 modal-overlay/toast 必须更高 */
+.navbar, .panel,
+#ambient-orbs, canvas {
+  position: relative;
+  z-index: 1;
+}
+
+/* 壁纸卡片选中态 */
+.wp-card {
+  cursor: pointer; border-radius: 10px; overflow: hidden;
+  border: 2px solid var(--border); transition: border-color .2s, box-shadow .2s;
+}
+.wp-card:hover { border-color: var(--accent); box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+.wp-card.wp-active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), 0 4px 16px rgba(0,0,0,0.3); }

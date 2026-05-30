@@ -6,7 +6,7 @@
 <title>一苇</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
-<link rel="stylesheet" href="/css/styles.css?v=1777704498">
+<link rel="stylesheet" href="/css/styles.css?v=1777705000">
 <script src="/lib/jszip/dist/jszip.min.js"></script>
 <script src="/lib/epubjs/dist/epub.min.js"></script>
 </head>
@@ -34,9 +34,6 @@
   <button class="nav-item" data-panel="chat">
     <span class="nav-icon mi">smart_toy</span><span>对话</span>
   </button>
-  <button class="nav-item" data-panel="wallpaper">
-    <span class="nav-icon mi">wallpaper</span><span>壁纸</span>
-  </button>
   <button class="theme-btn mi" id="themeBtn" title="主题">dark_mode</button>
 </nav>
 
@@ -55,6 +52,8 @@
   <div class="section"><div class="section-title"><span class="mi">language</span> 常用</div><div class="grid" id="common"></div></div>
   <div class="section"><div class="section-title"><span class="mi">code</span> 开发</div><div class="grid" id="dev"></div></div>
   <div class="section"><div class="section-title"><span class="mi">build</span> 工具</div><div class="grid" id="tools"></div></div>
+  <!-- 壁纸入口浮窗 -->
+  <button class="wp-fab mi" id="wpFab" onclick="openWallpaperModal()" title="壁纸设置">wallpaper</button>
 </div>
 
 <!-- 文件 -->
@@ -104,7 +103,6 @@
   <div class="file-grid" id="fileGrid" style="display:none;" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '')"></div>
   <div class="empty-state" id="filesEmpty">暂无文件，上传一个吧</div>
 </div>
-</div>
 
 <!-- 笔记 + 章节写作 -->
 <div class="panel" id="panel-notes">
@@ -153,9 +151,15 @@
       <div class="toolbar">
         <button class="btn-sm" onclick="insertMd('**','**')">B</button>
         <button class="btn-sm" onclick="insertMd('*','*')"><i>I</i></button>
+        <button class="btn-sm" onclick="insertMd('~~','~~')"><del>S</del></button>
+        <button class="btn-sm" onclick="insertMd('==','==')" title="高亮">Hl</button>
+        <button class="btn-sm" onclick="insertMd('~','~')" title="下标">x<sub>2</sub></button>
+        <button class="btn-sm" onclick="insertMd('^','^')" title="上标">x<sup>2</sup></button>
         <button class="btn-sm" onclick="insertMd('`','`')">&lt;/&gt;</button>
         <button class="btn-sm" onclick="insertMd('\n- ','')">•</button>
         <button class="btn-sm" onclick="insertMd('\n# ','+')">H</button>
+        <button class="btn-sm" onclick="insertMd('\n> ','')" title="引用">❝</button>
+        <button class="btn-sm" onclick="insertMd('[','](url)')" title="链接">🔗</button>
         <button class="btn-sm" onclick="insertImage()" title="插入图片"><span class="mi">image</span></button>
         <div style="margin-left:auto;display:flex;gap:.2rem;">
 <button class="btn-sm" onclick="exportNote('md')" title="导出 Markdown"><span class="mi">download</span></button>
@@ -168,9 +172,9 @@
         <div class="pane"><div class="pane-header">编辑</div><textarea id="noteContent" placeholder="开始写作…" oninput="renderLive();updateWordCount()"></textarea></div>
         <div class="pane"><div class="pane-header">预览</div><div class="preview" id="notePreview"></div></div>
       </div>
-      <div class="toolbar" style="justify-content:flex-end;">
-        <button class="btn danger" onclick="deleteNote()">删除</button>
-        <button class="btn accent" onclick="saveNote()"><span class="mi">save</span> 保存</button>
+      <div style="display:flex;justify-content:flex-end;gap:.5rem;padding:.4rem 0;font-size:.72rem;color:var(--sub);">
+        <span><kbd>Ctrl+S</kbd> 保存</span>
+        <span><kbd>Del</kbd> 删除</span>
       </div>
     </div>
   </div>
@@ -323,7 +327,7 @@
   <div id="readerShelf" style="padding:1.5rem 1rem;max-width:900px;margin:0 auto;">
     <h2 style="margin-bottom:1rem;"><span class="mi">visibility</span> 文件预览</h2>
     <div class="grid" id="readerBooks" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));"></div>
-    <div class="empty-state" id="readerEmpty">还没有可预览的文件<br><small>上传 EPUB / PDF / TXT / Markdown / 图片 / 视频 到文件中转站即可</small></div>
+    <div class="empty-state" id="readerEmpty">还没有可预览的文件<br><small>上传 EPUB / PDF / TXT / Markdown / 代码 到文件中转站即可</small></div>
   </div>
   <!-- 阅读视图 -->
   <div id="readerView" style="display:none;">
@@ -369,53 +373,63 @@
         <textarea id="chatInput" rows="1" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" onkeydown="handleChatKey(event)"></textarea>
         <button id="chatSendBtn" onclick="sendChat()"><span class="mi">send</span></button>
       </div>
-
-
-<!-- 壁纸面板 -->
-<div class="panel" id="panel-wallpaper" style="display:none;">
-  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
-    <h2 style="margin:0;font-size:1.1rem;">🖼️ 壁纸库</h2>
-    <div style="margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap;">
-      <button class="btn accent" onclick="shuffleWallpaper()"><span class="mi">shuffle</span> 随机</button>
-      <button class="btn" onclick="openWpGallery()"><span class="mi">add_photo_alternate</span> 添加</button>
-      <input type="file" id="wpFileInput" accept="image/*" style="display:none;" multiple onchange="uploadWallpaperFiles(this.files)">
-    </div>
-  </div>
-  <div id="wpCurrent" style="display:none;margin-bottom:1.5rem;">
-    <div style="font-size:.75rem;color:var(--sub);margin-bottom:.4rem;">当前壁纸</div>
-    <div style="position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.4);">
-      <img id="wpCurrentImg" src="" style="width:100%;height:100%;object-fit:cover;">
-      <div style="position:absolute;bottom:0;left:0;right:0;padding:.5rem;background:linear-gradient(transparent,rgba(0,0,0,.7));display:flex;gap:.3rem;">
-        <button class="btn-sm" onclick="shuffleWallpaper()"><span class="mi">shuffle</span> 随机</button>
-        <button class="btn-sm" onclick="openWpGallery()"><span class="mi">photo_library</span> 换图</button>
-        <button class="btn-sm" onclick="setWallpaperOpacity()"><span class="mi">opacity</span> 透明度</button>
-      </div>
-    </div>
-  </div>
-  <div id="wpOpacitySlider" style="display:none;margin-bottom:1rem;align-items:center;gap:.5rem;">
-    <span style="font-size:.75rem;color:var(--sub);">透明度</span>
-    <input type="range" id="wpOpacity" min="10" max="100" value="100" style="flex:1;" oninput="applyWallpaperOpacity(this.value)">
-    <span id="wpOpacityVal" style="font-size:.75rem;width:2.5rem;">100%</span>
-  </div>
-  <div id="wpGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:.8rem;"></div>
-  <div id="wpEmpty" style="text-align:center;padding:3rem 0;color:var(--sub);display:none;">
-    <div style="font-size:3rem;margin-bottom:.5rem;">🖼️</div>
-    <div>还没有壁纸</div>
-    <div style="font-size:.8rem;margin-top:.3rem;">点击右上角「添加」从文件中选择图片</div>
-  </div>
-  <div id="wpGalleryModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
-    <div style="background:var(--card);border-radius:12px;width:90vw;max-width:800px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;">
-      <div style="padding:.8rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;">
-        <span style="font-weight:600;font-size:.95rem;">📁 从文件中选择图片</span>
-        <div style="margin-left:auto;display:flex;gap:.4rem;">
-          <button class="btn-sm" onclick="openWpGallery2()"><span class="mi">add_photo_alternate</span> 上传</button>
-          <button class="btn-sm" onclick="closeWpGallery()"><span class="mi">close</span></button>
-        </div>
-      </div>
-      <div id="wpGalleryList" style="overflow-y:auto;flex:1;padding:.8rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.5rem;align-content:start;"></div>
     </div>
   </div>
 </div>
+
+<div class="modal-overlay" id="wpModal" onclick="if(event.target===this)closeWallpaperModal()">
+  <div class="modal" style="max-width:750px;">
+    <div class="modal-header">
+      <span class="m-title"><span class="mi">wallpaper</span> 壁纸库</span>
+      <button class="m-close" onclick="closeWallpaperModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+          <button class="btn accent" id="carouselBtn" onclick="toggleCarousel()"><span class="mi">play_circle</span> 轮播</button>
+          <button class="btn-sm" onclick="shuffleWallpaper()"><span class="mi">shuffle</span></button>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap;">
+          <button class="btn" onclick="openWpGallery()"><span class="mi">photo_library</span> 从文件</button>
+          <button class="btn-sm" onclick="document.getElementById('wpFileInput').click()" title="本地上传"><span class="mi">upload</span></button>
+          <input type="file" id="wpFileInput" accept="image/*" style="display:none;" multiple onchange="uploadWallpaperFiles(this.files)">
+        </div>
+      </div>
+      <div id="wpCurrent" style="display:none;margin-bottom:1.5rem;">
+        <div style="font-size:.75rem;color:var(--sub);margin-bottom:.4rem;">当前壁纸</div>
+        <div style="position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.4);">
+          <img id="wpCurrentImg" src="" style="width:100%;height:100%;object-fit:cover;">
+          <div style="position:absolute;bottom:0;left:0;right:0;padding:.5rem;background:linear-gradient(transparent,rgba(0,0,0,.7));display:flex;gap:.3rem;">
+            <button class="btn-sm" onclick="shuffleWallpaper()"><span class="mi">shuffle</span> 随机</button>
+            <button class="btn-sm" onclick="openWpGallery()"><span class="mi">photo_library</span> 换图</button>
+            <button class="btn-sm" onclick="setWallpaperOpacity()"><span class="mi">opacity</span> 透明度</button>
+          </div>
+        </div>
+      </div>
+      <div id="wpOpacitySlider" style="display:none;margin-bottom:1rem;align-items:center;gap:.5rem;">
+        <span style="font-size:.75rem;color:var(--sub);">透明度</span>
+        <input type="range" id="wpOpacity" min="10" max="100" value="100" style="flex:1;" oninput="applyWallpaperOpacity(this.value)">
+        <span id="wpOpacityVal" style="font-size:.75rem;width:2.5rem;">100%</span>
+      </div>
+      <div id="wpGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.8rem;"></div>
+      <div id="wpEmpty" style="text-align:center;padding:3rem 0;color:var(--sub);display:none;">
+        <div style="font-size:3rem;margin-bottom:.5rem;">🖼️</div>
+        <div>还没有壁纸</div>
+        <div style="font-size:.8rem;margin-top:.3rem;">点击「添加」从文件中转站选择图片</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 文件转壁纸弹窗 -->
+<div class="modal-overlay" id="wpGalleryModal" onclick="if(event.target===this)closeWpGallery()">
+  <div class="modal" style="max-width:700px;">
+    <div class="modal-header">
+      <span class="m-title"><span class="mi">add_photo_alternate</span> 从文件中转站添加</span>
+      <button class="m-close" onclick="closeWpGallery()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.6rem;" id="wpGalleryList"></div>
     </div>
   </div>
 </div>

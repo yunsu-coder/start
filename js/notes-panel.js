@@ -5,26 +5,33 @@ function markDirty() { noteDirty = true; document.getElementById('saveIndicator'
 function markClean() { noteDirty = false; document.getElementById('saveIndicator').textContent = ''; }
 
 function md2html(md) {
-  let s = (md || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let s = (md || '');
 
-  // 代码块（先处理，保护内部内容）
-  const blocks = [];
+  // ① 保护代码块和行内代码（防转义破坏内部内容）
+  const codeBlocks = [];
+  const inlineCodes = [];
+  s = s.replace(/`([^`]+)`/g, (_, c) => { inlineCodes.push(c); return '\x01' + (inlineCodes.length - 1) + '\x01'; });
   s = s.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    blocks.push({ lang, code: code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') });
-    return '\x00' + (blocks.length - 1) + '\x00';
+    codeBlocks.push({ lang, code });
+    return '\x00' + (codeBlocks.length - 1) + '\x00';
   });
 
-  // 表格
-  s = s.replace(/^\|(.+)\|\n\|[-: |]+\|\n((?:\|.+\|\n?)*)/gm, (_, head, rows) => {
-    const hc = head.split('|').map(c => '<th>' + c.trim() + '</th>').join('');
-    const rc = rows.trim().split('\n').map(r => '<tr>' + r.split('|').filter(c => c).map(c => '<td>' + c.trim() + '</td>').join('') + '</tr>').join('');
+  // ② HTML 转义
+  s = s.replace(/&(?!\w+;)/g, '&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // ③ 表格
+  s = s.replace(/^\|(.+)\|\s*$\n\|[-: |]+\|\s*$(?:\n\|.+\|\s*$)*/gm, (match) => {
+    const lines = match.trim().split('\n');
+    if (lines.length < 2) return match;
+    const hc = lines[0].split('|').filter(c => c.trim()).map(c => '<th>' + c.trim() + '</th>').join('');
+    const rc = lines.slice(2).map(r => '<tr>' + r.split('|').filter(c => c.trim()).map(c => '<td>' + c.trim() + '</td>').join('') + '</tr>').join('');
     return '<table><thead><tr>' + hc + '</tr></thead><tbody>' + rc + '</tbody></table>';
   });
 
-  // 水平线
-  s = s.replace(/^(---|\*\*\*|___)\s*$/gm, '<hr>');
+  // ④ 水平线
+  s = s.replace(/^(?:[-\*_]){3,}\s*$/gm, '<hr>');
 
-  // 标题 h1-h6
+  // ⑤ 标题
   s = s.replace(/^###### (.+)$/gm, '<h6>$1</h6>');
   s = s.replace(/^##### (.+)$/gm, '<h5>$1</h5>');
   s = s.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
@@ -32,67 +39,67 @@ function md2html(md) {
   s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
   s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
 
-  // 引用块
-  s = s.replace(/^&gt;\s?(.+)$/gm, '<blockquote>$1</blockquote>');
-
-  // 任务列表
-  s = s.replace(/^[*-] \[x\] (.+)$/gim, '<li class="task done"><input type="checkbox" checked disabled> $1</li>');
-  s = s.replace(/^[*-] \[ \] (.+)$/gim, '<li class="task"><input type="checkbox" disabled> $1</li>');
-
-  // 有序列表 — 标记后用ol包裹
-  s = s.replace(/^(\d+)\. (.+)$/gm, '<li data-n="$1">$2</li>');
-
-  // 任务列表 — ul包裹
-  s = s.replace(/(<li class="task.*?<\/li>\n?)+/g, '<ul class="task-list">$&</ul>');
-
-  // 有序列表 — ol包裹
-  s = s.replace(/(<li data-n=.*?<\/li>\n?)+/g, '<ol>$&</ol>');
-
-  // 无序列表
-  s = s.replace(/^[*-] (.+)$/gm, '<li>$1</li>');
-  s = s.replace(/(<li>(?!<\/li>).*<\/li>\n?)+/g, '<ul>$&</ul>');
-
-  // 保护列表块不被段落处理破坏（支持 <ul>、<ol>、<ul class="task-list">）
-  const listBlocks = [];
-  s = s.replace(/<[uo]l[^>]*>[\s\S]*?<\/[uo]l>/g, m => {
-    listBlocks.push(m);
-    return '\x01L' + (listBlocks.length - 1) + 'L\x01';
+  // ⑥ 引用块（支持多行）
+  s = s.replace(/^(?:&gt;\s?.+\n?)+/gm, (match) => {
+    const inner = match.replace(/^&gt;\s?/gm, '').trim();
+    return '<blockquote>' + inner.replace(/\n{2,}/g, '<br><br>') + '</blockquote>';
   });
 
-  // 段落
-  s = s.replace(/\n\n+/g, '</p><p>');
-  s = s.replace(/\n/g, '<br>');
+  // ⑦ 任务列表
+  s = s.replace(/^[*-] \[x\] (.+)$/gim, '<li class="task done"><input type="checkbox" checked onclick="return false"> $1</li>');
+  s = s.replace(/^[*-] \[ \] (.+)$/gim, '<li class="task"><input type="checkbox" onclick="return false"> $1</li>');
 
-  // 恢复列表块
-  s = s.replace(/\x01L(\d+)L\x01/g, (_, i) => listBlocks[+i]);
+  // ⑧ 有序/无序列表项标记
+  s = s.replace(/^(\d+)\.\s+(.+)$/gm, '<li class="olitem">$2</li>');
+  s = s.replace(/^[*-]\s+(.+)$/gm, '<li class="ulitem">$1</li>');
 
-  // 清理 <p> 包裹块级元素 (列表, 表格, 引用等)
-  s = s.replace(/<p>\s*(<(?:\/[uo]l|[uo]l|table|blockquote|h\d|hr|pre)[^>]*>)/gi, '$1');
-  s = s.replace(/(<\/(?:[uo]l|table|blockquote|h\d|hr|pre)[^>]*>)\s*<\/p>/gi, '$1');
-  s = s.replace(/<\/p>\s*(<[uo]l[^>]*>)/g, '$1');
-  // 清理列表块之间的 <br>（段落处理残留）
-  s = s.replace(/<\/([uo]l)>\s*<br>/g, '</$1>');
+  // 用 ul/ol 包裹连续列表项
+  s = s.replace(/((?:<li class="olitem">.*<\/li>\n?)+)/g, '<ol>$1</ol>');
+  s = s.replace(/((?:<li class="ulitem">.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+  s = s.replace(/ class="(?:ol|ul)item"/g, '');
 
-  // 行内格式
+  // ⑨ 段落处理（智能识别块级元素）
+  const lines = s.split('\n');
+  let result = [], inBlock = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const isBlock = /^<(h[1-6]|hr|table|blockquote|ul|ol|pre|div|p)\b/.test(line) || /^<\/(ul|ol|table|blockquote)>/.test(line);
+    if (isBlock) {
+      if (inBlock) result[result.length-1] += '\n' + line;
+      else { result.push(line); inBlock = true; }
+    } else if (line.trim() === '') { inBlock = false; }
+    else {
+      if (inBlock) result[result.length-1] += '\n' + line;
+      else { result.push(line); inBlock = true; }
+    }
+  }
+  s = result.map(block => {
+    if (/^<\/?/.test(block.trim())) return block;
+    return '<p>' + block.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+  }).join('\n');
+
+  // ⑩ 行内格式
+  s = s.replace(/==(.+?)==/g, '<mark>$1</mark>');
   s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
   s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
   s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
+  s = s.replace(/~(.+?)~/g, '<sub>$1</sub>');
+  s = s.replace(/\^(.+?)\^/g, '<sup>$1</sup>');
   s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
 
   // 链接和图片
   s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%">');
   s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
 
-  // 恢复代码块
+  // 恢复代码块和行内代码（还原保护的内容）
   s = s.replace(/\x00(\d+)\x00/g, (_, i) => {
-    const b = blocks[+i];
-    return '<pre><code class="' + (b.lang || '') + '">' + b.code + '</code></pre>';
+    const b = codeBlocks[+i];
+    return '<pre><code class="' + (b.lang || '') + '">' + b.code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code></pre>';
   });
+  s = s.replace(/\x01(\d+)\x01/g, (_, i) => '<code>' + inlineCodes[+i].replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code>');
 
-  // 如果开头已经是块级元素，不加 <p> 包裹
-  const startsWithBlock = /^<(\/?[uo]l|table|blockquote|h\d|hr|pre)/.test(s);
-  return startsWithBlock ? s : '<p>' + s + '</p>';
+  return s || '<p></p>';
 }
 
 function renderLive() { document.getElementById('notePreview').innerHTML = md2html(document.getElementById('noteContent').value); markDirty(); }
@@ -293,3 +300,14 @@ function updateWordCount() {
   el.textContent = `📊 ${totalWords} 字${chineseChars > 0 && englishWords > 0 ? `（中${chineseChars} / 英${englishWords}）` : ''}`;
   rt.textContent = readMin <= 1 ? '〜1分钟' : `〜${readMin}分钟`;
 }
+
+// ===== 键盘快捷键 =====
+document.addEventListener('keydown', e => {
+  // Ctrl+S / Cmd+S → 保存
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    if (currentPanel === 'notes' || document.activeElement?.closest('#panel-notes')) {
+      e.preventDefault();
+      if (typeof saveNote === 'function') saveNote();
+    }
+  }
+});

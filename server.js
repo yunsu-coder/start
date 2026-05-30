@@ -15,7 +15,7 @@ const { getStatus, listFiles, uploadFiles, deleteFile, getFilePath, getFilePrevi
 const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache, scrapeTieba } = require('./lib/scraper');
 const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, deleteHistory } = require('./lib/translate');
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMD } = require('./lib/export');
-const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, WALLPAPER_DIR } = require('./lib/wallpaper');
+const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, getNextWallpaper, WALLPAPER_DIR } = require('./lib/wallpaper');
 
 // ===== 加载环境变量 =====
 const envPath = path.join(__dirname, '.env');
@@ -156,6 +156,7 @@ function serveStatic(urlPath, res) {
     '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript',
     '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
     '.md': 'text/markdown',
+    '.ttf': 'font/ttf', '.woff': 'font/woff', '.woff2': 'font/woff2',
   };
   fs.readFile(fullPath, (err, data) => {
     if (err) { res.writeHead(404); return res.end('404'); }
@@ -220,18 +221,6 @@ const server = http.createServer(async (req, res) => {
     const result = deleteFile(name);
     if (result.error) return sendJSON(res, 404, result);
     return sendJSON(res, 200, result);
-  }
-  // 重命名文件
-  if (p.startsWith('/api/files/rename/') && m === 'PUT') {
-    const name = decodeURIComponent(p.slice('/api/files/rename/'.length));
-    const body = parseJSON(await readBody(req));
-    if (!body?.newName) return sendJSON(res, 400, { error: 'no new name' });
-    const oldPath = getFilePath(name);
-    if (!oldPath) return sendJSON(res, 404, { error: 'not found' });
-    const newPath = path.join(path.dirname(oldPath), body.newName);
-    if (fs.existsSync(newPath)) return sendJSON(res, 409, { error: 'name exists' });
-    fs.renameSync(oldPath, newPath);
-    return sendJSON(res, 200, { ok: true, name: body.newName });
   }
   if (p.startsWith('/api/dl/')) {
     const name = decodeURIComponent(p.slice('/api/dl/'.length));
@@ -447,62 +436,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // AI 多模型对话
-  if (p === '/api/ai/chat' && m === 'POST') {
-    const body = parseJSON(await readBody(req));
-    const messages = body?.messages;
-    const model = body?.model || 'deepseek-chat';
-    if (!messages?.length) return sendJSON(res, 400, { error: 'no messages' });
-    
-    // 根据模型选择 API
-    let apiUrl, apiKey, reqBody;
-    
-    if (model === 'doubao-pro') {
-      apiUrl = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
-      apiKey = process.env.DOUBAO_ACCESS_KEY;
-      reqBody = { model: 'ep-20250428123456-abcde', messages, stream: true, temperature: body.temperature ?? 0.7 };
-    } else if (model === 'qwen-max') {
-      apiUrl = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
-      apiKey = process.env.QWEN_API_KEY;
-      reqBody = { model: 'qwen-max', messages, stream: true, temperature: body.temperature ?? 0.7 };
-    } else if (model === 'moonshot-v1') {
-      apiUrl = 'https://api.moonshot.cn/v1/chat/completions';
-      apiKey = process.env.KIMI_API_KEY;
-      reqBody = { model: 'moonshot-v1-8k', messages, stream: true, temperature: body.temperature ?? 0.7 };
-    } else if (model === 'doubao') {
-      apiUrl = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
-      apiKey = 'ark-b02179bf-67a7-4e6e-8350-6fc2763e100a-d58b0';
-      reqBody = { model: 'ep-20260428200424-z6vzp', messages, stream: true, temperature: body.temperature ?? 0.7 };
-    } else {
-      apiUrl = 'https://api.deepseek.com/v1/chat/completions';
-      apiKey = process.env.DEEPSEEK_API_KEY;
-      reqBody = { model, messages, stream: true, temperature: body.temperature ?? 0.7 };
-    }
-    
-    if (!apiKey) return sendJSON(res, 500, { error: 'API key not configured for ' + model });
-    
-    try {
-      const aiResp = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-        body: JSON.stringify(reqBody),
-      });
-      
-      if (!aiResp.ok) {
-        const err = await aiResp.text().catch(() => '');
-        return sendJSON(res, 502, { error: model + ' API error: ' + aiResp.status + ' ' + err.slice(0, 100) });
-      }
-      
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      });
-      for await (const chunk of aiResp.body) { res.write(chunk); }
-      res.end();
-    } catch(e) { sendJSON(res, 500, { error: e.message }); }
-    return;
-  }
   if (p.startsWith('/api/preview/')) {
     const name = decodeURIComponent(p.slice('/api/preview/'.length));
     const preview = getFilePreview(name);
@@ -741,7 +674,31 @@ const server = http.createServer(async (req, res) => {
     if (transferred.length) invalidateSizeCache();
     return sendJSON(res, 200, { ok: true, transferred });
   }
-  // --- 壁纸专用：自动压缩大图 ---
+  // ===== 壁纸管理 API（放在通用路由之前）=====
+  if (p === '/api/wallpaper/current' && m === 'PUT') {
+    const body = parseJSON(await readBody(req));
+    const wp = setCurrentWallpaper(body.id);
+    sendJSON(res, 200, wp ? { ok: true, wallpaper: wp } : { error: 'not found' }); return;
+  }
+  if (p === '/api/wallpaper/random' && m === 'POST') {
+    const wp = setRandomWallpaper();
+    sendJSON(res, 200, wp ? { ok: true, wallpaper: wp } : { error: 'no wallpapers' }); return;
+  }
+  if (p === '/api/wallpaper/next' && m === 'POST') {
+    const wp = getNextWallpaper();
+    sendJSON(res, 200, wp ? { ok: true, wallpaper: wp } : { error: 'no wallpapers' }); return;
+  }
+  if (p.startsWith('/api/wallpaper/del/') && m === 'DELETE') {
+    const id = p.slice('/api/wallpaper/del/'.length);
+    sendJSON(res, 200, deleteWallpaper(id)); return;
+  }
+  if (p === '/api/wallpaper/save' && m === 'POST') {
+    const body = parseJSON(await readBody(req));
+    const wp = saveWallpaperFromUrl(body.url, body.filename, body.sessionId);
+    sendJSON(res, 200, wp.id ? { ok: true, wallpaper: wp } : { error: wp.error }); return;
+  }
+
+  // --- 壁纸专用：自动压缩大图（注意：上面的管理路由必须放在这个通用 catch-all 之前）---
   if (p.startsWith('/api/wallpaper/')) {
     const fname = decodeURIComponent(p.slice('/api/wallpaper/'.length));
     const fpath = getFilePath(fname);
@@ -1170,17 +1127,17 @@ const server = http.createServer(async (req, res) => {
     if (!filePart) { sendJSON(res, 400, { error: 'no file' }); return; }
     const ext = (filePart.filename || '').replace(/.*(\.[^.]+)/, '$1') || '.jpg';
     const safeName = 'wallpaper_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + ext;
-    const wp = saveWallpaperFromUrl('', safeName, '');
-    // 保存原始图片数据
+    // 先写文件，再写入数据库（saveWallpaperFromUrl 要求文件已存在）
     const fp = require('path').join(WALLPAPER_DIR, safeName);
     require('fs').writeFileSync(fp, filePart.data);
+    const wp = saveWallpaperFromUrl('', safeName, '');
     sendJSON(res, 200, { ok: true, wallpaper: { ...wp, filename: safeName, path: '/wallpaper/' + safeName } }); return;
   }
 
   // ===== 壁纸 API =====
   if (p === '/api/wallpapers' && m === 'GET') { sendJSON(res, 200, { list: listWallpapers(), current: getCurrentWallpaper() }); return; }
-  if (p.startsWith('/api/wallpapers/save-file?path=') && m === 'GET') {
-    const relPath = new URL('http://x' + p).searchParams.get('path');
+  if (p === '/api/wallpapers/save-file' && m === 'GET') {
+    const relPath = url.searchParams.get('path');
     const fp = getFilePath(relPath);
     if (!fp) { sendJSON(res, 404, { error: 'file not found' }); return; }
     const ext = require('path').extname(fp).toLowerCase() || '.jpg';
@@ -1189,24 +1146,6 @@ const server = http.createServer(async (req, res) => {
     require('fs').copyFileSync(fp, destFp);
     const wp = saveWallpaperFromUrl('', safeName, '');
     sendJSON(res, 200, { ok: true, wallpaper: { ...wp, filename: safeName, path: '/wallpaper/' + safeName } }); return;
-  }
-  if (p === '/api/wallpaper/current' && m === 'PUT') {
-    const body = parseJSON(await readBody(req));
-    const wp = setCurrentWallpaper(body.id);
-    sendJSON(res, 200, wp ? { ok: true, wallpaper: wp } : { error: 'not found' }); return;
-  }
-  if (p === '/api/wallpaper/random' && m === 'POST') {
-    const wp = setRandomWallpaper();
-    sendJSON(res, 200, wp ? { ok: true, wallpaper: wp } : { error: 'no wallpapers' }); return;
-  }
-  if (p.startsWith('/api/wallpaper/del/') && m === 'DELETE') {
-    const id = p.slice('/api/wallpaper/del/'.length);
-    sendJSON(res, 200, deleteWallpaper(id)); return;
-  }
-  if (p === '/api/wallpaper/save' && m === 'POST') {
-    const body = parseJSON(await readBody(req));
-    const wp = saveWallpaperFromUrl(body.url, body.filename, body.sessionId);
-    sendJSON(res, 200, wp.id ? { ok: true, wallpaper: wp } : { error: wp.error }); return;
   }
   if (p.startsWith('/wallpaper/')) {
     const fname = p.slice('/wallpaper/'.length);

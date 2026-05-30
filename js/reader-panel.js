@@ -1,9 +1,12 @@
 // ===== 阅读器 =====
-const READABLE_EXTS = ['epub','pdf','txt','md','jpg','jpeg','png','gif','webp','svg','bmp','mp4','webm','mov','mkv','mp3','wav','ogg','flac','aac'];
+const READABLE_EXTS = ['epub','pdf','txt','md','js','ts','jsx','tsx','py','html','css','json','xml','yaml','yml','toml','c','cpp','h','hpp','java','go','rs','rb','php','sh','bash','sql','swift','kt','vue','svelte','r','m','mm','pl','lua','scala','zig','tex','ini','cfg','conf','env','gradle','makefile','dockerfile'];
+const CODE_EXTS = ['js','ts','jsx','tsx','py','html','css','json','xml','yaml','yml','toml','c','cpp','h','hpp','java','go','rs','rb','php','sh','bash','sql','swift','kt','vue','svelte','r','m','mm','pl','lua','scala','zig','tex','ini','cfg','conf','env','gradle','makefile','dockerfile'];
 let currentBook = null;
 let readerEpubRendition = null;
 let readerEpubBook = null;
 let readerType = null;
+
+const READER_ICONS = { epub:'<span class="mi">menu_book</span>', pdf:'<span class="mi">picture_as_pdf</span>', txt:'<span class="mi">text_snippet</span>', md:'<span class="mi">description</span>' };
 
 async function loadReaderBooks() {
   try {
@@ -15,13 +18,12 @@ async function loadReaderBooks() {
     if (!books.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
     empty.style.display = 'none';
 
-    const icons = { epub:'<span class="mi">menu_book</span>', pdf:'<span class="mi">picture_as_pdf</span>', txt:'<span class="mi">text_snippet</span>', md:'<span class="mi">description</span>', jpg:'<span class="mi">image</span>', jpeg:'<span class="mi">image</span>', png:'<span class="mi">image</span>', gif:'<span class="mi">image</span>', webp:'<span class="mi">image</span>', svg:'<span class="mi">image</span>', bmp:'<span class="mi">image</span>', mp4:'<span class="mi">smart_display</span>', webm:'<span class="mi">smart_display</span>', mov:'<span class="mi">smart_display</span>', mkv:'<span class="mi">smart_display</span>', mp3:'<span class="mi">music_note</span>', wav:'<span class="mi">music_note</span>', ogg:'<span class="mi">music_note</span>', flac:'<span class="mi">music_note</span>', aac:'<span class="mi">music_note</span>' };
     el.innerHTML = books.map(b => {
       const ext = b.name.split('.').pop().toLowerCase();
       const progress = JSON.parse(localStorage.getItem('read-' + b.name) || '{}');
       const pct = progress.pct ? ' · ' + progress.pct + '%' : '';
       return '<div class="book-card tilt-card" onclick="openBook(\'' + escAttr(b.name) + '\')">' +
-        '<span class="cover">' + (icons[ext]||'📘') + '</span>' +
+        '<span class="cover">' + (READER_ICONS[ext] || (CODE_EXTS.includes(ext) ? '<span class="mi">code</span>' : '📘')) + '</span>' +
         '<span class="btitle">' + escHtml(b.name) + '</span>' +
         '<span class="bprogress">' + fmtFileSize(b.size) + pct + '</span></div>';
     }).join('');
@@ -49,33 +51,6 @@ async function openBook(name) {
 
   if (ext === 'pdf') {
     content.innerHTML = '<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;"><a href="/api/dl/' + encodeURIComponent(name) + '" class="btn-sm" style="text-decoration:none;">⬇ 下载</a></div><iframe src="/api/view/' + encodeURIComponent(name) + '" style="width:100%;height:100%;border:none;"></iframe>';
-  } else if (['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) {
-    content.innerHTML = `
-      <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;">
-        <button class="btn-sm" onclick="ocrInReader('${escAttr(name)}')" id="readerOcrBtn">🔍 OCR 识别</button>
-        <a href="/api/dl/${encodeURIComponent(name)}" class="btn-sm" style="text-decoration:none;">⬇ 下载</a>
-      </div>
-      <div style="overflow:auto;text-align:center;">
-        <img src="/api/view/${encodeURIComponent(name)}" style="max-width:100%;max-height:70vh;" onerror="this.parentElement.innerHTML='<div style=text-align:center;padding:3rem;>❌ 无法加载图片</div>'">
-      </div>
-      <div id="readerOcrResult" style="margin-top:.8rem;padding:.8rem;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:.9rem;white-space:pre-wrap;word-break:break-word;display:none;"></div>
-    `;
-  } else if (['mp4','webm','mov','mkv'].includes(ext)) {
-    content.innerHTML = `
-      <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;">
-        <a href="/api/m3u/${encodeURIComponent(name)}" class="btn-sm" style="text-decoration:none;background:#f97316;color:#fff;">📺 外部播放器</a>
-        <a href="/api/dl/${encodeURIComponent(name)}" class="btn-sm" style="text-decoration:none;">⬇ 下载</a>
-      </div>
-      <video controls style="max-width:100%;max-height:70vh;display:block;margin:0 auto;border-radius:6px;"><source src="/api/view/${encodeURIComponent(name)}"></video>
-    `;
-  } else if (['mp3','wav','ogg','flac','aac'].includes(ext)) {
-    content.innerHTML = `
-      <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;">
-        <a href="/api/dl/${encodeURIComponent(name)}" class="btn-sm" style="text-decoration:none;">⬇ 下载</a>
-      </div>
-      <div style="text-align:center;padding:2rem;"><div style="font-size:4rem;">🎵</div>
-      <audio controls style="width:100%;max-width:400px;margin-top:1rem;"><source src="/api/view/${encodeURIComponent(name)}"></audio></div>
-    `;
   } else if (ext === 'epub') {
     if (typeof ePub === 'undefined') {
       content.innerHTML = '<div style="text-align:center;padding:3rem;">❌ epub.js 未加载，刷新页面重试</div>';
@@ -129,11 +104,18 @@ async function openBook(name) {
       content.innerHTML = '<div style="text-align:center;padding:3rem;">❌ EPUB 加载失败<br><small>' + e.message + '</small></div>';
     }
   } else {
-    // TXT/MD
+    // TXT/MD/Code
     try {
       const r = await fetch('/api/preview/' + encodeURIComponent(name));
       const text = await r.text();
-      const html = ext === 'md' ? md2html(text) : '<p>' + escHtml(text).replace(/\n/g, '<br>') + '</p>';
+      let html;
+      if (ext === 'md') {
+        html = md2html(text);
+      } else if (CODE_EXTS.includes(ext)) {
+        html = '<pre><code>' + escHtml(text) + '</code></pre>';
+      } else {
+        html = '<p>' + escHtml(text).replace(/\n/g, '<br>') + '</p>';
+      }
       content.innerHTML = '<div class="reader-content-inner">' + html + '</div>';
       if (progress.scroll) content.scrollTop = progress.scroll;
       content.addEventListener('scroll', () => {
@@ -162,22 +144,6 @@ function closeReader() {
   readerType = null;
   if (document.fullscreenElement) document.exitFullscreen();
   loadReaderBooks();
-}
-
-// ===== 阅读器内 OCR =====
-async function ocrInReader(name) {
-  const btn = document.getElementById('readerOcrBtn');
-  const resultDiv = document.getElementById('readerOcrResult');
-  btn.disabled = true; btn.textContent = '⏳ 识别中...';
-  resultDiv.style.display = 'block';
-  resultDiv.textContent = '正在识别文字，请稍候...';
-  try {
-    const r = await fetch('/api/ocr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
-    const data = await r.json();
-    if (data.error) { resultDiv.textContent = '❌ ' + data.error; return; }
-    resultDiv.textContent = data.text || '（未识别到文字）';
-  } catch(e) { resultDiv.textContent = '❌ 请求失败：' + e.message; }
-  finally { btn.disabled = false; btn.textContent = '🔍 OCR 识别'; }
 }
 
 // ===== 阅读器键盘控制 =====

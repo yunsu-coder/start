@@ -8,3 +8,6 @@ font-map.json
 .env
 .trash/
 *.traineddata
+.env
+.claude/
+.playwright-mcp/

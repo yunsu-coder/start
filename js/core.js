@@ -25,7 +25,6 @@ function switchPanel(name) {
   if (name === 'scrape') loadScrapeSessions();
   if (name === 'read') loadReaderBooks();
   if (name === 'translate' && typeof loadHistory === 'function') loadHistory();
-  if (name === 'wallpaper') loadWallpapers();
 }
 
 document.querySelectorAll('.nav-item').forEach(btn => {
@@ -300,3 +299,14 @@ document.addEventListener('keydown', e => {
   }
   draw();
 })();
+
+// ===== 壁纸弹窗 =====
+function openWallpaperModal() {
+  const modal = document.getElementById('wpModal');
+  if (modal) modal.classList.add('show');
+  if (typeof loadWallpapers === 'function') loadWallpapers();
+}
+function closeWallpaperModal() {
+  const modal = document.getElementById('wpModal');
+  if (modal) modal.classList.remove('show');
+}
