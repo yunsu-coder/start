@@ -15,14 +15,22 @@ const { getStatus, listFiles, uploadFiles, deleteFile, getFilePath, getFilePrevi
 const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache, scrapeTieba } = require('./lib/scraper');
 const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, deleteHistory } = require('./lib/translate');
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMD } = require('./lib/export');
-const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, getNextWallpaper, WALLPAPER_DIR } = require('./lib/wallpaper');
+const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, getNextWallpaper, upscaleWallpaper, WALLPAPER_DIR } = require('./lib/wallpaper');
 
 // ===== 加载环境变量 =====
 const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
   fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
-    const eq = line.indexOf('=');
-    if (eq > 0) process.env[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+    const eq = trimmed.indexOf('=');
+    if (eq > 0) {
+      let val = trimmed.slice(eq + 1).trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      process.env[trimmed.slice(0, eq).trim()] = val;
+    }
   });
 }
 
@@ -78,12 +86,7 @@ Assist with authorized security testing, defensive security, CTF challenges, and
 - Respond in Chinese. Maintain full orthographic correctness.
 
 # Server context
-You are running on the user's Ubuntu server:
-- Project: /home/ubuntu/dashboard (port 3000, Nginx reverse proxy)
-- Nginx config: /etc/nginx/sites-available/gzhysu.top
-- You have full sudo access (passwordless)
-- You can manage services, processes, packages, files, Docker, network
-- Treat this server as YOUR workspace — maintain it, debug issues, optimize performance`;
+You are running on the user's production server. You have shell access and can manage services, processes, packages, files, Docker, and network. Treat this server as your workspace.`;
 
 // ===== 工具函数 =====
 
@@ -111,7 +114,7 @@ function apiCall(apiKey, payload) {
 }
 
 function sendJSON(res, code, data) {
-  res.writeHead(code, { 'Content-Type': 'application/json' });
+  res.writeHead(code, { 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN' });
   res.end(JSON.stringify(data));
 }
 
@@ -160,7 +163,7 @@ function serveStatic(urlPath, res) {
   };
   fs.readFile(fullPath, (err, data) => {
     if (err) { res.writeHead(404); return res.end('404'); }
-    res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain', 'Cache-Control': 'no-cache' });
+    res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN' });
     res.end(data);
   });
 }
@@ -692,6 +695,11 @@ const server = http.createServer(async (req, res) => {
     const id = p.slice('/api/wallpaper/del/'.length);
     sendJSON(res, 200, deleteWallpaper(id)); return;
   }
+  if (p.startsWith('/api/wallpaper/upscale/') && m === 'POST') {
+    const id = p.slice('/api/wallpaper/upscale/'.length);
+    const result = await upscaleWallpaper(id);
+    sendJSON(res, result.ok ? 200 : 400, result); return;
+  }
   if (p === '/api/wallpaper/save' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     const wp = saveWallpaperFromUrl(body.url, body.filename, body.sessionId);
@@ -837,7 +845,6 @@ const server = http.createServer(async (req, res) => {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
     });
 
     const messages = body.messages;

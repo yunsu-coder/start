@@ -147,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => { const t = document.getElem
 async function saveNote() {
   const title = document.getElementById('noteTitle').value.trim();
   const content = document.getElementById('noteContent').value;
-  if (!title && !content) { toast('⚠️ 标题和内容不能都为空'); return; }
+  if (!title && !content) { toast('⚠️ 标题和内容不能都为空', 'warning'); return; }
   const body = { title: title || '无标题', content };
   if (currentNoteId) body.id = currentNoteId;
   try {
@@ -155,11 +155,11 @@ async function saveNote() {
     const data = await r.json();
     currentNoteId = data.id; markClean();
     toast('✅ 已保存'); loadNotesList();
-  } catch(e) { toast('❌ 保存失败'); }
+  } catch(e) { toast('❌ 保存失败', 'error'); }
 }
 
 async function deleteNote() {
-  if (!currentNoteId) { toast('⚠️ 还没有保存的笔记'); return; }
+  if (!currentNoteId) { toast('⚠️ 还没有保存的笔记', 'warning'); return; }
   if (!confirm('确定删除这篇笔记？')) return;
   try {
     await fetch('/api/notes/' + currentNoteId, { method: 'DELETE' });
@@ -169,7 +169,7 @@ async function deleteNote() {
     document.getElementById('noteContent').value = '';
     markClean(); stopAutoSave();
     toast('🗑️ 已删除'); loadNotesList();
-  } catch(e) { toast('❌ 删除失败'); }
+  } catch(e) { toast('❌ 删除失败', 'error'); }
 }
 
 function startAutoSave() { stopAutoSave(); autoSaveTimer = setInterval(() => { if (noteDirty) saveNoteSilent(); }, 30000); }
@@ -188,7 +188,7 @@ async function saveNoteSilent() {
     document.getElementById('saveIndicator').textContent = '● 已自动保存';
     setTimeout(() => { if (!noteDirty) document.getElementById('saveIndicator').textContent = ''; }, 2000);
     loadNotesList();
-  } catch(e) {}
+  } catch(e) { console.warn('[Notes] autoSave failed', e.message); }
 }
 
 function exportPDF() {
@@ -274,7 +274,7 @@ async function uploadNoteImage(blob, name) {
       ta.value = ta.value.replace(placeholder, md);
     } else {
       ta.value = ta.value.replace(placeholder, '');
-      toast('❌ 图片上传失败');
+      toast('❌ 图片上传失败', 'error');
     }
   } catch(e) {
     ta.value = ta.value.replace(placeholder, '');

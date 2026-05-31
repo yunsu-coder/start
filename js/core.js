@@ -1,8 +1,12 @@
+// ===== 全局命名空间 =====
+window.Yiwei = window.Yiwei || { state: {}, config: {} };
+const S = Yiwei.state; // 状态读写快捷方式
+
 // ===== 导航 =====
-let currentPanel = 'home';
+S.currentPanel = 'home';
 
 function switchPanel(name) {
-  if (currentPanel === 'notes' && name !== 'notes') {
+  if (S.currentPanel === 'notes' && name !== 'notes') {
     if (typeof isNoteDirty === 'function' && isNoteDirty() && !confirm('笔记有未保存的修改，是否放弃？')) {
       document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
       document.querySelector('[data-panel="notes"]').classList.add('active');
@@ -10,13 +14,20 @@ function switchPanel(name) {
     }
     if (typeof stopAutoSave === 'function') stopAutoSave();
   }
-  currentPanel = name;
+  S.currentPanel = name;
   location.hash = name;
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   const target = document.querySelector(`[data-panel="${name}"]`);
   if (target) target.classList.add('active');
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('panel-' + name).classList.add('active');
+  const newPanel = document.getElementById('panel-' + name);
+  document.querySelectorAll('.panel').forEach(p => { if (p !== newPanel) p.classList.remove('active'); });
+  if (newPanel) {
+    newPanel.classList.add('active');
+    // 确保动画触发（首次渲染时强制重排）
+    newPanel.offsetHeight;
+    newPanel.style.opacity = '';
+    newPanel.style.transform = '';
+  }
   if (name === 'files') { loadFiles(); updateStorageBar(); }
   if (name === 'notes') {
     loadNotesList();
@@ -34,13 +45,13 @@ document.querySelectorAll('.nav-item').forEach(btn => {
 // ===== 主题 =====
 const themes = ['azure','emerald','ember','snow','midnight'];
 const themeBtn = document.getElementById('themeBtn');
-let currentTheme = localStorage.getItem('theme') || 'azure';
-applyTheme(currentTheme);
+S.theme = localStorage.getItem('theme') || 'azure';
+applyTheme(S.theme);
 themeBtn.addEventListener('click', () => {
-  const idx = themes.indexOf(currentTheme);
-  currentTheme = themes[(idx + 1) % themes.length];
-  localStorage.setItem('theme', currentTheme);
-  applyTheme(currentTheme);
+  const idx = themes.indexOf(S.theme);
+  S.theme = themes[(idx + 1) % themes.length];
+  localStorage.setItem('theme', S.theme);
+  applyTheme(S.theme);
 });
 let themeMenu = null;
 themeBtn.addEventListener('contextmenu', e => {
@@ -56,7 +67,7 @@ themeBtn.addEventListener('contextmenu', e => {
     item.textContent = names[t];
     item.onmouseenter = () => item.style.background = 'var(--hover)';
     item.onmouseleave = () => item.style.background = '';
-    item.onclick = () => { currentTheme = t; localStorage.setItem('theme', t); applyTheme(t); themeMenu.remove(); themeMenu = null; };
+    item.onclick = () => { S.theme = t; localStorage.setItem('theme', t); applyTheme(t); themeMenu.remove(); themeMenu = null; };
     themeMenu.appendChild(item);
   });
   // 定位：靠右对齐，避免溢出屏幕
@@ -69,7 +80,7 @@ themeBtn.addEventListener('contextmenu', e => {
   setTimeout(() => document.addEventListener('click', () => { if (themeMenu) { themeMenu.remove(); themeMenu = null; } }, { once: true }), 0);
 });
 function applyTheme(t) {
-  currentTheme = t;
+  S.theme = t;
   document.body.setAttribute('data-theme', t);
   themeBtn.textContent = 'palette';
   themeBtn.title = '左键切换主题 | 右键打开菜单';
@@ -77,18 +88,30 @@ function applyTheme(t) {
 
 // ===== Toast =====
 let toastTimer;
-function toast(msg) {
+function toast(msg, type = 'success') {
   const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
+  t.textContent = msg; t.className = 'toast ' + type + ' show';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+  toastTimer = setTimeout(() => t.classList.remove('show'), type === 'error' ? 4000 : 2000);
 }
 
 // ===== 时钟 =====
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 6) return '夜深了，注意休息 🌙';
+  if (h < 9) return '早上好，新的一天 ☀️';
+  if (h < 12) return '上午好，专注时刻 💪';
+  if (h < 14) return '中午好，别忘了吃饭 🍜';
+  if (h < 18) return '下午好，效率拉满 ⚡';
+  if (h < 22) return '晚上好，放松一下 🌆';
+  return '夜深了，早点休息 🌙';
+}
 function tick() {
   const now = new Date();
   document.getElementById('clock').textContent = now.toLocaleTimeString('zh-CN', { hour12: false });
   document.getElementById('date').textContent = now.toLocaleDateString('zh-CN', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  const g = document.getElementById('greeting');
+  if (g) g.textContent = getGreeting();
 }
 tick(); setInterval(tick, 1000);
 
@@ -142,27 +165,28 @@ Object.entries(LINKS).forEach(([cat, links]) => {
 });
 
 // ===== 状态 =====
-let lastStatus = null;
+S.lastStatus = null;
 
 async function loadStatus() {
   const el = document.getElementById('status');
   try {
-    lastStatus = await (await fetch('/api/status')).json();
+    S.lastStatus = await (await fetch('/api/status')).json();
     el.innerHTML = [
-      `<span><span class="dot ${lastStatus.mem_pct < 80 ? 'green' : (lastStatus.mem_pct < 90 ? 'yellow' : 'red')}"></span>内存 ${lastStatus.mem_used}/${lastStatus.mem_total}</span>`,
-      `<span><span class="dot green"></span>CPU ${lastStatus.cpu}%</span>`,
-      `<span><span class="dot green"></span>磁盘 ${lastStatus.disk_free}</span>`,
-      `<span><span class="dot green"></span>运行 ${lastStatus.uptime}</span>`,
+      `<span><span class="dot ${S.lastStatus.mem_pct < 80 ? 'green' : (S.lastStatus.mem_pct < 90 ? 'yellow' : 'red')}"></span>内存 ${S.lastStatus.mem_used}/${S.lastStatus.mem_total}</span>`,
+      `<span><span class="dot green"></span>CPU ${S.lastStatus.cpu}%</span>`,
+      `<span><span class="dot green"></span>磁盘 ${S.lastStatus.disk_free}</span>`,
+      `<span><span class="dot green"></span>运行 ${S.lastStatus.uptime}</span>`,
     ].join(' · ');
-    updateStorageBar(lastStatus);
+    updateStorageBar(S.lastStatus);
   } catch { el.innerHTML = '<span>⚙️ 状态暂不可用</span>'; }
 }
 loadStatus();
+setInterval(loadStatus, 15000);
 
 function updateStorageBar(s) {
   if (!s) {
-    if (lastStatus) s = lastStatus;
-    else { loadStatus().then(() => updateStorageBar(lastStatus)); return; }
+    if (S.lastStatus) s = S.lastStatus;
+    else { loadStatus().then(() => updateStorageBar(S.lastStatus)); return; }
   }
   const usedEl = document.getElementById('storageUsed');
   const pctEl = document.getElementById('storagePct');
@@ -186,20 +210,20 @@ document.addEventListener('keydown', e => {
   const tag = document.activeElement?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
 
-  if (currentPanel === 'files') {
+  if (S.currentPanel === 'files') {
     const drawer = document.getElementById('trashDrawer');
     if (drawer && drawer.style.display === 'block') { emptyTrash(); return; }
     const checked = document.querySelectorAll('.file-check:checked');
     if (checked.length) { batchDelete(); return; }
   }
-  if (currentPanel === 'notes' && currentNoteId) { deleteNote(); return; }
-  if (currentPanel === 'scrape') {
+  if (S.currentPanel === 'notes' && currentNoteId) { deleteNote(); return; }
+  if (S.currentPanel === 'scrape') {
     const checked = document.querySelectorAll('.scrape-check:checked');
     if (checked.length) { batchDelScrape(); return; }
     const first = document.querySelector('.scrape-check');
     if (first) { first.checked = true; updateScrapeBatchBar(); batchDelScrape(); return; }
   }
-  if (currentPanel === 'read' && currentBook) { closeReader(); return; }
+  if (S.currentPanel === 'read' && currentBook) { closeReader(); return; }
 });
 
 // ===== 刷新恢复面板 =====
@@ -295,10 +319,23 @@ document.addEventListener('keydown', e => {
       ctx.fillStyle = p.color + Math.floor(p.life * 255).toString(16).padStart(2,'0');
       ctx.fill();
     }
-    requestAnimationFrame(draw);
+    animId = requestAnimationFrame(draw);
   }
-  draw();
+  let animId = requestAnimationFrame(draw);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { cancelAnimationFrame(animId); animId = null; }
+    else if (!animId) animId = requestAnimationFrame(draw);
+  });
 })();
+
+// ===== 全局错误捕获 =====
+window.addEventListener('error', function(e) {
+  console.error('[Yiwei]', e.error?.stack || e.message);
+  if (e.target === window) toast('出错了，按 F12 查看详情', 'error');
+});
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('[Yiwei Promise]', e.reason?.stack || e.reason);
+});
 
 // ===== 壁纸弹窗 =====
 function openWallpaperModal() {
@@ -310,3 +347,19 @@ function closeWallpaperModal() {
   const modal = document.getElementById('wpModal');
   if (modal) modal.classList.remove('show');
 }
+
+// ===== 离线检测 =====
+(function() {
+  const banner = document.createElement('div');
+  banner.className = 'offline-banner';
+  banner.textContent = '⚡ 网络连接已断开';
+  banner.style.cssText = 'display:none;position:fixed;top:0;left:0;right:0;z-index:10000;background:#eab308;color:#000;text-align:center;padding:.35rem;font-size:.78rem;font-weight:500;';
+  document.body.prepend(banner);
+  function updateOnline() {
+    if (navigator.onLine) { banner.style.display = 'none'; }
+    else { banner.style.display = 'block'; }
+  }
+  window.addEventListener('online', updateOnline);
+  window.addEventListener('offline', updateOnline);
+  updateOnline();
+})();

@@ -27,7 +27,7 @@ async function loadWorks() {
       const full = await (await fetch('/api/works/' + w.id)).json();
       const chapters = full.chapters || [];
       let notes = [];
-      try { notes = await (await fetch('/api/notes')).json(); } catch {}
+      try { notes = await (await fetch('/api/notes')).json(); } catch(e) { console.warn('[Works] fetch notes failed', e.message); }
       const noteMap = {};
       notes.forEach(n => { noteMap[n.id] = n; });
 
@@ -55,7 +55,7 @@ async function loadWorks() {
         <div class="work-chapter-list">${chapterHtml}</div>
       </div>`;
     })).then(arr => arr.join(''));
-  } catch {}
+  } catch(e) { console.warn('[Works] loadWorks failed', e.message); }
 }
 
 function filterByWork(workId) {
@@ -77,7 +77,7 @@ function hideWorkDialog() {
 
 async function saveWorkFromDialog() {
   const title = document.getElementById('workTitleInput').value.trim();
-  if (!title) { toast('⚠️ 请输入作品标题'); return; }
+  if (!title) { toast('⚠️ 请输入作品标题', 'warning'); return; }
   await fetch('/api/works', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -116,7 +116,7 @@ async function removeChapterFromWork(workId, noteId) {
     });
     toast('✅ 已移除');
     loadWorks();
-  } catch { toast('❌ 移除失败'); }
+  } catch { toast('❌ 移除失败', 'error'); }
 }
 
 async function exportWork(workId, format) {
@@ -131,7 +131,7 @@ async function exportWork(workId, format) {
 saveNote = async function() {
   const title = document.getElementById('noteTitle').value.trim();
   const content = document.getElementById('noteContent').value;
-  if (!title && !content) { toast('⚠️ 标题和内容不能都为空'); return; }
+  if (!title && !content) { toast('⚠️ 标题和内容不能都为空', 'warning'); return; }
   const body = { title: title || '无标题', content };
   if (currentNoteId) body.id = currentNoteId;
 
@@ -165,9 +165,9 @@ saveNote = async function() {
           });
           loadWorks();
         }
-      } catch {}
+      } catch(e) { console.warn('[Works] chapter sync failed', e.message); }
     }
-  } catch(e) { toast('❌ 保存失败'); }
+  } catch(e) { toast('❌ 保存失败', 'error'); }
 };
 
 // ===== 重写 openNote 以加载作品关联 =====
@@ -305,7 +305,7 @@ loadNotesList = async function() {
 async function exportNote(format) {
   const title = document.getElementById('noteTitle')?.value.trim();
   const content = document.getElementById('noteContent')?.value;
-  if (!title && !content) { toast('⚠️ 没有可导出的内容'); return; }
+  if (!title && !content) { toast('⚠️ 没有可导出的内容', 'warning'); return; }
 
   try {
     const resp = await fetch('/api/export', {
@@ -313,7 +313,7 @@ async function exportNote(format) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: title || '文档', content: content || '', format }),
     });
-    if (!resp.ok) { toast('❌ 导出失败'); return; }
+    if (!resp.ok) { toast('❌ 导出失败', 'error'); return; }
     const blob = await resp.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

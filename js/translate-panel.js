@@ -25,7 +25,7 @@ async function loadLangs() {
   try {
     const langs = await (await fetch('/api/translate/langs')).json();
     // 只填充前几个常用语言，手动留其他选项
-  } catch {}
+  } catch(e) { console.warn('[Translate] loadLangs failed', e.message); }
 }
 
 // ===== 流式翻译 =====
@@ -92,7 +92,7 @@ async function doTranslate(text) {
               tlOutput.innerHTML = escHtml(result) + '<span class="cursor">▌</span>';
               tlOutput.scrollTop = tlOutput.scrollHeight;
             }
-          } catch {}
+          } catch(e) { console.warn('[Translate] SSE parse failed', e.message); }
         }
       }
     }
@@ -182,7 +182,8 @@ async function checkGrammar(text) {
           </div>
         `).join('')}
       </div>`;
-  } catch {
+  } catch(e) {
+    console.warn('[Translate] grammar check failed', e.message);
     grammarEl.innerHTML = '';
     badge.textContent = '';
   }
@@ -203,7 +204,7 @@ async function detectLang(text) {
       const langName = {zh:'中文',en:'English',ja:'日本語',ko:'한국어',fr:'Français',de:'Deutsch',es:'Español',pt:'Português',ru:'Русский',ar:'العربية',th:'ไทย',vi:'Tiếng Việt',id:'Bahasa Indonesia'};
       tlDetect.textContent = '🌐 ' + (langName[data.lang] || data.lang);
     }
-  } catch {}
+  } catch(e) { console.warn('[Translate] detectLang failed', e.message); }
 }
 
 // ===== 语言选择变更 → 自动重翻 =====
@@ -239,7 +240,7 @@ tlInput.addEventListener('keydown', async (e) => {
 async function saveTranslation() {
   const original = tlInput.value.trim();
   const translated = tlFinalTranslated;
-  if (!original) { toast('⚠️ 没有输入内容'); return; }
+  if (!original) { toast('⚠️ 没有输入内容', 'warning'); return; }
 
   try {
     const resp = await fetch('/api/translate/history', {
@@ -266,19 +267,19 @@ async function saveTranslation() {
 
 // ===== 朗读 =====
 async function speak(text) {
-  if (!text.trim()) { toast('⚠️ 没有可朗读的内容'); return; }
+  if (!text.trim()) { toast('⚠️ 没有可朗读的内容', 'warning'); return; }
   try {
     const resp = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: text.slice(0, 3000), voice: 'zh-CN-XiaoxiaoNeural' }),
     });
-    if (!resp.ok) { toast('❌ TTS 失败'); return; }
+    if (!resp.ok) { toast('❌ TTS 失败', 'error'); return; }
     const blob = await resp.blob();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     audio.onended = () => URL.revokeObjectURL(url);
-    audio.play().catch(() => toast('❌ 播放失败'));
+    audio.play().catch(() => toast('❌ 播放失败', 'error'));
   } catch (e) {
     toast('❌ TTS 出错: ' + e.message);
   }
@@ -291,7 +292,7 @@ tlSpeakTgt.addEventListener('click', () => speak(tlFinalTranslated));
 tlSaveNote.addEventListener('click', async () => {
   const original = tlInput.value.trim();
   const translated = tlFinalTranslated;
-  if (!original) { toast('⚠️ 没有内容'); return; }
+  if (!original) { toast('⚠️ 没有内容', 'warning'); return; }
 
   const title = '📝 翻译: ' + original.slice(0, 30);
   const content = `## 原文\n${original}\n\n## 译文\n${translated || '（无）'}`;
@@ -313,7 +314,7 @@ tlSaveNote.addEventListener('click', async () => {
 tlSwap.addEventListener('click', () => {
   const fromVal = tlFrom.value;
   const toVal = tlTo.value;
-  if (fromVal === 'auto') { toast('⚠️ 自动检测不能设为目标语言'); return; }
+  if (fromVal === 'auto') { toast('⚠️ 自动检测不能设为目标语言', 'warning'); return; }
   tlFrom.value = toVal;
   tlTo.value = fromVal;
   // 互换原文译文
@@ -349,7 +350,8 @@ async function loadHistory() {
           </div>
         </div>`;
     }).join('');
-  } catch {
+  } catch(e) {
+    console.warn('[Translate] loadHistory failed', e.message);
     tlHistoryList.innerHTML = '<div class="empty-state">⚠️ 加载失败</div>';
   }
 }
@@ -381,8 +383,9 @@ async function deleteHistItem(id) {
   try {
     await fetch('/api/translate/history/' + encodeURIComponent(id), { method: 'DELETE' });
     loadHistory();
-  } catch {
-    toast('❌ 删除失败');
+  } catch(e) {
+    console.warn('[Translate] deleteHist failed', e.message);
+    toast('❌ 删除失败', 'error');
   }
 }
 
@@ -396,8 +399,9 @@ tlClearHistory.addEventListener('click', async () => {
     }
     loadHistory();
     toast('✅ 已清空');
-  } catch {
-    toast('❌ 清空失败');
+  } catch(e) {
+    console.warn('[Translate] clearHistory failed', e.message);
+    toast('❌ 清空失败', 'error');
   }
 });
 

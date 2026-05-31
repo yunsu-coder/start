@@ -111,7 +111,7 @@ function expandUrls(raw) {
 async function startScrape() {
   const raw = document.getElementById('scrapeUrls').value.trim();
   const urls = expandUrls(raw);
-  if (!urls.length) { toast('⚠️ 请输入至少一个网址'); return; }
+  if (!urls.length) { toast('⚠️ 请输入至少一个网址', 'warning'); return; }
   const type = document.querySelector('input[name="scrapeType"]:checked').value;
 
   const prog = document.getElementById('scrapeProgress');
@@ -167,7 +167,7 @@ async function startScrape() {
     if (totalTxts > 0) parts.push(totalTxts + '个文本');
     toast('✅ 采集完成：' + (parts.join(', ') || done + '个页面') + (totalErrs > 0 ? ', ' + totalErrs + '个失败' : ''));
   } else {
-    toast('⚠️ 全部采集失败');
+    toast('⚠️ 全部采集失败', 'warning');
   }
 }
 
@@ -311,7 +311,7 @@ async function transferScrape(sid) {
   if (r.ok) {
     const data = await r.json();
     toast('✅ ' + data.transferred.length + ' 个文件已转存到文件中转站');
-  } else { toast('❌ 转存失败'); }
+  } else { toast('❌ 转存失败', 'error'); }
 }
 
 async function delScrapeSession(sid) {
@@ -324,7 +324,7 @@ async function delScrapeSession(sid) {
 // ===== 百度贴吧采集 =====
 async function startTiebaScrape() {
   const kw = document.getElementById('tiebaKw').value.trim();
-  if (!kw) { toast('⚠️ 请输入贴吧名称'); return; }
+  if (!kw) { toast('⚠️ 请输入贴吧名称', 'warning'); return; }
 
   const btn = document.getElementById('tiebaBtn');
   const resultEl = document.getElementById('tiebaResult');
@@ -391,7 +391,7 @@ async function startTiebaScrape() {
       resultEl.innerHTML = html;
     } else {
       resultEl.innerHTML = '<div class="scrape-progress" style="color:var(--danger);">❌ ' + escHtml(data.error || '抓取失败') + '</div>';
-      toast('❌ ' + (data.error || '抓取失败'));
+      toast('❌ ' + (data.error || '抓取失败', 'error'));
     }
   } catch (e) {
     btn.disabled = false;
@@ -402,10 +402,10 @@ async function startTiebaScrape() {
 }
 
 async function viewTiebaText(sessionId, filename) {
-  if (!filename) { toast('⚠️ 文本文件不存在'); return; }
+  if (!filename) { toast('⚠️ 文本文件不存在', 'warning'); return; }
   try {
     const r = await fetch('/api/scrape/text/' + sessionId + '/' + encodeURIComponent(filename));
-    if (!r.ok) { toast('❌ 读取失败'); return; }
+    if (!r.ok) { toast('❌ 读取失败', 'error'); return; }
     const text = await r.text();
     // 新窗口展示
     const w = window.open('', '_blank');
@@ -458,7 +458,7 @@ function toggleScrapeSelectAll() {
 
 async function batchTransferScrape() {
   const checked = document.querySelectorAll('.scrape-check:checked');
-  if (!checked.length) { toast('⚠️ 请先勾选'); return; }
+  if (!checked.length) { toast('⚠️ 请先勾选', 'warning'); return; }
   let ok = 0;
   for (const cb of checked) {
     const r = await fetch('/api/scrape/transfer/' + cb.dataset.sid, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
@@ -469,11 +469,11 @@ async function batchTransferScrape() {
 
 async function batchDelScrape() {
   const checked = document.querySelectorAll('.scrape-check:checked');
-  if (!checked.length) { toast('⚠️ 请先勾选'); return; }
+  if (!checked.length) { toast('⚠️ 请先勾选', 'warning'); return; }
   if (!confirm('确定删除选中的 ' + checked.length + ' 条采集记录？')) return;
   let ok = 0;
   for (const cb of checked) {
-    try { await fetch('/api/scrape/session/' + cb.dataset.sid, { method: 'DELETE' }); ok++; } catch {}
+    try { await fetch('/api/scrape/session/' + cb.dataset.sid, { method: 'DELETE' }); ok++; } catch(e) { console.warn('[Scrape] batchDel failed', e.message); }
   }
   toast('🗑️ ' + ok + ' 条已删除');
   loadScrapeSessions();
@@ -532,7 +532,7 @@ function expandScrapeTexts(sid) {
           <input type="checkbox" class="sc-file-check" data-name="${txt.name}" onclick="event.stopPropagation()"> ${escHtml(txt.name)}
         </summary>`;
         html += `<pre style="white-space:pre-wrap;word-break:break-word;max-height:200px;overflow:auto;background:var(--bg);padding:.4rem;border-radius:4px;font-size:.75rem;margin-top:.2rem;">${escHtml(text.slice(0, 3000))}</pre></details>`;
-      } catch {}
+      } catch(e) { console.warn('[Scrape] load text failed', e.message); }
     }
     panelEl.innerHTML = html;
   }).catch(() => { panelEl.innerHTML = '<div style="padding:.5rem;color:var(--danger);">❌ 加载失败</div>'; });
@@ -540,12 +540,12 @@ function expandScrapeTexts(sid) {
 
 async function saveCheckedScrapeFiles(sid) {
   const checked = document.querySelectorAll('.sc-file-check:checked');
-  if (!checked.length) { toast('⚠️ 请先勾选文件'); return; }
+  if (!checked.length) { toast('⚠️ 请先勾选文件', 'warning'); return; }
   const items = Array.from(checked).map(cb => cb.dataset.name);
   const r = await fetch('/api/scrape/transfer/' + sid, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items }),
   });
   if (r.ok) { const d = await r.json(); toast('✅ ' + (d.transferred||[]).length + ' 个文件已保存'); }
-  else { toast('❌ 保存失败'); }
+  else { toast('❌ 保存失败', 'error'); }
 }

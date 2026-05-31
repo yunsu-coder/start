@@ -21,7 +21,7 @@ async function uploadFiles(fileList) {
         const form = new FormData(); form.append('file', file);
         const r = await fetch(uploadUrl, { method: 'POST', body: form });
         if (r.ok) return true;
-        try { const e = await r.json(); toast('❌ ' + e.error); } catch {}
+        try { const e = await r.json(); toast('❌ ' + e.error); } catch(e) { console.warn('[Files] parse error', e.message); }
         return false;
       })
     );
@@ -230,13 +230,13 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePreview
 
 function copyLink(name) {
   const url = location.origin + '/api/dl/' + encodeURIComponent(name);
-  navigator.clipboard.writeText(url).then(() => toast('📋 链接已复制')).catch(() => toast('❌ 复制失败'));
+  navigator.clipboard.writeText(url).then(() => toast('📋 链接已复制')).catch(() => toast('❌ 复制失败', 'error'));
 }
 function downloadFile(name) { window.open('/api/dl/' + encodeURIComponent(name), '_blank'); }
 async function delFile(name) {
   if (!confirm(`确定删除「${name}」？`)) return;
   const r = await fetch('/api/files/' + encodeURIComponent(name), { method: 'DELETE' });
-  if (r.ok) { toast('🗑️ 已移入回收站'); loadFiles(); updateStorageBar(); } else { toast('❌ 删除失败'); }
+  if (r.ok) { toast('🗑️ 已移入回收站'); loadFiles(); updateStorageBar(); } else { toast('❌ 删除失败', 'error'); }
 }
 
 // ===== OCR 识别 =====
@@ -313,7 +313,7 @@ async function handleDrop(e, targetDir) {
         body: JSON.stringify({ name, targetDir, overwrite: true }),
       });
       if (r.ok) ok++;
-    } catch {}
+    } catch(e) { console.warn('[Files] move failed', e.message); }
   }
   toast(`✅ ${ok}/${valid.length} 个文件已移动`);
   loadFiles();
@@ -436,7 +436,7 @@ async function emptyTrash() {
 async function restoreTrash(name) {
   const r = await fetch('/api/trash/restore/' + encodeURIComponent(name), { method: 'POST' });
   if (r.ok) { toast('✅ 已恢复'); loadTrash(); loadFiles(); updateStorageBar(); }
-  else { toast('❌ 恢复失败'); }
+  else { toast('❌ 恢复失败', 'error'); }
 }
 
 // ===== 文件右键菜单 =====

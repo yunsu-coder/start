@@ -276,7 +276,7 @@ document.addEventListener('mouseup', function(e) {
         body: JSON.stringify(note),
       });
       toast('✅ 已保存到笔记');
-    } catch(e) { toast('❌ 保存失败'); }
+    } catch(e) { toast('❌ 保存失败', 'error'); }
     popup.remove();
   });
   document.body.appendChild(popup);

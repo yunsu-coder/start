@@ -142,6 +142,7 @@
 
   .time { font-size:3rem; font-weight:200; text-align:center; margin:.3rem 0; }
   .date { color:var(--sub); font-size:.9rem; text-align:center; }
+  .greeting { color:var(--accent); font-size:.82rem; text-align:center; margin-top:.1rem; opacity:.8; }
   .search { margin:1.2rem 0 1.5rem; }
   .search form { display:flex; gap:.5rem; }
   .search input {
@@ -198,7 +199,6 @@
   .drop-zone .hint { color:var(--sub); font-size:.8rem; }
   .drop-zone .hint strong { color:var(--accent); }
   .file-list { display:flex; flex-direction:column; gap:.25rem; min-height:40px; border-radius:8px; transition:background .2s; }
-  .file-list.drag-over { background:var(--hover); }
   .file-list.drag-over { background:var(--hover); }
 
   /* 网格视图 */
@@ -357,11 +357,15 @@
     position:fixed; top:1rem; right:1rem; left:auto; bottom:auto; transform:none;
     padding:.5rem 1rem; border-radius:var(--radius-md); background:var(--card); color:var(--text);
     font-size:.82rem; z-index:9999; opacity:0; pointer-events:none;
-    border:1px solid var(--border); box-shadow:var(--shadow-lg);
+    border:1px solid var(--border); border-left:4px solid var(--accent); box-shadow:var(--shadow-lg);
     transition: opacity .25s ease, transform .25s ease !important;
     transform: translateY(-8px) !important;
   }
   .toast.show { opacity:1 !important; transform: translateY(0) !important; }
+  .toast.success { border-left-color: var(--ok); }
+  .toast.error { border-left-color: var(--danger); }
+  .toast.warning { border-left-color: #eab308; }
+  .toast.info { border-left-color: #60a5fa; }
 
   /* ── 翻译面板 ── */
   .tl-lang-row { display:flex; align-items:center; gap:.5rem; margin-bottom:.8rem; flex-wrap:wrap; }
@@ -490,18 +494,19 @@
 
   /* 阅读器 */
   .book-card {
-    border-radius: var(--radius);
-    display:flex;flex-direction:column;align-items:center;padding:1rem .5rem;
-    background:var(--card);border:1px solid var(--border);border-radius:10px;
-    cursor:pointer;transition:transform .15s,box-shadow .15s;text-align:center;
+    display:flex; align-items:center; gap:.5rem;
+    padding:.6rem .7rem; background:var(--card);
+    border:1px solid var(--border); border-radius:var(--radius);
+    cursor:pointer; transition:all var(--transition);
     box-shadow:var(--shadow);
   }
-  .book-card:hover { transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.1); }
-  .book-card .cover { font-size:2.5rem;margin-bottom:.3rem; }
-  .book-card .btitle { font-size:.8rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%; }
-  .book-card .bprogress { font-size:.65rem;color:var(--sub);margin-top:.2rem; }
-
-  /* 阅读器主题 */
+  .book-card:hover {
+    border-color:var(--accent); transform:translateY(-2px);
+    box-shadow:var(--card-hover), var(--glow);
+  }
+  .book-card .cover { font-size:1.3rem; display:flex; align-items:center; flex-shrink:0; }
+  .book-card .btitle { flex:1; font-size:.82rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .book-card .bprogress { font-size:.68rem; color:var(--sub); flex-shrink:0; }
   .reader-light { background:#fff;color:#333; }
   .reader-sepia { background:#f4ecd8;color:#5b4636; }
   .reader-dark { background:#1a1a2e;color:#ccc; }
@@ -517,19 +522,6 @@
   .preview th { background:var(--accent); color:#fff; padding:6px 10px; border:1px solid var(--accent); }
   .preview td { border:1px solid var(--border); padding:6px 10px; }
   .preview tr:nth-child(even) td { background:var(--hover); }
-  .book-card {
-    display:flex; align-items:center; gap:.5rem;
-    padding:.6rem .7rem; background:var(--card);
-    border:1px solid var(--border); border-radius:var(--radius);
-    cursor:pointer; transition:all var(--transition);
-  }
-  .book-card:hover {
-    border-color:var(--accent); transform:translateY(-2px);
-    box-shadow:var(--card-hover), var(--glow);
-  }
-  .book-card .cover { font-size:1.3rem; display:flex; align-items:center; flex-shrink:0; }
-  .book-card .btitle { flex:1; font-size:.82rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .book-card .bprogress { font-size:.68rem; color:var(--sub); flex-shrink:0; }
   .preview blockquote { border-left:3px solid var(--accent); margin:.8em 0; padding:.3em 1em; color:var(--sub); }
   .preview li.task { list-style:none; margin-left:-1.5em; }
   .preview ul, .preview ol { margin: .4em 0; padding-left: 1.8em; }
@@ -587,16 +579,6 @@
   background: var(--sub);
 }
 
-/* Toast 滑入动画 */
-.toast {
-  transform: translateX(-50%) translateY(20px);
-  transition: opacity .3s ease, transform .3s ease !important;
-}
-.toast.show {
-  opacity: 1 !important;
-  transform: translateX(-50%) translateY(0) !important;
-}
-
 /* 按钮点击反馈 */
 .btn:active, .btn-sm:active, .nav-item:active {
   transform: scale(0.96);
@@ -638,6 +620,33 @@
 /* 笔记编辑区聚焦光晕 */
 .split-pane textarea:focus {
   box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* 微交互：点击反馈 */
+.file-row:active, .file-card:active, .work-card:active, .scrape-card:active, .book-card:active {
+  transform: scale(0.97);
+}
+/* 图标悬停变色 */
+.mi { transition: color .2s ease; }
+.mi:hover { color: var(--accent); }
+/* 面板平滑滚动 */
+.panel { scroll-behavior: smooth; }
+/* 按钮涟漪效果 */
+.btn, .btn-sm {
+  position: relative; overflow: hidden;
+}
+.btn::after, .btn-sm::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(circle, var(--accent) 10%, transparent 10%);
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity .4s, transform .4s;
+  transform: scale(5);
+}
+.btn:active::after, .btn-sm:active::after {
+  opacity: .15; transform: scale(0); transition: 0s;
 }
 
 /* 选择项勾选过渡 */
@@ -768,10 +777,6 @@
 }
 
 /* 按钮波纹点击 */
-.btn:active, .btn-sm:active {
-  transform: scale(0.96);
-}
-
 /* ===== 对话面板 ===== */
 .chat-container {
   display: flex;
