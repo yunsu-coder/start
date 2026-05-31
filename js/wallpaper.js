@@ -276,3 +276,6 @@ function stopCarousel() {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && carouselTimer) stopCarousel();
 });
+
+// 页面加载时自动恢复壁纸
+document.addEventListener('DOMContentLoaded', loadWallpapers);
