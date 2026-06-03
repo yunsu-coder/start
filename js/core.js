@@ -42,6 +42,82 @@ document.querySelectorAll('.nav-item').forEach(btn => {
   btn.addEventListener('click', () => switchPanel(btn.dataset.panel));
 });
 
+// ===== 智能导航栏隐藏（macOS Dock 式 + 滚动方向感知） =====
+(function () {
+  const nav = document.querySelector('.navbar');
+  let lastY = window.scrollY;
+  let direction = '';
+  let ticking = false;
+  let hideTimer = null;
+  let mouseNearTop = false;
+
+  const TOP_ZONE = 50;   // 鼠标距顶该距离内视为"贴近导航栏"
+  const DELAY = 1500;     // 鼠标离开顶部后多久自动隐藏
+
+  function show() {
+    nav.classList.remove('nav-hidden');
+    clearTimeout(hideTimer);
+  }
+
+  function hide() {
+    nav.classList.add('nav-hidden');
+    clearTimeout(hideTimer);
+  }
+
+  function scheduleHide() {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      if (!mouseNearTop) hide();
+    }, DELAY);
+  }
+
+  function update() {
+    const y = window.scrollY;
+    const atBottom = y + window.innerHeight >= document.documentElement.scrollHeight - 2;
+
+    if (!atBottom) {
+      direction = y > lastY ? 'down' : 'up';
+    }
+
+    if (y <= 5) {
+      // 页面顶部：始终显示
+      show();
+    } else if (direction === 'up') {
+      // 向上滚动：立即显示，再根据鼠标位置决定是否计时
+      show();
+      if (!mouseNearTop) scheduleHide();
+    } else if (direction === 'down' && y > nav.offsetHeight) {
+      // 向下滚动超过导航栏高度：立即隐藏
+      hide();
+    }
+
+    lastY = y;
+    ticking = false;
+  }
+
+  window.addEventListener('scroll', () => {
+    if (!ticking) {
+      requestAnimationFrame(update);
+      ticking = true;
+    }
+  }, { passive: true });
+
+  window.addEventListener('mousemove', (e) => {
+    const wasNearTop = mouseNearTop;
+    mouseNearTop = e.clientY <= TOP_ZONE;
+
+    if (mouseNearTop) {
+      show();
+    } else if (wasNearTop && !mouseNearTop) {
+      // 鼠标刚离开顶部：开始倒计时
+      scheduleHide();
+    }
+  }, { passive: true });
+
+  // 页面加载后即开始倒计时（鼠标初始位置不在顶部则自动隐藏）
+  scheduleHide();
+})();
+
 // ===== 主题 =====
 const themes = ['azure','emerald','ember','snow','midnight'];
 const themeBtn = document.getElementById('themeBtn');

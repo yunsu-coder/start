@@ -121,7 +121,9 @@
     background:var(--nav-bg); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
     border-bottom:1px solid var(--border);
     padding:.5rem 1rem; position:sticky; top:0; z-index:100;
+    transition: transform .3s ease;
   }
+  .navbar.nav-hidden { transform: translateY(-100%); }
   .nav-item {
     display:flex; flex-direction:column; align-items:center; gap:.1rem;
     cursor:pointer; padding:.35rem .6rem; border-radius:8px;
@@ -1051,7 +1053,10 @@
   transition: opacity .6s ease, background-image .6s ease;
 }
 /* 所有面板在壁纸之上，但 modal-overlay/toast 必须更高 */
-.navbar, .panel,
+.navbar {
+  z-index: 100;
+}
+.panel,
 #ambient-orbs, canvas {
   position: relative;
   z-index: 1;
