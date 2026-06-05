@@ -439,3 +439,144 @@ function closeWallpaperModal() {
   window.addEventListener('offline', updateOnline);
   updateOnline();
 })();
+
+// ===== API 设置 =====
+(function () {
+  const PRESETS = {
+    zhipu: {
+      baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+      model: 'glm-4-flash',
+      hint: '推荐<strong>智谱 GLM-4-Flash</strong>（永久免费），<a href="https://open.bigmodel.cn" target="_blank">注册获取 Key →</a>',
+    },
+    deepseek: {
+      baseUrl: 'https://api.deepseek.com/v1/chat/completions',
+      model: 'deepseek-chat',
+      hint: 'DeepSeek 官方 API，<a href="https://platform.deepseek.com" target="_blank">获取 Key →</a>',
+    },
+    silicon: {
+      baseUrl: 'https://api.siliconflow.cn/v1/chat/completions',
+      model: 'Qwen/Qwen2.5-7B-Instruct',
+      hint: 'SiliconFlow 聚合平台，9B 以下模型永久免费，<a href="https://siliconflow.cn" target="_blank">获取 Key →</a>',
+    },
+    alibaba: {
+      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+      model: 'qwen-plus',
+      hint: '阿里百炼，新用户千万 Token 免费额度，<a href="https://dashscope.aliyun.com" target="_blank">获取 Key →</a>',
+    },
+  };
+
+  const STORAGE_KEY = 'yiwei_api_config';
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+    catch { return {}; }
+  }
+
+  function save(cfg) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+  }
+
+  function getConfig() {
+    const cfg = load();
+    return {
+      apiKey: cfg.apiKey || '',
+      baseUrl: cfg.baseUrl || PRESETS.zhipu.baseUrl,
+      model: cfg.model || PRESETS.zhipu.model,
+    };
+  }
+
+  // 暴露给翻译面板使用
+  window.getApiConfig = getConfig;
+
+  // 更新 A 按钮状态点
+  function updateDot() {
+    const dot = document.getElementById('apiDot');
+    if (!dot) return;
+    const cfg = load();
+    if (cfg.apiKey) dot.classList.add('set');
+    else dot.classList.remove('set');
+  }
+  updateDot();
+
+  // 填入 UI
+  function fillUI() {
+    const cfg = load();
+    const keyEl = document.getElementById('apiKeyInput');
+    const baseEl = document.getElementById('apiBaseInput');
+    const modelEl = document.getElementById('apiModelInput');
+    if (keyEl) keyEl.value = cfg.apiKey || '';
+    if (baseEl) baseEl.value = cfg.baseUrl || PRESETS.zhipu.baseUrl;
+    if (modelEl) modelEl.value = cfg.model || PRESETS.zhipu.model;
+    // 高亮当前预设
+    highlightPreset(cfg.baseUrl, cfg.model);
+  }
+
+  function highlightPreset(baseUrl, model) {
+    document.querySelectorAll('.api-presets button').forEach(btn => {
+      btn.classList.remove('active');
+      const preset = PRESETS[btn.dataset.api];
+      if (preset && preset.baseUrl === baseUrl && preset.model === model) {
+        btn.classList.add('active');
+      }
+    });
+  }
+
+  // 打开弹窗
+  window.openApiModal = function () {
+    fillUI();
+    document.getElementById('apiModal').classList.add('show');
+  };
+
+  document.getElementById('apiBtn').addEventListener('click', window.openApiModal);
+
+  // 关闭弹窗
+  window.closeApiModal = function () {
+    document.getElementById('apiModal').classList.remove('show');
+  };
+
+  // 预设按钮
+  document.querySelectorAll('.api-presets button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = PRESETS[btn.dataset.api];
+      if (!preset) return;
+      const baseEl = document.getElementById('apiBaseInput');
+      const modelEl = document.getElementById('apiModelInput');
+      const hintEl = document.getElementById('apiHintText');
+      if (baseEl) baseEl.value = preset.baseUrl;
+      if (modelEl) modelEl.value = preset.model;
+      if (hintEl) hintEl.innerHTML = preset.hint;
+      highlightPreset(preset.baseUrl, preset.model);
+    });
+  });
+
+  // 保存
+  document.getElementById('apiSave').addEventListener('click', () => {
+    const apiKey = document.getElementById('apiKeyInput').value.trim();
+    const baseUrl = document.getElementById('apiBaseInput').value.trim();
+    const model = document.getElementById('apiModelInput').value.trim();
+    save({ apiKey, baseUrl, model });
+    updateDot();
+    toast('✅ API 配置已保存');
+    closeApiModal();
+  });
+
+  // 重置
+  document.getElementById('apiReset').addEventListener('click', () => {
+    document.getElementById('apiKeyInput').value = '';
+    document.getElementById('apiBaseInput').value = PRESETS.zhipu.baseUrl;
+    document.getElementById('apiModelInput').value = PRESETS.zhipu.model;
+    document.getElementById('apiHintText').innerHTML = PRESETS.zhipu.hint;
+    save({ apiKey: '', baseUrl: PRESETS.zhipu.baseUrl, model: PRESETS.zhipu.model });
+    updateDot();
+    highlightPreset(PRESETS.zhipu.baseUrl, PRESETS.zhipu.model);
+    toast('↩ 已恢复默认（智谱 GLM-4-Flash）');
+  });
+
+  // ESC 关闭
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('apiModal');
+      if (modal && modal.classList.contains('show')) closeApiModal();
+    }
+  });
+})();

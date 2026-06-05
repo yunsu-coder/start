@@ -6,7 +6,7 @@
 <title>一苇</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
-<link rel="stylesheet" href="/css/styles.css?v=1777706303">
+<link rel="stylesheet" href="/css/styles.css?v=1780450482">
 <script src="/lib/jszip/dist/jszip.min.js"></script>
 <script src="/lib/epubjs/dist/epub.min.js"></script>
 </head>
@@ -35,6 +35,10 @@
     <span class="nav-icon mi">smart_toy</span><span>对话</span>
   </button>
   <button class="theme-btn mi" id="themeBtn" title="主题">dark_mode</button>
+  <button class="api-btn" id="apiBtn" title="API 设置" onclick="openApiModal()">
+    <span class="api-btn-letter">AK</span>
+    <span class="api-btn-dot" id="apiDot"></span>
+  </button>
 </nav>
 
 <!-- 首页 -->
@@ -378,6 +382,45 @@
   </div>
 </div>
 
+<!-- API 设置弹窗 -->
+<div class="modal-overlay" id="apiModal" onclick="if(event.target===this)closeApiModal()">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <span class="m-title"><span class="mi">key</span> API 设置</span>
+      <button class="m-close" onclick="closeApiModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="api-field">
+        <label>API Key</label>
+        <input type="password" id="apiKeyInput" placeholder="输入你的 API Key" autocomplete="off">
+      </div>
+      <div class="api-field">
+        <label>接口地址</label>
+        <input type="text" id="apiBaseInput" placeholder="https://api.example.com/v1/chat/completions">
+      </div>
+      <div class="api-field">
+        <label>模型</label>
+        <input type="text" id="apiModelInput" placeholder="model-name">
+      </div>
+      <div class="api-presets-label">快捷填入</div>
+      <div class="api-presets">
+        <button data-api="zhipu"><strong>智谱</strong><span>GLM-4-Flash 免费</span></button>
+        <button data-api="deepseek"><strong>DeepSeek</strong><span>deepseek-chat</span></button>
+        <button data-api="silicon"><strong>SiliconFlow</strong><span>开源模型聚合</span></button>
+        <button data-api="alibaba"><strong>阿里百炼</strong><span>通义千问系列</span></button>
+      </div>
+      <div class="api-hint">
+        <span class="mi">info</span>
+        <span id="apiHintText">推荐<strong>智谱 GLM-4-Flash</strong>（永久免费），<a href="https://open.bigmodel.cn" target="_blank">注册获取 Key →</a></span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn outline" id="apiReset">重置</button>
+      <button class="btn accent" id="apiSave">保存</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="wpModal" onclick="if(event.target===this)closeWallpaperModal()">
   <div class="modal" style="max-width:750px;">
     <div class="modal-header">
@@ -446,14 +489,14 @@
 <div class="toast" id="toast"></div>
 
 <!-- app.js → 分拆为 5 个模块 -->
-<script src="/js/core.js?v=1777706304"></script>
+<script src="/js/core.js?v=1780450482"></script>
 <script src="/js/files-panel.js?v=1777704498"></script>
 <script src="/js/notes-panel.js?v=1777704498"></script>
 <script src="/js/reader-panel.js?v=1777704498"></script>
 <script src="/js/works-panel.js?v=1777704498"></script>
 <script src="/js/scrape.js?v=1777704498"></script>
 <script src="/js/wallpaper.js?v=1777706300"></script>
-<script src="/js/translate-panel.js?v=1777704498"></script>
+<script src="/js/translate-panel.js?v=1780450482"></script>
 <script src="/js/chat.js?v=1777704498"></script>
 </body>
 </html>

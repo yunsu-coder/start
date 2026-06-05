@@ -51,11 +51,12 @@ async function doTranslate(text) {
   const ac = new AbortController();
   tlAbort = ac;
 
+  const apiCfg = typeof getApiConfig === 'function' ? getApiConfig() : {};
   try {
     const resp = await fetch('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 5000), from, to }),
+      body: JSON.stringify({ text: text.slice(0, 5000), from, to, apiKey: apiCfg.apiKey, baseUrl: apiCfg.baseUrl, model: apiCfg.model }),
       signal: ac.signal,
     });
 
@@ -139,10 +140,11 @@ async function checkGrammar(text) {
   badge.style.color = 'var(--sub)';
 
   try {
+    const apiCfg = typeof getApiConfig === 'function' ? getApiConfig() : {};
     const resp = await fetch('/api/translate/grammar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 3000) }),
+      body: JSON.stringify({ text: text.slice(0, 3000), apiKey: apiCfg.apiKey, baseUrl: apiCfg.baseUrl, model: apiCfg.model }),
     });
     const data = await resp.json();
 
@@ -194,10 +196,11 @@ let detectTimer = null;
 
 async function detectLang(text) {
   try {
+    const apiCfg = typeof getApiConfig === 'function' ? getApiConfig() : {};
     const resp = await fetch('/api/translate/detect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.slice(0, 2000) }),
+      body: JSON.stringify({ text: text.slice(0, 2000), apiKey: apiCfg.apiKey, baseUrl: apiCfg.baseUrl, model: apiCfg.model }),
     });
     const data = await resp.json();
     if (data.lang) {

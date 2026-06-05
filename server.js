@@ -13,7 +13,7 @@ const { getStatus, listFiles, uploadFiles, deleteFile, getFilePath, getFilePrevi
         scanDir, breadcrumb, FILES_DIR,
         listWorks, saveWork, getWork, deleteWork, exportWork } = require('./lib/storage');
 const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache, scrapeTieba } = require('./lib/scraper');
-const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, deleteHistory } = require('./lib/translate');
+const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, deleteHistory, DEFAULT_BASE_URL, DEFAULT_MODEL } = require('./lib/translate');
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMD } = require('./lib/export');
 const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, getNextWallpaper, upscaleWallpaper, WALLPAPER_DIR } = require('./lib/wallpaper');
 
@@ -304,10 +304,10 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/translate/detect' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body?.text) return sendJSON(res, 400, { error: '请输入文字' });
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) return sendJSON(res, 500, { error: 'API key not configured' });
+    const apiKey = body.apiKey || process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) return sendJSON(res, 500, { error: '请先配置 API Key（点击导航栏 A 按钮）' });
     try {
-      const lang = await detectLanguage(body.text, apiKey);
+      const lang = await detectLanguage(body.text, apiKey, body.baseUrl, body.model);
       return sendJSON(res, 200, { lang });
     } catch(e) {
       return sendJSON(res, 500, { error: e.message });
@@ -320,11 +320,11 @@ const server = http.createServer(async (req, res) => {
     if (!body?.text) return sendJSON(res, 400, { error: '请输入文字' });
     const from = body.from || 'auto';
     const to = body.to || 'zh';
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) return sendJSON(res, 500, { error: 'API key not configured' });
+    const apiKey = body.apiKey || process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) return sendJSON(res, 500, { error: '请先配置 API Key（点击导航栏 A 按钮）' });
 
     try {
-      const aiResp = await translateStream(body.text, from, to, apiKey);
+      const aiResp = await translateStream(body.text, from, to, apiKey, body.baseUrl, body.model);
 
       if (!aiResp.ok) {
         const err = await aiResp.text().catch(() => '');
@@ -379,15 +379,15 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/translate/grammar' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body?.text) return sendJSON(res, 400, { error: '请输入文字' });
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) return sendJSON(res, 500, { error: 'API key not configured' });
+    const apiKey = body.apiKey || process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) return sendJSON(res, 500, { error: '请先配置 API Key（点击导航栏 A 按钮）' });
 
     try {
-      const aiResp = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      const aiResp = await fetch(body.baseUrl || DEFAULT_BASE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: body.model || DEFAULT_MODEL,
           stream: false,
           messages: [{
             role: 'system',
