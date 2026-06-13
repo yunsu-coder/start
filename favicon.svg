@@ -1,12 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- 苇草茎 -->
-  <path d="M50 95 Q52 50 45 10" stroke="#4a7c59" stroke-width="3" fill="none" stroke-linecap="round"/>
-  <!-- 叶片 -->
-  <path d="M48 80 Q20 65 10 50" stroke="#5a9a6a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  <path d="M47 65 Q75 50 85 35" stroke="#4a7c59" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  <path d="M46 50 Q15 40 8 25" stroke="#6aad78" stroke-width="2" fill="none" stroke-linecap="round"/>
-  <path d="M45 30 Q70 15 80 5" stroke="#4a7c59" stroke-width="2" fill="none" stroke-linecap="round"/>
-  <!-- 穗 -->
-  <path d="M45 10 Q38 0 42 -2" stroke="#7ab888" stroke-width="2" fill="none" stroke-linecap="round"/>
-  <path d="M45 10 Q50 -2 48 -4" stroke="#7ab888" stroke-width="2" fill="none" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5b8dee"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#g)"/>
+  <text x="32" y="42" text-anchor="middle" font-size="32" font-family="serif" fill="white">苇</text>
 </svg>

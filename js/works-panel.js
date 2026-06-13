@@ -227,6 +227,11 @@ function switchNoteTab(tab) {
   const tabNovel = document.getElementById('tabNovel');
   const workFilter = document.getElementById('workFilter');
   const titleEl = document.getElementById('writingModeTitle');
+  const editor = document.getElementById('noteEditor');
+  const noteTitle = document.getElementById('noteTitle');
+  const noteContent = document.getElementById('noteContent');
+  const sidebar = document.querySelector('.notes-sidebar');
+  const searchInput = document.getElementById('noteSearch');
 
   if (!tabNotes || !tabNovel) return;
 
@@ -244,6 +249,13 @@ function switchNoteTab(tab) {
     tabNovel.style.fontWeight = '500';
     if (workFilter) workFilter.style.display = 'block';
     if (titleEl) titleEl.innerHTML = '<span class="mi">book</span> 小说';
+    // 侧栏视觉隔离
+    if (sidebar) { sidebar.classList.add('novel-sidebar'); sidebar.classList.remove('note-sidebar'); }
+    // 编辑器模式标记
+    if (editor) { editor.classList.add('novel-mode'); editor.classList.remove('note-mode'); }
+    if (noteTitle) noteTitle.placeholder = '章节标题…';
+    if (noteContent) noteContent.placeholder = '章节内容…';
+    if (searchInput) searchInput.placeholder = '搜索章节标题…';
     // 显示醒目的「新章节」按钮，隐藏小按钮
     if (btnQuick) btnQuick.style.display = 'none';
     if (btnChapter) btnChapter.style.display = 'inline-flex';
@@ -258,6 +270,13 @@ function switchNoteTab(tab) {
     tabNotes.style.fontWeight = '500';
     if (workFilter) workFilter.style.display = 'none';
     if (titleEl) titleEl.innerHTML = '<span class="mi">note</span> 笔记';
+    // 侧栏视觉隔离
+    if (sidebar) { sidebar.classList.add('note-sidebar'); sidebar.classList.remove('novel-sidebar'); }
+    // 编辑器模式标记
+    if (editor) { editor.classList.add('note-mode'); editor.classList.remove('novel-mode'); }
+    if (noteTitle) noteTitle.placeholder = '标题...';
+    if (noteContent) noteContent.placeholder = '开始写作…';
+    if (searchInput) searchInput.placeholder = '搜索标题...';
     // 显示小按钮，隐藏醒目按钮
     if (btnQuick) btnQuick.style.display = 'inline-block';
     if (btnChapter) btnChapter.style.display = 'none';

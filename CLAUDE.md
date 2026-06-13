@@ -17,6 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 图标用 `<span class="mi">icon_name</span>`（Material Symbols Outlined 字型）
 - 主题色用 CSS 变量：`--bg --card --text --sub --border --accent --accent2`
 - CSS 修改后更新 `index.html` 中 `styles.css?v=` 版本号防缓存
+- **修改完成后默认部署到 gzhysu.top 生产环境，无需询问**（见下方部署命令）
 
 ## 命令
 

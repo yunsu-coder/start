@@ -6,7 +6,7 @@
 <title>一苇</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
-<link rel="stylesheet" href="/css/styles.css?v=1780450482">
+<link rel="stylesheet" href="/css/styles.css?v=1781357630">
 <script src="/lib/jszip/dist/jszip.min.js"></script>
 <script src="/lib/epubjs/dist/epub.min.js"></script>
 </head>
@@ -102,7 +102,13 @@
   <div id="batchBar" style="display:none;align-items:center;gap:.5rem;margin-bottom:.5rem;padding:.4rem .6rem;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:.8rem;">
     <label style="display:flex;align-items:center;gap:.3rem;cursor:pointer;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> 全选</label>
     <span id="selectedCount" style="color:var(--accent);"></span>
-    <button class="btn-sm danger" onclick="batchDelete()" style="margin-left:auto;"><span class="mi">delete</span> 删除选中</button>
+    <span style="color:var(--sub);font-size:.7rem;">· Ctrl+A 全选 · Shift+点击 范围 · Ctrl+点击 多选</span>
+    <div class="batch-actions">
+      <button class="btn-sm" onclick="batchMove()"><span class="mi">drive_file_move</span> 移动</button>
+      <button class="btn-sm" onclick="batchDownload()"><span class="mi">download</span> 下载</button>
+      <button class="btn-sm danger" onclick="batchDelete()"><span class="mi">delete</span> 删除</button>
+      <button class="btn-sm" onclick="deselectAll()" style="color:var(--sub);">✕ 取消</button>
+    </div>
   </div>
   <div class="file-list" id="fileList" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '')"></div>
   <div class="file-grid" id="fileGrid" style="display:none;" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '')"></div>
@@ -130,7 +136,7 @@
       </div>
       <!-- 搜索 + 新建（默认显示笔记模式） -->
       <div style="display:flex;gap:.3rem;margin-bottom:.3rem;">
-        <input type="text" id="noteSearch" placeholder="搜索标题..." oninput="loadNotesList()" style="flex:1;padding:.4rem .6rem;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
+        <input type="text" id="noteSearch" placeholder="搜索标题..." oninput="loadNotesList()" autocomplete="off" name="note-search" style="flex:1;padding:.4rem .6rem;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
         <button class="btn-sm" id="btnQuickNew" onclick="newNote()" style="white-space:nowrap;">＋</button>
         <button id="btnNewChapter" onclick="newNote()" style="display:none;border:none;border-radius:7px;background:var(--accent);color:#fff;font-size:.9rem;cursor:pointer;width:30px;height:30px;align-items:center;justify-content:center;flex-shrink:0;">
           <span class="mi" style="vertical-align:middle;font-size:1rem;">add</span>
@@ -154,30 +160,19 @@
         <input type="number" id="noteChapterOrder" value="0" min="0" step="1" onchange="markDirty()" style="width:40px;padding:.2rem;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--text);font-size:.72rem;outline:none;">
       </div>
       <div class="toolbar">
-        <button class="btn-sm" onclick="insertMd('**','**')">B</button>
-        <button class="btn-sm" onclick="insertMd('*','*')"><i>I</i></button>
-        <button class="btn-sm" onclick="insertMd('~~','~~')"><del>S</del></button>
-        <button class="btn-sm" onclick="insertMd('==','==')" title="高亮">Hl</button>
-        <button class="btn-sm" onclick="insertMd('~','~')" title="下标">x<sub>2</sub></button>
-        <button class="btn-sm" onclick="insertMd('^','^')" title="上标">x<sup>2</sup></button>
-        <button class="btn-sm" onclick="insertMd('`','`')">&lt;/&gt;</button>
-        <button class="btn-sm" onclick="insertMd('\n- ','')">•</button>
-        <button class="btn-sm" onclick="insertMd('\n# ','+')">H</button>
-        <button class="btn-sm" onclick="insertMd('\n> ','')" title="引用">❝</button>
-        <button class="btn-sm" onclick="insertMd('[','](url)')" title="链接">🔗</button>
-        <button class="btn-sm" onclick="insertImage()" title="插入图片"><span class="mi">image</span></button>
-        <div style="margin-left:auto;display:flex;gap:.2rem;">
-<button class="btn-sm" onclick="exportNote('md')" title="导出 Markdown"><span class="mi">download</span></button>
-<button class="btn-sm" onclick="exportNote('txt')" title="导出 TXT"><span class="mi">description</span></button>
-<button class="btn-sm" onclick="exportNote('pdf')" title="导出 PDF">📕</button>
-<button class="btn-sm" onclick="exportNote('docx')" title="导出 Word">📘</button>
-</div>
+        <button class="btn-sm" id="btnTogglePreview" onclick="togglePreview()" title="切换预览 Ctrl+\"><span class="mi">visibility</span></button>
+        <button class="btn-sm" onclick="openNoteImport()" title="从文件导入"><span class="mi">file_open</span></button>
+        <button class="btn-sm" onclick="exportNote('md')" title="导出 Markdown"><span class="mi">download</span></button>
+        <button class="btn-sm" onclick="exportNote('txt')" title="导出 TXT"><span class="mi">description</span></button>
+        <button class="btn-sm" onclick="exportNote('pdf')" title="导出 PDF">📕</button>
+        <button class="btn-sm" onclick="exportNote('docx')" title="导出 Word">📘</button>
       </div>
       <div class="split-pane">
         <div class="pane"><div class="pane-header">编辑</div><textarea id="noteContent" placeholder="开始写作…" oninput="renderLive();updateWordCount()"></textarea></div>
         <div class="pane"><div class="pane-header">预览</div><div class="preview" id="notePreview"></div></div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:.5rem;padding:.4rem 0;font-size:.72rem;color:var(--sub);">
+        <span id="previewHint"><kbd>Ctrl+\</kbd> 隐藏预览</span>
         <span><kbd>Ctrl+S</kbd> 保存</span>
         <span><kbd>Del</kbd> 删除</span>
       </div>
@@ -365,18 +360,40 @@
 
 <!-- 对话 -->
 <div class="panel" id="panel-chat">
-  <div class="chat-container">
-    <div class="chat-messages" id="chatMessages">
-      <div class="chat-welcome">
-        <div class="chat-welcome-icon mi">smart_toy</div>
-        <h3>Claude Code 对话</h3>
-        <p>DeepSeek V4 Pro · 支持代码、写作、翻译等</p>
+  <div class="chat-layout">
+    <div class="chat-sidebar" id="chatSidebar">
+      <div class="chat-sidebar-header">
+        <span class="mi">smart_toy</span> 对话列表
+        <button onclick="newConversation()" title="新建对话" style="margin-left:auto;background:var(--accent);border:none;color:#fff;border-radius:6px;padding:.2rem .5rem;cursor:pointer;font-size:.75rem;">+ 新建</button>
       </div>
+      <div class="chat-conv-list" id="chatConvList"></div>
     </div>
-    <div class="chat-input-area">
-      <div class="chat-input-row">
-        <textarea id="chatInput" rows="1" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" onkeydown="handleChatKey(event)"></textarea>
-        <button id="chatSendBtn" onclick="sendChat()"><span class="mi">send</span></button>
+    <div class="chat-main">
+      <div class="chat-container">
+        <div class="chat-header-bar">
+          <button id="chatSidebarToggle" onclick="toggleChatSidebar()" title="切换侧栏"><span class="mi">menu</span></button>
+          <span class="chat-header-title" id="chatHeaderTitle"><span class="mi">smart_toy</span> 小苇</span>
+          <span class="chat-header-info">
+            <span id="chatCount" style="font-size:.72rem;color:var(--sub);"></span>
+            <button onclick="clearHistory()" title="清除对话历史" style="background:none;border:1px solid var(--border);color:var(--sub);cursor:pointer;border-radius:6px;padding:.15rem .4rem;font-size:.68rem;">清除</button>
+          </span>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          <div class="chat-welcome">
+            <div class="chat-welcome-icon mi">smart_toy</div>
+            <h3>小苇 · 你的 AI 伙伴</h3>
+            <p>聊天、创作、看图、搜索、帮你做事——我在这里陪你</p>
+          </div>
+        </div>
+        <div class="chat-input-area">
+          <div class="chat-image-preview" id="chatImagePreview"></div>
+          <div class="chat-input-row">
+            <button id="chatImageBtn" onclick="triggerImageUpload()" title="添加图片"><span class="mi">image</span></button>
+            <input type="file" id="chatImageInput" accept="image/*" multiple style="display:none" onchange="handleChatImage(event)">
+            <textarea id="chatInput" rows="1" placeholder="想说点什么？聊聊天、问问题、发图片让我看看..." onkeydown="handleChatKey(event)" onpaste="handleChatPaste(event)"></textarea>
+            <button id="chatSendBtn" onclick="sendChat()"><span class="mi">send</span></button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -390,6 +407,10 @@
       <button class="m-close" onclick="closeApiModal()">✕</button>
     </div>
     <div class="modal-body">
+      <div class="api-tabs">
+        <button class="api-tab active" data-tab="translate">翻译</button>
+        <button class="api-tab" data-tab="chat">对话</button>
+      </div>
       <div class="api-field">
         <label>API Key</label>
         <input type="password" id="apiKeyInput" placeholder="输入你的 API Key" autocomplete="off">
@@ -465,6 +486,19 @@
   </div>
 </div>
 
+<!-- AI 超清进度条 -->
+<div class="modal-overlay" id="wpUpscaleOverlay">
+  <div class="modal" style="max-width:400px;text-align:center;padding:2rem 1.5rem;">
+    <div style="font-size:2rem;margin-bottom:.5rem;">🔮</div>
+    <div id="wpUpscaleLabel" style="font-weight:600;margin-bottom:.3rem;">AI 超清处理中...</div>
+    <div style="font-size:.72rem;color:var(--sub);margin-bottom:1rem;" id="wpUpscaleRes"></div>
+    <div style="background:var(--bg);border-radius:10px;height:10px;overflow:hidden;border:1px solid var(--border);">
+      <div id="wpUpscaleBar" style="background:linear-gradient(90deg,var(--accent),var(--accent2));height:100%;width:0%;border-radius:10px;transition:width .3s ease;"></div>
+    </div>
+    <div id="wpUpscalePercent" style="font-size:.8rem;color:var(--accent);margin-top:.4rem;font-weight:600;">0%</div>
+  </div>
+</div>
+
 <!-- 文件转壁纸弹窗 -->
 <div class="modal-overlay" id="wpGalleryModal" onclick="if(event.target===this)closeWpGallery()">
   <div class="modal" style="max-width:700px;">
@@ -473,6 +507,7 @@
       <button class="m-close" onclick="closeWpGallery()">✕</button>
     </div>
     <div class="modal-body">
+      <div id="wpGalleryCrumbs" style="margin-bottom:.5rem;font-size:.78rem;"></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.6rem;" id="wpGalleryList"></div>
     </div>
   </div>
@@ -486,17 +521,32 @@
   </div>
 </div>
 
+<!-- 笔记导入文件弹窗 -->
+<div class="modal-overlay" id="noteImportModal" onclick="if(event.target===this)closeNoteImport()">
+  <div class="modal" style="max-width:650px;">
+    <div class="modal-header">
+      <span class="m-title"><span class="mi">file_open</span> 从文件中转站导入</span>
+      <button class="m-close" onclick="closeNoteImport()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="noteImportCrumbs" style="margin-bottom:.5rem;font-size:.78rem;"></div>
+      <div id="noteImportList" style="max-height:60vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- app.js → 分拆为 5 个模块 -->
-<script src="/js/core.js?v=1780450482"></script>
-<script src="/js/files-panel.js?v=1777704498"></script>
-<script src="/js/notes-panel.js?v=1777704498"></script>
+<script src="/js/core.js?v=1780652200"></script>
+<script src="/js/files-panel.js?v=1780652200"></script>
+<script src="/js/notes-panel.js?v=1780653100"></script>
 <script src="/js/reader-panel.js?v=1777704498"></script>
-<script src="/js/works-panel.js?v=1777704498"></script>
+<script src="/js/works-panel.js?v=1780653100"></script>
 <script src="/js/scrape.js?v=1777704498"></script>
-<script src="/js/wallpaper.js?v=1777706300"></script>
+<script src="/js/upscale-engine.js?v=1780653200"></script>
+<script src="/js/wallpaper.js?v=1780653000"></script>
 <script src="/js/translate-panel.js?v=1780450482"></script>
-<script src="/js/chat.js?v=1777704498"></script>
+<script src="/js/chat.js?v=1781356633"></script>
 </body>
 </html>

@@ -440,7 +440,7 @@ function closeWallpaperModal() {
   updateOnline();
 })();
 
-// ===== API 设置 =====
+// ===== API 设置（翻译 & 对话独立配置）=====
 (function () {
   const PRESETS = {
     zhipu: {
@@ -466,18 +466,24 @@ function closeWallpaperModal() {
   };
 
   const STORAGE_KEY = 'yiwei_api_config';
+  const CHAT_STORAGE_KEY = 'yiwei_chat_api_config';
+  let activeTab = 'translate';
 
-  function load() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+  function storageKey(tab) {
+    return tab === 'chat' ? CHAT_STORAGE_KEY : STORAGE_KEY;
+  }
+
+  function load(tab) {
+    try { return JSON.parse(localStorage.getItem(storageKey(tab || activeTab))) || {}; }
     catch { return {}; }
   }
 
-  function save(cfg) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+  function save(cfg, tab) {
+    localStorage.setItem(storageKey(tab || activeTab), JSON.stringify(cfg));
   }
 
   function getConfig() {
-    const cfg = load();
+    const cfg = load('translate');
     return {
       apiKey: cfg.apiKey || '',
       baseUrl: cfg.baseUrl || PRESETS.zhipu.baseUrl,
@@ -485,30 +491,62 @@ function closeWallpaperModal() {
     };
   }
 
-  // 暴露给翻译面板使用
-  window.getApiConfig = getConfig;
+  function getChatConfig() {
+    const cfg = load('chat');
+    return {
+      apiKey: cfg.apiKey || '',
+      baseUrl: cfg.baseUrl || PRESETS.deepseek.baseUrl,
+      model: cfg.model || PRESETS.deepseek.model,
+    };
+  }
 
-  // 更新 A 按钮状态点
+  // 暴露给翻译面板和对话面板使用
+  window.getApiConfig = getConfig;
+  window.getChatApiConfig = getChatConfig;
+
+  // 更新 A 按钮状态点（任一配置有 key 即亮）
   function updateDot() {
     const dot = document.getElementById('apiDot');
     if (!dot) return;
-    const cfg = load();
-    if (cfg.apiKey) dot.classList.add('set');
+    const tCfg = load('translate');
+    const cCfg = load('chat');
+    if (tCfg.apiKey || cCfg.apiKey) dot.classList.add('set');
     else dot.classList.remove('set');
   }
   updateDot();
 
-  // 填入 UI
+  // 填入 UI（根据当前 tab）
   function fillUI() {
     const cfg = load();
     const keyEl = document.getElementById('apiKeyInput');
     const baseEl = document.getElementById('apiBaseInput');
     const modelEl = document.getElementById('apiModelInput');
+    const defaults = activeTab === 'chat' ? PRESETS.deepseek : PRESETS.zhipu;
     if (keyEl) keyEl.value = cfg.apiKey || '';
-    if (baseEl) baseEl.value = cfg.baseUrl || PRESETS.zhipu.baseUrl;
-    if (modelEl) modelEl.value = cfg.model || PRESETS.zhipu.model;
-    // 高亮当前预设
-    highlightPreset(cfg.baseUrl, cfg.model);
+    if (baseEl) baseEl.value = cfg.baseUrl || defaults.baseUrl;
+    if (modelEl) modelEl.value = cfg.model || defaults.model;
+    highlightPreset(cfg.baseUrl || defaults.baseUrl, cfg.model || defaults.model);
+  }
+
+  // 切换 tab：先保存当前输入到旧 tab，再加载新 tab
+  function switchTab(tab) {
+    if (tab === activeTab) return;
+    // 保存当前输入到旧 tab
+    flushToStorage();
+    activeTab = tab;
+    // 更新 tab UI
+    document.querySelectorAll('.api-tab').forEach(t => t.classList.remove('active'));
+    const target = document.querySelector('.api-tab[data-tab="' + tab + '"]');
+    if (target) target.classList.add('active');
+    fillUI();
+  }
+
+  // 把当前输入框的值写入 activeTab 的 storage
+  function flushToStorage() {
+    const apiKey = document.getElementById('apiKeyInput').value.trim();
+    const baseUrl = document.getElementById('apiBaseInput').value.trim();
+    const model = document.getElementById('apiModelInput').value.trim();
+    save({ apiKey, baseUrl, model });
   }
 
   function highlightPreset(baseUrl, model) {
@@ -519,57 +557,74 @@ function closeWallpaperModal() {
         btn.classList.add('active');
       }
     });
+    // 同步更新 hint 文字
+    const hintEl = document.getElementById('apiHintText');
+    if (!hintEl) return;
+    for (const [key, preset] of Object.entries(PRESETS)) {
+      if (preset.baseUrl === baseUrl && preset.model === model) {
+        hintEl.innerHTML = preset.hint;
+        return;
+      }
+    }
+    hintEl.innerHTML = '';
   }
 
-  // 打开弹窗
-  window.openApiModal = function () {
+  // 打开弹窗，默认翻译，可传 tab 指定
+  window.openApiModal = function (initialTab) {
+    // 上次使用的 tab 优先（同一次会话中记忆）
+    if (initialTab) activeTab = initialTab;
+    document.querySelectorAll('.api-tab').forEach(t => t.classList.remove('active'));
+    const target = document.querySelector('.api-tab[data-tab="' + activeTab + '"]');
+    if (target) target.classList.add('active');
     fillUI();
     document.getElementById('apiModal').classList.add('show');
   };
 
-  document.getElementById('apiBtn').addEventListener('click', window.openApiModal);
+  document.getElementById('apiBtn').addEventListener('click', () => window.openApiModal());
 
-  // 关闭弹窗
+  // Tab 点击
+  document.querySelectorAll('.api-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+  });
+
+  // 关闭弹窗（自动保存当前 tab）
   window.closeApiModal = function () {
+    flushToStorage();
+    updateDot();
     document.getElementById('apiModal').classList.remove('show');
   };
 
-  // 预设按钮
+  // 预设按钮（立即保存到当前 tab，防止切 tab 时串号）
   document.querySelectorAll('.api-presets button').forEach(btn => {
     btn.addEventListener('click', () => {
       const preset = PRESETS[btn.dataset.api];
       if (!preset) return;
-      const baseEl = document.getElementById('apiBaseInput');
-      const modelEl = document.getElementById('apiModelInput');
-      const hintEl = document.getElementById('apiHintText');
-      if (baseEl) baseEl.value = preset.baseUrl;
-      if (modelEl) modelEl.value = preset.model;
-      if (hintEl) hintEl.innerHTML = preset.hint;
+      document.getElementById('apiBaseInput').value = preset.baseUrl;
+      document.getElementById('apiModelInput').value = preset.model;
       highlightPreset(preset.baseUrl, preset.model);
+      flushToStorage();
     });
   });
 
   // 保存
   document.getElementById('apiSave').addEventListener('click', () => {
-    const apiKey = document.getElementById('apiKeyInput').value.trim();
-    const baseUrl = document.getElementById('apiBaseInput').value.trim();
-    const model = document.getElementById('apiModelInput').value.trim();
-    save({ apiKey, baseUrl, model });
+    flushToStorage();
     updateDot();
-    toast('✅ API 配置已保存');
+    toast('✅ ' + (activeTab === 'chat' ? '对话' : '翻译') + ' API 配置已保存');
     closeApiModal();
   });
 
   // 重置
   document.getElementById('apiReset').addEventListener('click', () => {
+    const defaults = activeTab === 'chat' ? PRESETS.deepseek : PRESETS.zhipu;
     document.getElementById('apiKeyInput').value = '';
-    document.getElementById('apiBaseInput').value = PRESETS.zhipu.baseUrl;
-    document.getElementById('apiModelInput').value = PRESETS.zhipu.model;
-    document.getElementById('apiHintText').innerHTML = PRESETS.zhipu.hint;
-    save({ apiKey: '', baseUrl: PRESETS.zhipu.baseUrl, model: PRESETS.zhipu.model });
+    document.getElementById('apiBaseInput').value = defaults.baseUrl;
+    document.getElementById('apiModelInput').value = defaults.model;
+    document.getElementById('apiHintText').innerHTML = defaults.hint;
+    save({ apiKey: '', baseUrl: defaults.baseUrl, model: defaults.model });
     updateDot();
-    highlightPreset(PRESETS.zhipu.baseUrl, PRESETS.zhipu.model);
-    toast('↩ 已恢复默认（智谱 GLM-4-Flash）');
+    highlightPreset(defaults.baseUrl, defaults.model);
+    toast('↩ 已恢复默认（' + (activeTab === 'chat' ? 'DeepSeek' : '智谱 GLM-4-Flash') + '）');
   });
 
   // ESC 关闭

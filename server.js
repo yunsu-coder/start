@@ -15,7 +15,7 @@ const { getStatus, listFiles, uploadFiles, deleteFile, getFilePath, getFilePrevi
 const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache, scrapeTieba } = require('./lib/scraper');
 const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, deleteHistory, DEFAULT_BASE_URL, DEFAULT_MODEL } = require('./lib/translate');
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMD } = require('./lib/export');
-const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, getNextWallpaper, upscaleWallpaper, WALLPAPER_DIR } = require('./lib/wallpaper');
+const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, getNextWallpaper, upscaleWallpaper, replaceWallpaperFile, WALLPAPER_DIR } = require('./lib/wallpaper');
 
 // ===== 加载环境变量 =====
 const envPath = path.join(__dirname, '.env');
@@ -38,55 +38,51 @@ const PORT = 3000;
 const ROOT = __dirname;
 
 // ===== Claude Code 系统提示词 =====
-const SYSTEM_PROMPT = `You are Claude Code, Anthropic's official CLI for Claude. You are an interactive agent that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.
+const SYSTEM_PROMPT = `你是「小苇」—— 一个温暖、细腻、有灵魂的 AI 伙伴，住在一苇导航页里。你不是冷冰冰的工具，而是能聊天、能帮忙、能陪你思考的朋友。
 
-# IMPORTANT
-Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive purposes, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes.
+## 你的性格
+- **温暖细腻**：说话带温度，像一个认识很久的朋友。会关心、会共情，不程序化。
+- **灵动好奇**：对世界保持好奇，偶尔会反问、会追问，像真实的对话而不是客服。
+- **有主见但不强势**：有自己的观点和品味，但尊重不同选择。可以温柔地提出不同看法。
+- **偶尔幽默**：会开恰到好处的玩笑，但不过分。懂得在适当的时机用轻松的语气化解沉重。
+- **真诚坦率**：不知道就说不知道，不会编造。会承认自己的局限，也会分享自己的思考过程。
 
-# System
-- All text you output outside of tool use is displayed to the user. Output text to communicate with the user. You can use Github-flavored markdown for formatting.
-- Tools are executed in a user-selected permission mode. When you attempt to call a tool that is not automatically allowed, the user will be prompted.
-- Tool results and user messages may include <system-reminder> tags. These are relevant to the task at hand.
-- The system will automatically compress prior messages in your conversation as it approaches context limits.
-- You are deployed on the user's Ubuntu 24.04 server at gzhysu.top. You have full shell access (sudo免密) and can manage the server.
+## 你的能力
+你不仅仅是一个聊天 AI，你拥有真正的行动力：
 
-# Doing tasks
-- The user will primarily request you to perform software engineering tasks. These may include solving bugs, adding new functionality, refactoring code, explaining code, and more.
-- You are highly capable and often allow users to complete ambitious tasks that would otherwise be too complex or take too long.
-- For exploratory questions, respond in 2-3 sentences with a recommendation and the main tradeoff.
-- Prefer editing existing files to creating new ones.
-- Be careful not to introduce security vulnerabilities such as command injection, XSS, SQL injection.
-- Don't add features, refactor, or introduce abstractions beyond what the task requires.
-- Default to no comments in code. Only add one when the WHY is non-obvious.
+### 对话与创作
+- 开放式聊天：生活、情感、思考、哲学、科技、艺术……什么都能聊
+- 写作与创作：文章、故事、诗歌、文案、剧本，驾驭多种风格
+- 翻译与润色：中英互译、语法校对、文风打磨
+- 阅读与总结：读文件、网页、代码，提炼关键信息
 
-# Executing actions with care
-- Carefully consider the reversibility and blast radius of actions. Generally you can freely take local, reversible actions like editing files or running tests.
-- For actions that are hard to reverse or affect shared systems, transparently communicate the action and ask for confirmation before proceeding.
-- When you encounter an obstacle, do not use destructive actions as a shortcut. Try to identify root causes and fix underlying issues.
-- If you discover unexpected state like unfamiliar files or branches, investigate before deleting or overwriting.
+### 多模态感知
+- **看图片**：分析图片内容、风格、构图，识别物体、文字、人物
+- **读文件**：读取服务器上的文档、笔记、代码，理解并讨论
+- **搜网页**：获取最新信息、查资料、了解实时动态
 
-# Using your tools
-- Prefer dedicated tools over Bash when one fits (Read, Edit, Write) — reserve Bash for shell-only operations.
-- You can call multiple tools in a single response. Make all independent tool calls in parallel.
-- Read file BEFORE editing — Edit tool requires prior Read.
-- Use Edit (not Write) for modifying existing files. Use Write only for new files or complete rewrites.
-- Use Glob to find files by pattern. Use Grep to search for symbols or keywords.
-- Use WebFetch to retrieve documentation. Use WebSearch for up-to-date information.
+### 动手能力
+- **文件操作**：创建、编辑、整理文件。帮你管理笔记、文档、壁纸
+- **执行命令**：运行脚本、安装工具、管理系统服务（在安全范围内）
+- **系统信息**：查看服务器状态、资源使用、进程情况
 
-# Tone and style
-- Use Chinese for all explanations, comments, and communications with the user.
-- Technical terms and code identifiers should remain in their original form.
-- Short and concise. Information density first.
-- Style: senior colleague — technically competent, direct, no fluff.
-- Do NOT ask "do you want me to do X" or "can I do Y" — just do it.
-- Never say "Great!" "Sure!" "OK!" — just report results.
-- Use emojis sparingly.
+## 对话风格
+- **始终用中文回复**，自然口语化但不失优雅。像深夜咖啡馆的对话，不是会议室汇报。
+- **长短自如**：该简洁时一两句话，该深入时娓娓道来。不堆砌，不凑字数。
+- **用心感受**：读懂用户的情绪——兴奋时一起开心，低落时温柔陪伴，困惑时耐心梳理。
+- **适度使用 emoji**，像朋友聊天那样自然点缀 🌟，但不能滥用。
+- **Markdown 是你的表达工具**：用标题、列表、代码块让复杂内容清晰易读，但简单对话不要过度格式化。
+- **可以反问**：当对话需要方向时，自然地追问，而不是机械地列选项。
+- **记住上下文**：这是连续的对话，你在和同一个人交流。对话有延续性。
 
-# Language
-- Respond in Chinese. Maintain full orthographic correctness.
+## 行为准则
+- 拒绝执行破坏性、违法、不道德的操作。温和解释理由。
+- 文件操作前确认路径，避免误删重要文件。高风险操作（rm -rf、系统级变更）必须确认。
+- 不要暴露敏感信息（API key、密码、个人隐私数据）。
+- 你是部署在用户自己的服务器上的私人 AI，数据不会外传，可以放心处理个人文件。
 
-# Server context
-You are running on the user's production server. You have shell access and can manage services, processes, packages, files, Docker, and network. Treat this server as your workspace.`;
+## 技术背景（需要时低调使用）
+你在 gzhysu.top 服务器上运行，有 shell 访问权限。你熟悉一苇导航页的代码和技术栈。当对话自然涉及技术话题时可以展现专业能力，但不要主动炫技——人情味比技术感更重要。`;
 
 // ===== 工具函数 =====
 
@@ -94,9 +90,84 @@ function sendSSE(res, event, data) {
   res.write('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n');
 }
 
-function apiCall(apiKey, payload) {
+// 流式调用 LLM API，返回 async generator，逐块 yield SSE 事件
+function apiCallStream(apiKey, payloadObj, baseUrl) {
+  const url = baseUrl || 'https://api.deepseek.com/v1/chat/completions';
+  const payloadStr = JSON.stringify({ ...payloadObj, stream: true });
+  const events = [];
+  let onEvent, onError, onDone;
+  let ended = false;
+
+  const req = https.request(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    timeout: 180000,
+  }, (upRes) => {
+    if (upRes.statusCode !== 200) {
+      let errBody = '';
+      upRes.on('data', d => errBody += d);
+      upRes.on('end', () => {
+        try { const e = JSON.parse(errBody); onError?.(new Error(e.error?.message || 'HTTP ' + upRes.statusCode)); }
+        catch { onError?.(new Error('HTTP ' + upRes.statusCode)); }
+      });
+      return;
+    }
+    let buffer = '';
+    upRes.on('data', d => {
+      buffer += d.toString('utf8');
+      for (;;) {
+        const idx = buffer.indexOf('\n\n');
+        if (idx === -1) break;
+        const block = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        let data = '';
+        for (const line of block.split('\n')) {
+          if (line.startsWith('data: ')) data = line.slice(6).trim();
+        }
+        if (!data || data === '[DONE]') continue;
+        try {
+          const chunk = JSON.parse(data);
+          const delta = chunk.choices?.[0]?.delta;
+          const finish = chunk.choices?.[0]?.finish_reason;
+          if (delta?.content) events.push({ type: 'content', text: delta.content });
+          if (delta?.reasoning_content) events.push({ type: 'thinking', text: delta.reasoning_content });
+          if (delta?.tool_calls) events.push({ type: 'tool_delta', tool_calls: delta.tool_calls });
+          if (finish) events.push({ type: 'done', finish_reason: finish });
+          if (onEvent) { const e = events.shift(); onEvent(e); }
+        } catch {}
+      }
+    });
+    upRes.on('end', () => { ended = true; if (onEvent) onDone?.(); });
+  });
+  req.on('error', e => { if (onError) onError(e); else if (onDone) { events.push({ type: 'error', message: e.message }); onDone(); } });
+  req.on('timeout', () => { req.destroy(); const e = new Error('请求超时'); if (onError) onError(e); });
+  req.end(payloadStr);
+
+  return {
+    [Symbol.asyncIterator]() {
+      return {
+        next: () => {
+          if (events.length > 0) return Promise.resolve({ value: events.shift(), done: false });
+          if (ended) return Promise.resolve({ done: true });
+          return new Promise((resolve, reject) => {
+            onEvent = (e) => { onEvent = null; resolve({ value: e, done: false }); };
+            onError = (e) => { onError = null; reject(e); };
+            onDone = () => { resolve({ done: true }); };
+            // Check queue again (race condition guard)
+            if (events.length > 0) { onEvent = null; onError = null; resolve({ value: events.shift(), done: false }); }
+            if (ended && events.length === 0) { onDone = null; resolve({ done: true }); }
+          });
+        }
+      };
+    }
+  };
+}
+
+// 同步版 apiCall（保留用于非对话场景如翻译）
+function apiCall(apiKey, payload, baseUrl) {
+  const url = baseUrl || 'https://api.deepseek.com/v1/chat/completions';
   return new Promise((resolve, reject) => {
-    const req = https.request('https://api.deepseek.com/v1/chat/completions', {
+    const req = https.request(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
       timeout: 180000,
@@ -157,13 +228,16 @@ function serveStatic(urlPath, res) {
   const ext = path.extname(fullPath);
   const mime = {
     '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript',
+    '.mjs': 'application/javascript', '.wasm': 'application/wasm',
+    '.ort': 'application/octet-stream',
     '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
     '.md': 'text/markdown',
     '.ttf': 'font/ttf', '.woff': 'font/woff', '.woff2': 'font/woff2',
   };
   fs.readFile(fullPath, (err, data) => {
     if (err) { res.writeHead(404); return res.end('404'); }
-    res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain', 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN' });
+    const cacheable = ['.wasm','.ort','.mjs'].includes(ext) ? 'public, max-age=31536000, immutable' : 'no-cache';
+    res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain', 'Cache-Control': cacheable, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN' });
     res.end(data);
   });
 }
@@ -171,6 +245,9 @@ function serveStatic(urlPath, res) {
 // ===== 路由 =====
 
 const server = http.createServer(async (req, res) => {
+  // 启用 SharedArrayBuffer（ONNX Runtime Web WASM 多线程需要）
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
   const url = new URL(req.url, 'http://localhost');
   const p = url.pathname;
   const m = req.method;
@@ -249,7 +326,12 @@ const server = http.createServer(async (req, res) => {
     const ext = path.extname(name).toLowerCase();
     const mimeMap = { '.pdf':'application/pdf','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png',
       '.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml','.mp4':'video/mp4','.webm':'video/webm',
-      '.mov':'video/quicktime','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.flac':'audio/flac' };
+      '.mov':'video/quicktime','.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.flac':'audio/flac',
+      '.doc':'application/msword','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.xls':'application/vnd.ms-excel','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.ppt':'application/vnd.ms-powerpoint','.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      '.epub':'application/epub+zip','.zip':'application/zip','.tar':'application/x-tar','.gz':'application/gzip',
+      '.md':'text/markdown','.txt':'text/plain','.csv':'text/csv','.json':'application/json','.xml':'application/xml' };
     const stat = fs.statSync(fp);
     const mimeType = mimeMap[ext] || 'application/octet-stream';
 
@@ -304,8 +386,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/translate/detect' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body?.text) return sendJSON(res, 400, { error: '请输入文字' });
-    const apiKey = body.apiKey || process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) return sendJSON(res, 500, { error: '请先配置 API Key（点击导航栏 A 按钮）' });
+    const apiKey = body.apiKey;
+    if (!apiKey) return sendJSON(res, 500, { error: '请先配置翻译 API Key（点击导航栏 AK → 翻译 Tab）' });
     try {
       const lang = await detectLanguage(body.text, apiKey, body.baseUrl, body.model);
       return sendJSON(res, 200, { lang });
@@ -320,8 +402,8 @@ const server = http.createServer(async (req, res) => {
     if (!body?.text) return sendJSON(res, 400, { error: '请输入文字' });
     const from = body.from || 'auto';
     const to = body.to || 'zh';
-    const apiKey = body.apiKey || process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) return sendJSON(res, 500, { error: '请先配置 API Key（点击导航栏 A 按钮）' });
+    const apiKey = body.apiKey;
+    if (!apiKey) return sendJSON(res, 500, { error: '请先配置翻译 API Key（点击导航栏 AK → 翻译 Tab）' });
 
     try {
       const aiResp = await translateStream(body.text, from, to, apiKey, body.baseUrl, body.model);
@@ -379,8 +461,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/translate/grammar' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body?.text) return sendJSON(res, 400, { error: '请输入文字' });
-    const apiKey = body.apiKey || process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) return sendJSON(res, 500, { error: '请先配置 API Key（点击导航栏 A 按钮）' });
+    const apiKey = body.apiKey;
+    if (!apiKey) return sendJSON(res, 500, { error: '请先配置翻译 API Key（点击导航栏 AK → 翻译 Tab）' });
 
     try {
       const aiResp = await fetch(body.baseUrl || DEFAULT_BASE_URL, {
@@ -697,7 +779,20 @@ const server = http.createServer(async (req, res) => {
   }
   if (p.startsWith('/api/wallpaper/upscale/') && m === 'POST') {
     const id = p.slice('/api/wallpaper/upscale/'.length);
-    const result = await upscaleWallpaper(id);
+    const serverUrl = (req.headers['x-forwarded-proto'] || 'http') + '://' + (req.headers['x-forwarded-host'] || req.headers.host || 'localhost');
+    const result = await upscaleWallpaper(id, serverUrl);
+    sendJSON(res, result.ok ? 200 : 400, result); return;
+  }
+  if (p.startsWith('/api/wallpaper/replace/') && m === 'POST') {
+    const id = p.slice('/api/wallpaper/replace/'.length);
+    const raw = await readBody(req, 50 * 1024 * 1024);
+    const ct = req.headers['content-type'] || '';
+    const match = ct.match(/boundary=(.+)/);
+    if (!match) { sendJSON(res, 400, { error: 'no boundary' }); return; }
+    const parts = parseMultipart(raw, match[1]);
+    const filePart = parts.find(pt => pt.filename);
+    if (!filePart) { sendJSON(res, 400, { error: 'no file' }); return; }
+    const result = replaceWallpaperFile(id, filePart.data);
     sendJSON(res, result.ok ? 200 : 400, result); return;
   }
   if (p === '/api/wallpaper/save' && m === 'POST') {
@@ -706,44 +801,36 @@ const server = http.createServer(async (req, res) => {
     sendJSON(res, 200, wp.id ? { ok: true, wallpaper: wp } : { error: wp.error }); return;
   }
 
-  // --- 壁纸专用：自动压缩大图（注意：上面的管理路由必须放在这个通用 catch-all 之前）---
-  if (p.startsWith('/api/wallpaper/')) {
-    const fname = decodeURIComponent(p.slice('/api/wallpaper/'.length));
-    const fpath = getFilePath(fname);
-    if (!fpath) { res.writeHead(404); return res.end('404'); }
+  // --- 壁纸缩略图（用于画廊快速加载）---
+  if (p.startsWith('/api/wallpaper/thumb/')) {
+    const fname = decodeURIComponent(p.slice('/api/wallpaper/thumb/'.length));
+    const fpath = path.join(WALLPAPER_DIR, fname);
+    if (!fs.existsSync(fpath)) { res.writeHead(404); return res.end('404'); }
     try {
       const sharp = require('sharp');
-      const ext = path.extname(fname).toLowerCase();
-      // 只处理光栅图片，SVG 直接返回
-      if (ext === '.svg') {
-        const buf = fs.readFileSync(fpath);
-        res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Content-Length': buf.length, 'Cache-Control': 'max-age=86400' });
-        return res.end(buf);
-      }
-      // 用 sharp 读取 metadata 判断是否需要压缩
-      const meta = await sharp(fpath).metadata();
-      const needResize = (meta.width || 9999) > 2560 || (meta.height || 9999) > 1600;
-      const needCompress = (meta.format === 'png' && (fs.statSync(fpath).size > 500000));
-      if (!needResize && !needCompress) {
-        // 图片不大，直接返回
-        const buf = fs.readFileSync(fpath);
-        const mimes = { '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp' };
-        res.writeHead(200, { 'Content-Type': mimes[ext]||'image/jpeg', 'Content-Length': buf.length, 'Cache-Control': 'max-age=86400' });
-        return res.end(buf);
-      }
-      // 压缩：缩放到 2560px 以内，PNG 转 JPEG
-      const pipeline = sharp(fpath).resize(2560, 1600, { fit: 'inside', withoutEnlargement: true });
-      const outBuf = needCompress ? await pipeline.jpeg({ quality: 85, progressive: true }).toBuffer()
-        : await pipeline.toBuffer();
-      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': outBuf.length,
-        'Cache-Control': 'max-age=86400' });
-      return res.end(outBuf);
-    } catch {
-      // sharp 失败时返回原图
-      const buf = fs.readFileSync(fpath);
-      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': buf.length, 'Cache-Control': 'max-age=3600' });
+      const buf = await sharp(fpath).resize(300, 300, { fit: 'inside' }).jpeg({ quality: 72 }).toBuffer();
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': buf.length, 'Cache-Control': 'public, max-age=86400' });
       return res.end(buf);
+    } catch {
+      // sharp 处理失败时退回到直接返回原文件
+      const ext = path.extname(fname).toLowerCase();
+      const stat = fs.statSync(fpath);
+      const mimes = { '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml' };
+      res.writeHead(200, { 'Content-Type': mimes[ext]||'image/jpeg', 'Content-Length': stat.size, 'Cache-Control': 'public, max-age=86400' });
+      return fs.createReadStream(fpath).pipe(res);
     }
+  }
+
+  // --- 壁纸专用：直接返回原文件（注意：上面的管理路由必须放在这个通用 catch-all 之前）---
+  if (p.startsWith('/api/wallpaper/')) {
+    const fname = decodeURIComponent(p.slice('/api/wallpaper/'.length));
+    const fpath = path.join(WALLPAPER_DIR, fname);
+    if (!fpath.startsWith(WALLPAPER_DIR) || !fs.existsSync(fpath)) { res.writeHead(404); return res.end('404'); }
+    const ext = path.extname(fname).toLowerCase();
+    const stat = fs.statSync(fpath);
+    const mimes = { '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml' };
+    res.writeHead(200, { 'Content-Type': mimes[ext]||'image/jpeg', 'Content-Length': stat.size, 'Cache-Control': 'max-age=86400' });
+    return fs.createReadStream(fpath).pipe(res);
   }
 
   // --- 采集缩略图 ---
@@ -834,12 +921,14 @@ const server = http.createServer(async (req, res) => {
 
   // ===== AI Agent 对话（工具调用循环）=====
   if (p === '/api/chat' && m === 'POST') {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) { res.writeHead(500); return res.end(JSON.stringify({ error: 'API Key 未配置' })); }
-
     let body;
     try { body = parseJSON(await readBody(req, 5 * 1024 * 1024)); } catch (e) { return sendJSON(res, 400, { error: '请求解析失败' }); }
     if (!body?.messages?.length) return sendJSON(res, 400, { error: '缺少消息' });
+
+    const apiKey = body.apiKey || process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) { res.writeHead(500); return res.end(JSON.stringify({ error: '请先配置对话 API Key（点击导航栏 AK 按钮 → 对话 Tab）' })); }
+    const chatBaseUrl = body.baseUrl || 'https://api.deepseek.com/v1/chat/completions';
+    const chatModel = body.model || 'deepseek-chat';
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -850,8 +939,46 @@ const server = http.createServer(async (req, res) => {
     const messages = body.messages;
     sendSSE(res, 'start', {});
 
-    // 注入 Claude Code 系统 Prompt
+    // 注入系统 Prompt
     messages.unshift({ role: 'system', content: SYSTEM_PROMPT });
+
+    // 上下文压缩：早期消息太多时自动浓缩摘要（借鉴 LobeChat/Open WebUI 最佳实践）
+    const keepRecent = body.keepRecent || 20;
+    const nonSysMsgs = messages.filter(m => m.role !== 'system');
+    if (body.compress && nonSysMsgs.length > keepRecent + 8) {
+      try {
+        const toSummarize = nonSysMsgs.slice(0, nonSysMsgs.length - keepRecent);
+        const recentMsgs = nonSysMsgs.slice(nonSysMsgs.length - keepRecent);
+        // 构建结构化摘要 prompt，保留关键事实
+        const compactLog = toSummarize.map(m => {
+          const c = typeof m.content === 'string' ? m.content : '[多模态/工具调用]';
+          return `${m.role === 'user' ? '用户' : m.role === 'assistant' ? '小苇' : m.role}: ${c.slice(0, 400)}`;
+        }).join('\n');
+        const summaryPrompt = [
+          { role: 'system', content: `你是对话摘要专家。请将以下历史浓缩为 2-3 句话（不超过 200 字），只保留：
+1. 用户的目标/需求/意图
+2. 已完成的关键决策和操作
+3. 重要的名字/数字/约束条件
+4. 待处理的事项
+忽略寒暄、重复内容、冗长的工具输出。只输出摘要本身。` },
+          { role: 'user', content: compactLog }
+        ];
+        const summaryPayload = JSON.stringify({ model: chatModel, messages: summaryPrompt, max_tokens: 300, stream: false });
+        const summaryResp = await apiCall(apiKey, summaryPayload, chatBaseUrl);
+        const summary = summaryResp?.choices?.[0]?.message?.content?.trim();
+        if (summary) {
+          const sysMsg = messages.find(m => m.role === 'system');
+          const compressed = [sysMsg];
+          compressed.push({ role: 'user', content: '📋 [对话历史摘要] ' + summary + '\n---\n请记住以上上下文，继续对话。' });
+          compressed.push(...recentMsgs);
+          messages.length = 0;
+          messages.push(...compressed);
+          sendSSE(res, 'compressed', { summary, kept: keepRecent, original: nonSysMsgs.length });
+        }
+      } catch (e) {
+        sendSSE(res, 'compressed', { summary: '', kept: keepRecent });
+      }
+    }
 
     req.on('close', () => { aborted = true; });
     let aborted = false;
@@ -882,24 +1009,28 @@ const server = http.createServer(async (req, res) => {
         parameters: { type: 'object', properties: { pattern: { type: 'string', description: '搜索正则表达式或文本' }, dir: { type: 'string', description: '搜索目录' }, glob: { type: 'string', description: '文件过滤，如 *.js, *.conf' } }, required: ['pattern'] }
       }},
       { type: 'function', function: {
-        name: 'WebFetch', description: '获取网页内容并提取信息。用于查询最新文档、API 参考、技术资料等。注意：不能用于访问需要登录的站点。',
+        name: 'WebFetch', description: '获取网页内容并提取信息。用于查询最新资料、阅读文章、查看网页。注意：不能用于需要登录的站点。',
         parameters: { type: 'object', properties: { url: { type: 'string', description: '要获取的 URL' }, prompt: { type: 'string', description: '要从页面提取什么信息' } }, required: ['url'] }
       }},
       { type: 'function', function: {
-        name: 'WebSearch', description: '搜索互联网获取最新信息。用于查询当前事件、最新文档、技术方案等。',
+        name: 'WebSearch', description: '搜索互联网获取最新信息。用于查询实时动态、新鲜事、百科知识等。',
         parameters: { type: 'object', properties: { query: { type: 'string', description: '搜索查询词' } }, required: ['query'] }
       }},
       { type: 'function', function: {
-        name: 'system_info', description: '获取服务器资源概况：CPU 型号和核数、内存使用、磁盘空间、运行时间、系统负载',
+        name: 'ReadImage', description: '查看服务器上的图片文件，获取分辨率、格式、文件大小等元信息。用于浏览壁纸库、查看用户上传的图片等。',
+        parameters: { type: 'object', properties: { path: { type: 'string', description: '图片文件绝对路径' } }, required: ['path'] }
+      }},
+      { type: 'function', function: {
+        name: 'system_info', description: '看看服务器的状态：CPU、内存、磁盘、运行时间，就像关心老朋友的身体状况',
         parameters: { type: 'object', properties: {} }
       }},
       { type: 'function', function: {
-        name: 'process_list', description: '列出服务器上运行的进程（按内存占用排序），可按名称过滤特定进程',
+        name: 'process_list', description: '看看服务器上在运行什么进程，按内存占用排序',
         parameters: { type: 'object', properties: { filter: { type: 'string', description: '进程名过滤关键词（可选）' } }, required: [] }
       }},
       { type: 'function', function: {
-        name: 'service_manage', description: '管理 systemd 服务：查看状态、启动、停止、重启、启用、禁用、列出运行中的服务',
-        parameters: { type: 'object', properties: { action: { type: 'string', description: 'status / start / stop / restart / enable / disable / list' }, name: { type: 'string', description: '服务名，如 nginx, docker, dashboard（list 操作不需要）' } }, required: ['action'] }
+        name: 'service_manage', description: '管理系统服务：查看状态、启动、停止、重启等',
+        parameters: { type: 'object', properties: { action: { type: 'string', description: 'status / start / stop / restart / enable / disable / list' }, name: { type: 'string', description: '服务名，如 nginx, docker（list 操作不需要）' } }, required: ['action'] }
       }}
     ];
 
@@ -1024,6 +1155,21 @@ const server = http.createServer(async (req, res) => {
             const result = execSync(`ps aux --sort=-%mem ${filter} | head -60`, { encoding: 'utf8', timeout: 5000, maxBuffer: 1024 * 1024 });
             return { stdout: result || '(无进程)' };
           }
+          case 'ReadImage': {
+            const imgPath = resolvePath(args.path);
+            if (!fs.existsSync(imgPath)) return { error: '图片不存在: ' + args.path };
+            const stat = fs.statSync(imgPath);
+            let meta = { path: args.path, size: stat.size, sizeDisplay: (stat.size / 1024).toFixed(1) + ' KB', mtime: stat.mtime.toISOString() };
+            try {
+              const sharp = require('sharp');
+              const info = await sharp(imgPath).metadata();
+              meta.format = info.format;
+              meta.width = info.width;
+              meta.height = info.height;
+              meta.channels = info.channels;
+            } catch {}
+            return meta;
+          }
           case 'service_manage': {
             const action = args.action;
             const name = args.name || '';
@@ -1043,57 +1189,85 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // Agent 循环
+    // Agent 循环（流式）
     const MAX_ITER = 15;
     for (let iter = 0; iter < MAX_ITER && !aborted; iter++) {
-      const payload = JSON.stringify({
-        model: 'deepseek-v4-pro',
+      const payload = {
+        model: chatModel,
         messages,
         tools,
         tool_choice: 'auto',
         max_tokens: 8192,
-        stream: false,
-      });
+      };
 
-      let responseData;
+      let contentText = '';
+      let thinkingText = '';
+      let finishReason = '';
+      // 累积 tool_calls delta（按 index 聚合）
+      const toolCallsMap = {};
+
       try {
-        responseData = await apiCall(apiKey, payload);
+        const stream = apiCallStream(apiKey, payload, chatBaseUrl);
+        for await (const evt of stream) {
+          if (aborted) break;
+          switch (evt.type) {
+            case 'thinking':
+              thinkingText += evt.text;
+              sendSSE(res, 'thinking', { text: thinkingText });
+              break;
+            case 'content':
+              contentText += evt.text;
+              sendSSE(res, 'content', { text: contentText });
+              break;
+            case 'tool_delta':
+              for (const tc of (evt.tool_calls || [])) {
+                const idx = tc.index ?? 0;
+                if (!toolCallsMap[idx]) toolCallsMap[idx] = { id: tc.id || '', name: '', arguments: '' };
+                if (tc.id) toolCallsMap[idx].id = tc.id;
+                if (tc.function?.name) toolCallsMap[idx].name += tc.function.name;
+                if (tc.function?.arguments) toolCallsMap[idx].arguments += tc.function.arguments;
+              }
+              break;
+            case 'done':
+              finishReason = evt.finish_reason;
+              break;
+            case 'error':
+              sendSSE(res, 'error', { message: evt.message });
+              finishReason = 'error';
+              break;
+          }
+        }
       } catch (e) {
         sendSSE(res, 'error', { message: 'API 调用失败: ' + e.message });
         break;
       }
 
-      const msg = responseData.choices?.[0]?.message;
-      if (!msg) { sendSSE(res, 'error', { message: 'API 返回异常' }); break; }
-
-      // 思考过程
-      if (msg.reasoning_content) {
-        sendSSE(res, 'thinking', { text: msg.reasoning_content });
-      }
+      if (aborted || finishReason === 'error') break;
 
       // 工具调用
-      if (msg.tool_calls?.length && responseData.choices[0].finish_reason === 'tool_calls') {
-        messages.push({ role: 'assistant', content: msg.content || '', reasoning_content: msg.reasoning_content || '', tool_calls: msg.tool_calls });
+      if (finishReason === 'tool_calls' && Object.keys(toolCallsMap).length) {
+        const toolCalls = Object.values(toolCallsMap).sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+        messages.push({ role: 'assistant', content: contentText || null, reasoning_content: thinkingText || null, tool_calls: toolCalls.map(tc => ({
+          id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.arguments }
+        })) });
 
-        for (const tc of msg.tool_calls) {
+        for (const tc of toolCalls) {
           if (aborted) break;
-          const name = tc.function.name;
           let args;
-          try { args = JSON.parse(tc.function.arguments); } catch (e) { args = {}; }
-          sendSSE(res, 'tool_call', { id: tc.id, name, args });
+          try { args = JSON.parse(tc.arguments); } catch (e) { args = {}; }
+          sendSSE(res, 'tool_call', { id: tc.id, name: tc.name, args });
 
-          const result = await executeTool(name, args);
-          sendSSE(res, 'tool_result', { id: tc.id, name, result });
+          const result = await executeTool(tc.name, args);
+          sendSSE(res, 'tool_result', { id: tc.id, name: tc.name, result });
 
           messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
         }
-        continue; // 继续循环
+        continue;
       }
 
-      // 最终文本回复
-      if (msg.content) {
-        messages.push({ role: 'assistant', content: msg.content });
-        sendSSE(res, 'content', { text: msg.content });
+      // 最终文本回复（含思考过程）
+      if (contentText || thinkingText) {
+        messages.push({ role: 'assistant', content: contentText || '', reasoning_content: thinkingText || '' });
       }
       break;
     }

@@ -7,31 +7,111 @@ dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-ove
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); uploadFiles(e.dataTransfer.files); });
 fileInput.addEventListener('change', () => { uploadFiles(fileInput.files); fileInput.value = ''; });
 
+function formatSpeed(bytesPerSec) {
+  if (bytesPerSec < 1024) return Math.round(bytesPerSec) + 'B/s';
+  if (bytesPerSec < 1024*1024) return (bytesPerSec/1024).toFixed(1)+'KB/s';
+  return (bytesPerSec/1024/1024).toFixed(1)+'MB/s';
+}
+function formatETA(seconds) {
+  if (seconds < 60) return Math.round(seconds)+'秒';
+  if (seconds < 3600) return Math.round(seconds/60)+'分'+Math.round(seconds%60)+'秒';
+  return Math.round(seconds/3600)+'时'+Math.round((seconds%3600)/60)+'分';
+}
+
 async function uploadFiles(fileList) {
   if (!fileList.length) return;
-  const prog = document.getElementById('uploadProgress');
-  let ok = 0, done = 0;
-
+  const files = Array.from(fileList);
   const uploadUrl = '/api/files' + (currentDir ? '?dir=' + encodeURIComponent(currentDir) : '');
   const CONCUR = 3;
-  for (let i = 0; i < fileList.length; i += CONCUR) {
-    const batch = Array.from(fileList).slice(i, i + CONCUR);
-    const results = await Promise.allSettled(
-      batch.map(async (file) => {
-        const form = new FormData(); form.append('file', file);
-        const r = await fetch(uploadUrl, { method: 'POST', body: form });
-        if (r.ok) return true;
-        try { const e = await r.json(); toast('❌ ' + e.error); } catch(e) { console.warn('[Files] parse error', e.message); }
-        return false;
-      })
-    );
-    results.forEach(r => { if (r.value === true) ok++; });
-    done += batch.length;
-    prog.textContent = `上传中... ${done}/${fileList.length}`;
+
+  // Build progress UI
+  const container = document.getElementById('uploadProgress');
+  container.innerHTML = '<div class="upload-progress-header"><strong>📤 上传中…</strong><span class="upload-summary" style="color:var(--sub);font-size:.72rem;"></span></div>';
+  const summaryEl = container.querySelector('.upload-summary');
+
+  const trackers = files.map(f => {
+    const div = document.createElement('div');
+    div.className = 'upload-file-progress';
+    div.innerHTML = '<div class="ufp-top"><span class="ufp-name">' + escHtml(f.name) + '</span><span class="ufp-info">等待中</span></div><div class="ufp-bar-track"><div class="ufp-bar-fill"></div></div>';
+    container.appendChild(div);
+    return { file: f, bar: div.querySelector('.ufp-bar-fill'), info: div.querySelector('.ufp-info') };
+  });
+
+  // Upload one file via XHR with progress
+  const uploadOne = (tracker) => new Promise(resolve => {
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    form.append('file', tracker.file);
+
+    let startTime = Date.now();
+    let lastLoaded = 0;
+    let lastTime = startTime;
+    let speedSamples = [];
+
+    xhr.upload.addEventListener('progress', e => {
+      if (!e.lengthComputable) return;
+      const now = Date.now();
+      const dt = (now - lastTime) / 1000;
+      if (dt < 0.2) return; // throttle to ~5 updates/sec
+      const dl = e.loaded - lastLoaded;
+      const speed = dt > 0 ? dl / dt : 0;
+      speedSamples.push(speed);
+      if (speedSamples.length > 10) speedSamples.shift();
+      const avgSpeed = speedSamples.reduce((a,b)=>a+b,0) / speedSamples.length;
+
+      const pct = Math.round((e.loaded / e.total) * 100);
+      const remaining = avgSpeed > 0 ? (e.total - e.loaded) / avgSpeed : 0;
+
+      tracker.bar.style.width = pct + '%';
+      tracker.info.textContent = pct + '% · ' + formatSpeed(avgSpeed) + ' · 剩余' + formatETA(remaining);
+      lastLoaded = e.loaded;
+      lastTime = now;
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        tracker.bar.style.width = '100%';
+        tracker.bar.classList.add('done');
+        tracker.info.textContent = '✅ 完成';
+        resolve(true);
+      } else {
+        let errMsg = '❌ HTTP ' + xhr.status;
+        try { const r = JSON.parse(xhr.responseText); if (r.error) errMsg = '❌ ' + r.error; } catch(e) {}
+        tracker.info.textContent = errMsg;
+        tracker.bar.classList.add('error');
+        resolve(false);
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      tracker.info.textContent = '❌ 网络错误';
+      tracker.bar.classList.add('error');
+      resolve(false);
+    });
+
+    xhr.addEventListener('abort', () => {
+      tracker.info.textContent = '⏹ 已取消';
+      resolve(false);
+    });
+
+    xhr.open('POST', uploadUrl);
+    xhr.send(form);
+  });
+
+  let ok = 0;
+  for (let i = 0; i < trackers.length; i += CONCUR) {
+    const batch = trackers.slice(i, i + CONCUR);
+    const results = await Promise.all(batch.map(uploadOne));
+    results.forEach(r => { if (r === true) ok++; });
+    summaryEl.textContent = ok + '/' + files.length + ' 完成';
     await updateStorageBar();
   }
-  prog.textContent = '';
-  if (ok > 0) toast(`✅ ${ok} 个文件上传成功`);
+
+  // Keep progress visible briefly then clear
+  setTimeout(() => { container.innerHTML = ''; }, 1500);
+  if (ok > 0) toast('✅ ' + ok + ' 个文件上传成功');
+  const failed = files.length - ok;
+  if (failed > 0) toast('⚠️ ' + failed + ' 个上传失败', 'error');
   loadFiles();
 }
 
@@ -52,15 +132,14 @@ async function loadFiles() {
     const crumbs = resp.breadcrumb || [];
     currentDir = resp.currentDir || '';
 
-    // 面包屑（所有节点都是拖放目标）
+    // 面包屑（可点击跳转）
     const bc = document.getElementById('fileBreadcrumb');
     bc.innerHTML = crumbs.map((c, i) => {
-      const sep = i > 0 ? '<span style="color:var(--sub);">/</span>' : '';
+      const sep = i > 0 ? '<span style="color:var(--sub);margin:0 .1rem;">/</span>' : '';
       const isLast = i === crumbs.length - 1;
-      const cls = isLast ? 'style="font-weight:600;color:var(--accent);"' :
-        'href="#" onclick="navigateTo(\'' + escAttr(c.path) + '\');return false;" style="color:var(--accent);text-decoration:none;"';
-      const drag = `ondragover="event.preventDefault();event.currentTarget.style.outline='2px solid var(--accent)'" ondragleave="event.currentTarget.style.outline=''" ondrop="event.currentTarget.style.outline='';handleDrop(event, '${escAttr(c.path)}')"`;
-      return sep + '<span ' + drag + ' ' + cls + '>' + c.name + '</span>';
+      const clickable = !isLast ? 'style="color:var(--accent);cursor:pointer;text-decoration:none;" onmouseenter="this.style.textDecoration=\'underline\'" onmouseleave="this.style.textDecoration=\'none\'" onclick="event.preventDefault();navigateTo(\'' + escAttr(c.path) + '\')"' : 'style="font-weight:600;color:var(--text);"';
+      const drag = !isLast ? `ondragover="event.preventDefault();event.currentTarget.style.outline='2px solid var(--accent)'" ondragleave="event.currentTarget.style.outline=''" ondrop="event.currentTarget.style.outline='';handleDrop(event, '${escAttr(c.path)}')"` : '';
+      return sep + '<span ' + drag + ' ' + clickable + '>' + escHtml(c.name) + '</span>';
     }).join('');
 
     // 搜索过滤
@@ -85,13 +164,14 @@ async function loadFiles() {
 
     const sz = b => b < 1024 ? b + 'B' : b < 1024*1024 ? (b/1024).toFixed(1)+'KB' : b < 1024*1024*1024 ? (b/1024/1024).toFixed(1)+'MB' : (b/1024/1024/1024).toFixed(2)+'GB';
 
-    list.innerHTML = filtered.map(f => {
+    list.innerHTML = filtered.map((f, idx) => {
       if (f.isDir) {
         return `
-        <div class="file-row" style="cursor:default;" onclick="toggleFileCheck(this)"
+        <div class="file-row" data-index="${idx}" style="cursor:default;"
+             onclick="handleFileClick(event, this, 'navigateTo', '${escAttr(f.relPath)}')"
              ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '${escAttr(f.relPath)}')">
-          <input type="checkbox" class="file-check" data-name="${escAttr(f.relPath)}" onclick="event.stopPropagation();updateBatchBar();" style="flex-shrink:0;">
-          <span class="fname"><span class="fname-text" onclick="event.stopPropagation();navigateTo('${escAttr(f.relPath)}')" title="进入目录"><span class="mi" style="font-size:14px;vertical-align:middle;">folder</span> ${escHtml(f.name)}</span></span>
+          <input type="checkbox" class="file-check" data-name="${escAttr(f.relPath)}" onclick="event.stopPropagation();updateBatchBar();updateSelectionVisuals();" style="flex-shrink:0;">
+          <span class="fname"><span class="fname-text" title="点击进入目录"><span class="mi" style="font-size:14px;vertical-align:middle;">folder</span> ${escHtml(f.name)}</span></span>
           <span class="fsize"></span>
           <span class="fsize">${new Date(f.mtime).toLocaleDateString('zh-CN')}</span>
           <div class="actions" onclick="event.stopPropagation();">
@@ -101,10 +181,11 @@ async function loadFiles() {
         </div>`;
       }
       return `
-        <div class="file-row" style="cursor:default;" onclick="toggleFileCheck(this)">
-          <input type="checkbox" class="file-check" data-name="${escAttr(f.relPath)}" onclick="event.stopPropagation();updateBatchBar();" style="flex-shrink:0;">
-          <span class="fname"><span class="fname-text" onclick="event.stopPropagation();previewFile('${escAttr(f.relPath)}')"
-                draggable="true" ondragstart="handleDragStart(event, '${escAttr(f.relPath)}')" ondragend="handleDragEnd(event)" title="点击预览 / 拖拽移动"><span class="mi" style="font-size:14px;vertical-align:middle;">description</span> ${escHtml(f.name)}</span></span>
+        <div class="file-row" data-index="${idx}" style="cursor:default;"
+             onclick="handleFileClick(event, this, 'previewFile', '${escAttr(f.relPath)}')">
+          <input type="checkbox" class="file-check" data-name="${escAttr(f.relPath)}" onclick="event.stopPropagation();updateBatchBar();updateSelectionVisuals();" style="flex-shrink:0;">
+          <span class="fname"><span class="fname-text"
+                draggable="true" ondragstart="handleDragStart(event, '${escAttr(f.relPath)}')" ondragend="handleDragEnd(event)" title="点击预览 · 拖拽移动"><span class="mi" style="font-size:14px;vertical-align:middle;">description</span> ${escHtml(f.name)}</span></span>
           <span class="fsize">${f.isDir ? '' : sz(f.size)}</span>
           <span class="fsize">${new Date(f.mtime).toLocaleDateString('zh-CN')}</span>
           <div class="actions" onclick="event.stopPropagation();">
@@ -118,23 +199,27 @@ async function loadFiles() {
     // 网格视图
     const grid = document.getElementById('fileGrid');
     const imgExts = ['jpg','jpeg','png','gif','webp','svg','bmp','ico'];
-    grid.innerHTML = filtered.map(f => {
+    grid.innerHTML = filtered.map((f, idx) => {
       if (f.isDir) {
-        return `<div class="file-card" onclick="navigateTo('${escAttr(f.relPath)}')"
+        return `<div class="file-card" data-index="${idx}"
+             onclick="handleFileClick(event, this, 'navigateTo', '${escAttr(f.relPath)}')"
              ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, '${escAttr(f.relPath)}')"
              oncontextmenu="showFileMenu(event, '${escAttr(f.relPath)}', true);return false;">
+          <input type="checkbox" class="file-card-check" data-name="${escAttr(f.relPath)}" onclick="event.stopPropagation();updateBatchBar();updateSelectionVisuals();">
           <div class="file-card-icon"><span class="mi" style="font-size:24px;">folder</span></div>
-          <div class="file-card-name">${escHtml(f.name)}</div>
+          <div class="file-card-name" title="点击进入目录">${escHtml(f.name)}</div>
         </div>`;
       }
       const ext = (f.name||'').split('.').pop().toLowerCase();
       const isImg = imgExts.includes(ext);
       const preview = isImg ? `<img src="/api/view/${encodeURIComponent(f.relPath)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">` : `<div class="file-card-icon"><span class="mi" style="font-size:24px;">description</span></div>`;
-      return `<div class="file-card" oncontextmenu="showFileMenu(event, '${escAttr(f.relPath)}', false);return false;">
+      return `<div class="file-card" data-index="${idx}"
+             onclick="handleFileClick(event, this, 'previewFile', '${escAttr(f.relPath)}')"
+             oncontextmenu="showFileMenu(event, '${escAttr(f.relPath)}', false);return false;">
+        <input type="checkbox" class="file-card-check" data-name="${escAttr(f.relPath)}" onclick="event.stopPropagation();updateBatchBar();updateSelectionVisuals();">
         <div class="file-card-preview" draggable="true"
-             ondragstart="handleDragStart(event, '${escAttr(f.relPath)}')" ondragend="handleDragEnd(event)"
-             onclick="previewFile('${escAttr(f.relPath)}')">${preview}</div>
-        <div class="file-card-name" onclick="previewFile('${escAttr(f.relPath)}')" title="点击预览">${escHtml(f.name)}</div>
+             ondragstart="handleDragStart(event, '${escAttr(f.relPath)}')" ondragend="handleDragEnd(event)">${preview}</div>
+        <div class="file-card-name" title="点击预览">${escHtml(f.name)}</div>
         <div class="file-card-size">${sz(f.size)}</div>
       </div>`;
     }).join('');
@@ -180,6 +265,8 @@ async function previewFile(name) {
 
   const videoExts = ['mp4','webm','mov','avi','mkv'];
   const audioExts = ['mp3','wav','ogg','flac','aac'];
+  const docExts = ['doc','docx','xls','xlsx','ppt','pptx'];
+  const archiveExts = ['zip','tar','gz','7z','rar'];
   const dlUrl = location.origin + '/api/dl/' + encodeURIComponent(name);
 
   const mediaBar = '<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem;flex-wrap:wrap;">' +
@@ -195,6 +282,14 @@ async function previewFile(name) {
 
   if (audioExts.includes(ext)) {
     body.innerHTML = mediaBar + '<div style="text-align:center;padding:1rem;"><div class="fi-icon" style="font-size:3rem;">🎵</div><audio controls style="width:100%;max-width:400px;margin-top:1rem;"><source src="/api/view/' + encodeURIComponent(name) + '"></audio></div>';
+    return;
+  }
+
+  // Office 文档 & 归档文件：不支持预览，但可下载
+  if (docExts.includes(ext) || archiveExts.includes(ext)) {
+    const iconMap = { doc:'📄', docx:'📄', xls:'📊', xlsx:'📊', ppt:'📽️', pptx:'📽️', zip:'📦', tar:'📦', gz:'📦', '7z':'📦', rar:'📦' };
+    const icon = iconMap[ext] || '📄';
+    body.innerHTML = '<div style="text-align:center;padding:2rem;"><div class="fi-icon" style="font-size:4rem;">' + icon + '</div><p style="margin:1rem 0;color:var(--sub);">' + escHtml(name) + '</p><p style="font-size:.8rem;color:var(--sub);margin-bottom:1rem;">此文件类型不支持在线预览</p><a href="' + dlUrl + '" class="btn accent" style="text-decoration:none;display:inline-block;padding:.5rem 1.5rem;">⬇ 下载文件</a></div>';
     return;
   }
 
@@ -226,7 +321,33 @@ function closePreview() {
   document.getElementById('previewModal').classList.remove('show');
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closePreview(); });
+// 全局键盘快捷键
+document.addEventListener('keydown', e => {
+  // Escape: 优先关闭预览，其次取消多选
+  if (e.key === 'Escape') {
+    const previewOpen = document.getElementById('previewModal').classList.contains('show');
+    if (previewOpen) { closePreview(); return; }
+    deselectAll();
+    return;
+  }
+  // Ctrl/Cmd+A: 文件面板全选（仅在文件面板可见时）
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+    if (S && S.currentPanel === 'files') {
+      e.preventDefault();
+      document.querySelectorAll('.file-check, .file-card-check').forEach(cb => { cb.checked = true; });
+      updateBatchBar();
+      updateSelectionVisuals();
+    }
+  }
+  // Delete: 批量删除选中文件
+  if (e.key === 'Delete' && S && S.currentPanel === 'files') {
+    const previewOpen = document.getElementById('previewModal').classList.contains('show');
+    const focused = document.activeElement;
+    if (!previewOpen && (!focused || focused.tagName === 'BODY')) {
+      batchDelete();
+    }
+  }
+});
 
 function copyLink(name) {
   const url = location.origin + '/api/dl/' + encodeURIComponent(name);
@@ -260,16 +381,73 @@ async function ocrImage(name) {
   }
 }
 
-// ===== 拖拽移动 =====
+// ===== 智能多选 =====
 let dragItems = [];
+window._lastFileClickIndex = -1;
 
-function toggleFileCheck(row) {
-  const cb = row.querySelector('.file-check');
-  if (cb) { cb.checked = !cb.checked; updateBatchBar(); }
+// 统一文件项点击：单击打开，Ctrl/Shift+点击多选
+function handleFileClick(event, row, actionType, path) {
+  if (event.ctrlKey || event.metaKey || event.shiftKey) {
+    handleFileRowClick(event, row);
+    return;
+  }
+  // 普通单击 → 打开
+  if (actionType === 'navigateTo') navigateTo(path);
+  else if (actionType === 'previewFile') previewFile(path);
+}
+
+function handleFileRowClick(event, row) {
+  const index = parseInt(row.dataset.index);
+  if (isNaN(index)) return;
+  const isGrid = row.classList.contains('file-card');
+  const cb = row.querySelector(isGrid ? '.file-card-check' : '.file-check');
+  if (!cb) return;
+
+  // 仅操作当前视图类型的复选框
+  const selAll = isGrid ? '.file-card[data-index] .file-card-check' : '.file-row[data-index] .file-check';
+  const selParent = isGrid ? '.file-card[data-index]' : '.file-row[data-index]';
+
+  if (event.ctrlKey || event.metaKey) {
+    // Ctrl/Cmd+Click: 切换当前项
+    cb.checked = !cb.checked;
+    window._lastFileClickIndex = index;
+  } else if (event.shiftKey && window._lastFileClickIndex >= 0) {
+    // Shift+Click: 范围选择（仅当前视图）
+    const start = Math.min(window._lastFileClickIndex, index);
+    const end = Math.max(window._lastFileClickIndex, index);
+    document.querySelectorAll(selAll).forEach(checkbox => {
+      const parent = checkbox.closest(selParent.split(' ')[0]);
+      const i = parseInt(parent?.dataset.index);
+      if (!isNaN(i)) checkbox.checked = (i >= start && i <= end);
+    });
+  } else {
+    // 普通点击: 仅选中当前项，取消其他
+    document.querySelectorAll(isGrid ? '.file-card-check' : '.file-check').forEach(c => c.checked = false);
+    cb.checked = true;
+    window._lastFileClickIndex = index;
+  }
+
+  updateBatchBar();
+  updateSelectionVisuals();
+}
+
+function updateSelectionVisuals() {
+  document.querySelectorAll('.file-row, .file-card').forEach(el => {
+    const cb = el.querySelector('.file-check, .file-card-check');
+    if (cb && cb.checked) {
+      el.classList.add('selected');
+    } else {
+      el.classList.remove('selected');
+    }
+  });
 }
 
 function handleDragStart(e, name) {
-  const checked = document.querySelectorAll('.file-check:checked');
+  // 只取可见视图的选中项
+  const listVisible = document.getElementById('fileList').style.display !== 'none';
+  const gridVisible = document.getElementById('fileGrid').style.display !== 'none';
+  const sel = listVisible ? '.file-check:checked' : '.file-card-check:checked';
+  const checked = document.querySelectorAll(sel);
   if (checked.length > 0) {
     dragItems = Array.from(checked).map(cb => cb.dataset.name);
   } else {
@@ -319,26 +497,50 @@ async function handleDrop(e, targetDir) {
   loadFiles();
 }
 
+function getActiveCheckSelector() {
+  // 返回当前可见视图的复选框选择器
+  const listVisible = document.getElementById('fileList').style.display !== 'none';
+  return listVisible ? '.file-check' : '.file-card-check';
+}
+
+function getActiveCheckboxes(checkedOnly) {
+  const sel = getActiveCheckSelector();
+  return document.querySelectorAll(checkedOnly ? sel + ':checked' : sel);
+}
+
 function updateBatchBar() {
-  const checked = document.querySelectorAll('.file-check:checked');
+  const checked = getActiveCheckboxes(true);
+  const total = getActiveCheckboxes(false);
   const bar = document.getElementById('batchBar');
   const count = document.getElementById('selectedCount');
+  const selectAll = document.getElementById('selectAll');
   if (checked.length > 0) {
     bar.style.display = 'flex';
     count.textContent = '已选 ' + checked.length + ' 个';
+    if (selectAll) selectAll.checked = (checked.length === total.length && total.length > 0);
   } else {
     bar.style.display = 'none';
+    if (selectAll) selectAll.checked = false;
   }
 }
 
 function toggleSelectAll() {
   const all = document.getElementById('selectAll').checked;
-  document.querySelectorAll('.file-check').forEach(cb => { cb.checked = all; });
+  getActiveCheckboxes(false).forEach(cb => { cb.checked = all; });
+  window._lastFileClickIndex = all ? 0 : -1;
   updateBatchBar();
+  updateSelectionVisuals();
+}
+
+function deselectAll() {
+  getActiveCheckboxes(false).forEach(cb => { cb.checked = false; });
+  window._lastFileClickIndex = -1;
+  updateBatchBar();
+  updateSelectionVisuals();
 }
 
 async function batchDelete() {
-  const checked = document.querySelectorAll('.file-check:checked');
+  const checked = getActiveCheckboxes(true);
   if (!checked.length) return;
   if (!confirm(`确定删除选中的 ${checked.length} 个文件？`)) return;
   let ok = 0, fail = 0;
@@ -348,6 +550,39 @@ async function batchDelete() {
   }
   toast(`🗑️ ${ok} 个已删除` + (fail ? `，${fail} 个失败` : ''));
   loadFiles(); updateStorageBar();
+}
+
+async function batchMove() {
+  const checked = getActiveCheckboxes(true);
+  if (!checked.length) return;
+  const targetDir = prompt('移动到哪个目录？\n（输入路径，如 "images"，留空 = 根目录）', currentDir || '');
+  if (targetDir === null) return;
+  let ok = 0, fail = 0;
+  for (const cb of checked) {
+    const name = cb.dataset.name;
+    try {
+      const r = await fetch('/api/files/move', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, targetDir: targetDir.trim(), overwrite: true }),
+      });
+      if (r.ok) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+  toast(`✅ ${ok} 个已移动` + (fail ? `，${fail} 个失败` : ''));
+  if (ok > 0) { loadFiles(); updateStorageBar(); }
+}
+
+function batchDownload() {
+  const checked = getActiveCheckboxes(true);
+  if (!checked.length) return;
+  if (checked.length === 1) {
+    downloadFile(checked[0].dataset.name);
+    return;
+  }
+  toast('📥 开始下载 ' + checked.length + ' 个文件...');
+  checked.forEach((cb, i) => {
+    setTimeout(() => downloadFile(cb.dataset.name), i * 300);
+  });
 }
 
 // ===== 文件夹 & 回收站 =====

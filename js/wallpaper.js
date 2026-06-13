@@ -40,7 +40,7 @@ function applyWallpaper() {
     return;
   }
   document.body.style.backgroundColor = '#f0f0f0';
-  const url = S.wpCurrent.path + '?t=' + Date.now();
+  const url = '/api/wallpaper/' + encodeURIComponent(S.wpCurrent.filename) + '?t=' + Date.now();
   const opacity = parseInt(localStorage.getItem('wpOpacity') || '100') / 100;
   const img = new Image();
   img.onload = () => {
@@ -72,7 +72,7 @@ function renderWallpapers() {
     if (S.wpCurrent) {
       current.style.display = 'block';
       const img = document.getElementById('wpCurrentImg');
-      if (img) img.src = S.wpCurrent.path + '?t=' + Date.now();
+      if (img) img.src = '/api/wallpaper/' + encodeURIComponent(S.wpCurrent.filename) + '?t=' + Date.now();
     } else {
       current.style.display = 'none';
     }
@@ -81,13 +81,13 @@ function renderWallpapers() {
   grid.innerHTML = S.wpList.map(wp => `
     <div class="wp-card ${wp.current ? 'wp-active' : ''}" onclick="setWallpaper('${wp.id}')">
       <div style="position:relative;">
-        <img src="${wp.path}?t=${Date.now()}" loading="lazy" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;display:block;">
+        <img src="/api/wallpaper/thumb/${encodeURIComponent(wp.filename)}" loading="lazy" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;display:block;">
         ${wp.current ? '<div style="position:absolute;top:4px;right:4px;font-size:.65rem;background:var(--accent);color:#fff;padding:1px 5px;border-radius:4px;">使用中</div>' : ''}
       </div>
       <div style="display:flex;gap:.3rem;margin-top:.3rem;">
         <button class="btn-sm" onclick="event.stopPropagation();setWallpaper('${wp.id}')" title="设为壁纸"><span class="mi">wallpaper</span></button>
         <button class="btn-sm" onclick="event.stopPropagation();delWallpaper('${wp.id}')" title="删除"><span class="mi">delete</span></button>
-        <button class="btn-sm" onclick="event.stopPropagation();upscaleWallpaper('${wp.id}')" title="AI 超清"><span class="mi">auto_fix_high</span></button>
+        <button class="btn-sm" onclick="event.stopPropagation();upscaleWallpaper('${wp.id}')" title="AI 超清（服务端处理）"><span class="mi">auto_fix_high</span></button>
       </div>
     </div>
   `).join('');
@@ -148,9 +148,12 @@ function applyWallpaperOpacity(val) {
   if (valEl) valEl.textContent = val + '%';
 }
 
+let wpGalleryDir = '';
+
 function openWpGallery() {
   const modal = document.getElementById('wpGalleryModal');
   if (modal) modal.classList.add('show');
+  wpGalleryDir = '';
   loadGalleryFiles();
 }
 
@@ -159,27 +162,64 @@ function closeWpGallery() {
   if (modal) modal.classList.remove('show');
 }
 
+function wpGalleryNav(dir) {
+  wpGalleryDir = dir || '';
+  loadGalleryFiles();
+}
+
 async function loadGalleryFiles() {
   const list = document.getElementById('wpGalleryList');
   if (!list) return;
   list.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--sub);">⏳ 加载中...</div>';
   try {
-    const r = await fetch('/api/files');
+    const params = new URLSearchParams();
+    if (wpGalleryDir) params.set('dir', wpGalleryDir);
+    const r = await fetch('/api/files?' + params.toString());
     const data = await r.json();
-    const imgs = (data.files || []).filter(f => !f.isDir && /\.(jpg|jpeg|png|gif|webp)$/i.test(f.name));
-    if (!imgs.length) {
-      list.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--sub);">文件中转站暂无图片</div>';
+    const files = data.files || [];
+    const crumbs = data.breadcrumb || [];
+
+    // 面包屑
+    const bc = document.getElementById('wpGalleryCrumbs');
+    if (bc) {
+      bc.innerHTML = crumbs.map((c, i) => {
+        const sep = i > 0 ? ' <span style="color:var(--sub);">/</span> ' : '';
+        const isLast = i === crumbs.length - 1;
+        if (isLast) return sep + '<span style="color:var(--accent);font-weight:600;">' + escHtml(c.name) + '</span>';
+        return sep + '<a href="#" onclick="wpGalleryNav(\'' + escAttr(c.path) + '\');return false;" style="color:var(--accent);text-decoration:none;">' + escHtml(c.name) + '</a>';
+      }).join('');
+    }
+
+    // 没有图片也没有子目录时
+    const imgs = files.filter(f => !f.isDir && /\.(jpg|jpeg|png|gif|webp)$/i.test(f.name));
+    const dirs = files.filter(f => f.isDir);
+    if (!imgs.length && !dirs.length) {
+      list.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--sub);">此目录暂无图片</div>';
       return;
     }
-    list.innerHTML = imgs.map(f => `
-      <div style="cursor:pointer;border-radius:8px;overflow:hidden;border:2px solid var(--border);transition:border-color .2s;"
-           onclick="saveWpFromFile('${f.relPath.replace(/'/g, "\\'")}')"
-           onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-        <img src="/api/dl/${encodeURIComponent(f.relPath)}?t=${Date.now()}" loading="lazy"
-          style="width:100%;aspect-ratio:1;object-fit:cover;display:block;">
-        <div style="font-size:.7rem;color:var(--sub);padding:.2rem .3rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;">${f.name}</div>
+
+    // 子目录卡片
+    const dirCards = dirs.map(d => `
+      <div style="cursor:pointer;border-radius:8px;overflow:hidden;border:2px dashed var(--border);transition:border-color .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;aspect-ratio:1;"
+           onclick="wpGalleryNav('${escAttr(d.relPath)}')"
+           onmouseover="this.style.borderColor='var(--accent)';this.style.background='var(--hover)';" onmouseout="this.style.borderColor='var(--border)';this.style.background='';">
+        <span class="mi" style="font-size:2rem;color:var(--accent);">folder</span>
+        <div style="font-size:.7rem;color:var(--sub);padding:.2rem .3rem;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;">${escHtml(d.name)}</div>
       </div>
     `).join('');
+
+    // 图片卡片
+    const imgCards = imgs.map(f => `
+      <div style="cursor:pointer;border-radius:8px;overflow:hidden;border:2px solid var(--border);transition:border-color .2s;"
+           onclick="saveWpFromFile('${escAttr(f.relPath)}')"
+           onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <img src="/api/dl/${encodeURIComponent(f.relPath)}" loading="lazy"
+          style="width:100%;aspect-ratio:1;object-fit:cover;display:block;">
+        <div style="font-size:.7rem;color:var(--sub);padding:.2rem .3rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;">${escHtml(f.name)}</div>
+      </div>
+    `).join('');
+
+    list.innerHTML = dirCards + imgCards;
   } catch(e) {
     list.innerHTML = '<div style="grid-column:1/-1;color:var(--danger);text-align:center;">❌ 加载失败</div>';
   }
@@ -235,26 +275,64 @@ async function saveToWallpaper(sid, fname) {
   } catch(e) { toast('❌ ' + e.message, 'error'); }
 }
 
-async function upscaleWallpaper(id) {
-  if (!confirm('将用 AI 增强这张壁纸（2x 超分 + 去噪 + 锐化），需要几秒钟。继续？')) return;
-  toast('🔮 处理中，请稍候...', 'info');
+// ===== AI 超清（服务端：Bigjpg API → sharp 兜底）=====
+// Bigjpg 免费 20 张/月，AI 深度学习超分，国内服务速度快
+// 配置：在 .env 中设置 BIGJPG_API_KEY=你的Key（登录 bigjpg.com 获取）
+async function upscaleWallpaper(id, _unused) {
+  const wp = S.wpList.find(w => w.id === id);
+  if (!wp) { toast('壁纸不存在', 'error'); return; }
+  const ext = (wp.filename || '').split('.').pop().toLowerCase();
+  if (ext === 'svg' || ext === 'gif') { toast('SVG/GIF 不支持 AI 超清', 'error'); return; }
+
+  if (!confirm('将用 AI 超分辨率增强这张壁纸\n（Bigjpg 深度学习模型 · 服务端处理）\n继续？')) return;
+
+  const overlay = document.getElementById('wpUpscaleOverlay');
+  const barEl = document.getElementById('wpUpscaleBar');
+  const pctEl = document.getElementById('wpUpscalePercent');
+  const resEl = document.getElementById('wpUpscaleRes');
+  const labelEl = document.getElementById('wpUpscaleLabel');
+  if (overlay) overlay.classList.add('show');
+  if (barEl) { barEl.style.width = '0%'; barEl.classList.remove('done'); }
+  if (pctEl) pctEl.textContent = '0%';
+  if (labelEl) labelEl.textContent = '🔮 AI 超清处理中...';
+  if (resEl) resEl.textContent = 'Bigjpg 深度学习模型';
+
+  const progress = (pct, label, res) => {
+    if (barEl) barEl.style.width = Math.round(pct) + '%';
+    if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+    if (label && labelEl) labelEl.textContent = label;
+    if (res !== undefined && resEl) resEl.textContent = res;
+  };
+  const closeOverlay = () => { if (overlay) overlay.classList.remove('show'); };
+
+  function refreshWallpaper(updated) {
+    if (S.wpCurrent && S.wpCurrent.id === id) { S.wpCurrent = updated; applyWallpaper(); }
+    const idx = S.wpList.findIndex(w => w.id === id);
+    if (idx >= 0) S.wpList[idx] = updated;
+    renderWallpapers();
+  }
+
   try {
+    progress(30, '🤖 调用 AI 模型...', 'Bigjpg 深度神经网络超分');
     const r = await fetch('/api/wallpaper/upscale/' + id, { method: 'POST' });
     const data = await r.json();
+    progress(90);
+
     if (data.ok) {
-      const before = data.sizeBefore < 1048576 ? (data.sizeBefore / 1024).toFixed(0) + 'K' : (data.sizeBefore / 1048576).toFixed(1) + 'M';
-      const after = data.sizeAfter < 1048576 ? (data.sizeAfter / 1024).toFixed(0) + 'K' : (data.sizeAfter / 1048576).toFixed(1) + 'M';
-      toast('✅ 超清完成 ' + before + ' → ' + after);
-      // 刷新当前壁纸显示
-      if (S.wpCurrent && S.wpCurrent.id === id) {
-        S.wpCurrent = data.wallpaper;
-        applyWallpaper();
-      }
-      renderWallpapers();
+      progress(100, '✅ 超清完成', data.resolution || '');
+      if (barEl) barEl.classList.add('done');
+      await new Promise(r => setTimeout(r, 600));
+      closeOverlay();
+      refreshWallpaper(data.wallpaper);
+      toast('✅ 超清完成' + (data.resolution.includes('Bigjpg') ? ' (AI)' : ''));
     } else {
+      closeOverlay();
       toast('❌ ' + (data.error || '处理失败'), 'error');
     }
-  } catch(e) { toast('❌ ' + e.message, 'error'); }
+  } catch (e) {
+    closeOverlay();
+    toast('❌ 超清失败: ' + (e.message || '').slice(0, 100), 'error');
+  }
 }
 
 // ===== 壁纸轮播 =====
