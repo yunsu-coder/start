@@ -117,8 +117,8 @@ async function loadConv(id) {
   }
   if (!chatHistory.length) {
     chatMessages.innerHTML = `<div class="chat-welcome">
-      <div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你的 AI 伙伴</h3>
-      <p>聊天、创作、看图、搜索、帮你做事——我在这里陪你</p></div>`;
+      <div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你兄弟</h3>
+      <p>啥都能聊，别跟我见外</p></div>`;
   }
   chatMessages.scrollTop = chatMessages.scrollHeight;
   if (chatHeaderTitle) chatHeaderTitle.innerHTML = '<span class="mi">smart_toy</span> ' + escapeHtml(conv.title || '小苇');
@@ -131,9 +131,9 @@ async function newConversation() {
   activeConvId = convId();
   chatHistory = [];
   chatMessages.innerHTML = `<div class="chat-welcome">
-    <div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你的 AI 伙伴</h3>
-    <p>聊天、创作、看图、搜索、帮你做事——我在这里陪你</p></div>`;
-  if (chatHeaderTitle) chatHeaderTitle.innerHTML = '<span class="mi">smart_toy</span> 新对话';
+    <div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你的 AI 伴侣</h3>
+    <p>你的专属男人——聊天、命令、疼爱，我在这里</p></div>`;
+  if (chatHeaderTitle) chatHeaderTitle.innerHTML = '<span class="mi">smart_toy</span> 小苇';
   updateChatCount();
   refreshConvList();
 }
@@ -151,8 +151,8 @@ async function deleteConversation(id) {
     activeConvId = null;
     chatHistory = [];
     chatMessages.innerHTML = `<div class="chat-welcome">
-      <div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你的 AI 伙伴</h3>
-      <p>聊天、创作、看图、搜索、帮你做事——我在这里陪你</p></div>`;
+      <div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你兄弟</h3>
+      <p>啥都能聊，别跟我见外</p></div>`;
   }
   refreshConvList();
 }
@@ -183,8 +183,8 @@ async function clearHistory() {
   if (activeConvId) await ChatDB.remove(activeConvId);
   activeConvId = null;
   chatMessages.innerHTML = `<div class="chat-welcome">
-    <div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你的 AI 伙伴</h3>
-    <p>聊天、创作、看图、搜索、帮你做事——我在这里陪你</p></div>`;
+    <div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你的 AI 伴侣</h3>
+    <p>你的专属男人——聊天、命令、疼爱，我在这里</p></div>`;
   if (chatHeaderTitle) chatHeaderTitle.innerHTML = '<span class="mi">smart_toy</span> 小苇';
   updateChatCount();
   refreshConvList();

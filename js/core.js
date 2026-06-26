@@ -67,7 +67,7 @@ document.querySelectorAll('.nav-item').forEach(btn => {
   function scheduleHide() {
     clearTimeout(hideTimer);
     hideTimer = setTimeout(() => {
-      if (!mouseNearTop) hide();
+      if (!mouseNearTop && window.scrollY > 5) hide();
     }, DELAY);
   }
 

@@ -6,7 +6,7 @@
 <title>一苇</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
-<link rel="stylesheet" href="/css/styles.css?v=1782655000">
+<link rel="stylesheet" href="/css/styles.css?v=1782700001">
 <script src="/lib/jszip/dist/jszip.min.js"></script>
 <script src="/lib/epubjs/dist/epub.min.js"></script>
 </head>
@@ -328,15 +328,19 @@
 <div class="panel" id="panel-read" style="padding:0;max-width:100%;">
   <!-- 书架 -->
   <div id="readerShelf" style="padding:1.5rem 1rem;max-width:900px;margin:0 auto;">
-    <h2 style="margin-bottom:1rem;"><span class="mi">visibility</span> 文件预览</h2>
-    <div class="grid" id="readerBooks" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));"></div>
-    <div class="empty-state" id="readerEmpty">还没有可预览的文件<br><small>上传 EPUB / PDF / TXT / Markdown / 代码 到文件中转站即可</small></div>
+    <!-- 文件 -->
+    <div class="section"><div class="section-title"><span class="mi">folder</span> 文件</div><div class="grid" id="readerFiles" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));"></div><div class="empty-state reader-empty" id="readerFilesEmpty" style="display:none;">暂无支持的文件<br><small>上传 EPUB / PDF / TXT / Markdown / 代码到文件中转站即可</small></div></div>
+    <!-- 笔记 -->
+    <div class="section"><div class="section-title"><span class="mi">note</span> 笔记</div><div class="grid" id="readerNotes" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));"></div><div class="empty-state reader-empty" id="readerNotesEmpty" style="display:none;">暂无独立笔记</div></div>
+    <!-- 小说 -->
+    <div class="section"><div class="section-title"><span class="mi">book</span> 小说</div><div id="readerWorks"></div></div>
   </div>
   <!-- 阅读视图 -->
   <div id="readerView" style="display:none;">
-    <div id="readerToolbar" style="display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50;flex-wrap:wrap;">
+    <div id="readerToolbar" class="reader-toolbar" style="display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50;flex-wrap:wrap;">
       <button class="btn-sm" onclick="closeReader()">← 返回书架</button>
       <span id="readerTitle" style="font-weight:600;font-size:.85rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      <span id="readerStats" style="font-size:.72rem;color:var(--sub);"></span>
       <select id="readerFont" onchange="updateReaderSettings()" style="font-size:.75rem;padding:.2rem;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text);">
         <option value="16">16px</option><option value="18" selected>18px</option><option value="20">20px</option><option value="22">22px</option><option value="24">24px</option>
       </select>
@@ -611,7 +615,7 @@
 <div class="toast" id="toast"></div>
 
 <!-- app.js → 分拆为 5 个模块 -->
-<script src="/js/core.js?v=1781416000"></script>
+<script src="/js/core.js?v=1782750000"></script>
 <script src="/js/files-panel.js?v=1780652200"></script>
 <script src="/js/notes-panel.js?v=1782655000"></script>
 <script src="/js/reader-panel.js?v=1777704498"></script>
@@ -620,6 +624,9 @@
 <script src="/js/upscale-engine.js?v=1780653200"></script>
 <script src="/js/wallpaper.js?v=1780653000"></script>
 <script src="/js/translate-panel.js?v=1780450482"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });</script>
 <script src="/js/chat.js?v=1782000000"></script>

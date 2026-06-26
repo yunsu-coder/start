@@ -227,27 +227,6 @@ async function loadScrapeSessions() {
 
     el.innerHTML = '';
     for (const s of sessions) {
-      // 贴吧采集会话
-      if (s.type === 'tieba') {
-        const card = document.createElement('div');
-        card.className = 'scrape-card'; card.setAttribute('data-sid', s.sessionId);
-        card.innerHTML = `
-          <div class="sc-header">
-            <input type="checkbox" class="file-check scrape-check" data-sid="${s.sessionId}" onchange="updateScrapeBatchBar()" onclick="event.stopPropagation()" style="flex-shrink:0;margin-right:.4rem;">
-            <div>
-              <div class="sc-title">📋 ${escHtml(s.kw || '')}吧</div>
-              <div class="sc-meta">${new Date(s.time).toLocaleString('zh-CN')} · ${s.threadCount || 0}个帖子 · ${s.textSize > 1024 ? (s.textSize/1024).toFixed(1)+'KB' : (s.textSize||0)+'B'}</div>
-            </div>
-          </div>
-          <div class="sc-actions">
-            <button class="btn-sm" onclick="viewTiebaText('${s.sessionId}', '${(s.textFile||'').replace(/'/g, "\\'")}')">📄 查看文本</button>
-            <button class="btn-sm" onclick="transferScrape('${s.sessionId}')">📁 转存到文件</button>
-            <button class="btn-sm danger" onclick="delScrapeSession('${s.sessionId}')">🗑 删除</button>
-          </div>
-        `;
-        el.appendChild(card);
-        continue;
-      }
       // 常规采集会话
       const typeLabel = s.type === 'images' ? '📷 图片' : s.type === 'text' ? '📄 文本' : s.type === 'video' ? '🎬 视频' : s.type === 'music' ? '🎵 音频' : '📷📄 图片+文本';
       const fileLabel = s.type === 'video' ? '个视频' : s.type === 'music' ? '个音频' : '张图片';
@@ -321,119 +300,17 @@ async function delScrapeSession(sid) {
   loadScrapeSessions();
 }
 
-// ===== 百度贴吧采集 =====
-async function startTiebaScrape() {
-  const kw = document.getElementById('tiebaKw').value.trim();
-  if (!kw) { toast('⚠️ 请输入贴吧名称', 'warning'); return; }
-
-  const btn = document.getElementById('tiebaBtn');
-  const resultEl = document.getElementById('tiebaResult');
-  const maxPages = parseInt(document.getElementById('tiebaPages').value);
-  const maxThreads = parseInt(document.getElementById('tiebaThreads').value);
-  const includeComments = document.getElementById('tiebaComments').checked;
-
-  btn.disabled = true;
-  btn.textContent = '⏳ 抓取中...';
-  resultEl.innerHTML = '<div class="scrape-progress">🔍 正在抓取「' + escHtml(kw) + '」吧...<br><small>抓取 ' + maxPages + ' 页，最多 ' + maxThreads + ' 个帖子</small></div>';
-
-  try {
-    const r = await fetch('/api/scrape/tieba', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kw, maxPages, maxThreads, includeComments }),
-    });
-    const data = await r.json();
-
-    btn.disabled = false;
-    btn.textContent = '🚀 开始抓取';
-
-    if (r.ok) {
-      const errWarn = data.errors?.length ? '（' + data.errors.length + ' 个异常）' : '';
-      toast('✅ 抓取完成：' + data.threadCount + ' 个帖子' + errWarn);
-
-      // 显示结果
-      let html = '<div class="scrape-card tilt-card"><div class="sc-header"><div>';
-      html += '<div class="sc-title">📋 ' + escHtml(kw) + '吧</div>';
-      html += '<div class="sc-meta">' + new Date(data.time).toLocaleString('zh-CN') + ' · ' + data.threadCount + '个帖子 · ' + (data.textSize > 1024 ? (data.textSize/1024).toFixed(1)+'KB' : data.textSize+'B') + '</div>';
-      html += '</div></div>';
-
-      // 帖子预览
-      if (data.threads && data.threads.length) {
-        html += '<div class="sc-meta" style="margin-top:.4rem;">📌 帖子列表：</div>';
-        const preview = data.threads.slice(0, 10).map(t => {
-          const title = (t.title || '无标题').slice(0, 40);
-          const author = t.author ? ' · ' + t.author : '';
-          const replies = t.replyCount > 0 ? ' · ' + t.replyCount + '回复' : '';
-          return '<div style="font-size:.78rem;padding:.15rem 0;">' +
-            '• <a href="' + escAttr((t.href || 'https://tieba.baidu.com/p/' + t.tid)) + '" target="_blank">' + escHtml(title) + '</a>' +
-            '<span style="color:var(--sub);">' + author + replies + '</span></div>';
-        }).join('');
-        html += preview;
-        if (data.threads.length > 10) {
-          html += '<div style="font-size:.78rem;color:var(--sub);">... 还有 ' + (data.threads.length - 10) + ' 个帖子</div>';
-        }
-      }
-
-      // 操作按钮
-      html += '<div class="sc-actions">' +
-        '<button class="btn-sm" onclick="viewTiebaText(\'' + data.sessionId + '\', \'' + (data.textFile || '') + '\')">📄 查看文本</button>' +
-        '<button class="btn-sm" onclick="transferScrape(\'' + data.sessionId + '\')">📁 转存到文件</button>' +
-        '</div>';
-
-      // 错误信息
-      if (data.errors && data.errors.length) {
-        html += '<div class="sc-meta" style="color:var(--danger);margin-top:.3rem;">⚠️ ' +
-          data.errors.slice(0, 5).map(e => escHtml((e.page||e.thread||'') + ': ' + (e.error||''))).join('<br>') +
-          '</div>';
-      }
-
-      html += '</div>';
-      resultEl.innerHTML = html;
-    } else {
-      resultEl.innerHTML = '<div class="scrape-progress" style="color:var(--danger);">❌ ' + escHtml(data.error || '抓取失败') + '</div>';
-      toast('❌ ' + (data.error || '抓取失败', 'error'));
-    }
-  } catch (e) {
-    btn.disabled = false;
-    btn.textContent = '🚀 开始抓取';
-    resultEl.innerHTML = '<div class="scrape-progress" style="color:var(--danger);">❌ 请求失败：' + escHtml(e.message) + '</div>';
-    toast('❌ 请求失败：' + e.message);
-  }
-}
-
-async function viewTiebaText(sessionId, filename) {
-  if (!filename) { toast('⚠️ 文本文件不存在', 'warning'); return; }
-  try {
-    const r = await fetch('/api/scrape/text/' + sessionId + '/' + encodeURIComponent(filename));
-    if (!r.ok) { toast('❌ 读取失败', 'error'); return; }
-    const text = await r.text();
-    // 新窗口展示
-    const w = window.open('', '_blank');
-    if (w) {
-      w.document.write('<html><head><meta charset="UTF-8"><title>' + escHtml(filename) + '</title><style>' +
-        'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;line-height:1.8;font-size:15px;color:#333;background:#fafafa;}' +
-        'pre{white-space:pre-wrap;word-break:break-word;}' +
-        '@media(prefers-color-scheme:dark){body{color:#ddd;background:#1a1a2e;}}</style></head>' +
-        '<body><pre>' + escHtml(text) + '</pre></body></html>');
-    }
-  } catch (e) {
-    toast('❌ 读取失败：' + e.message);
-  }
-}
-
-
 // ===== 快捷入口 =====
 function fillScrapeUrl(platform) {
   const ta = document.getElementById('scrapeUrls');
   const hints = {
     bilibili: 'https://www.bilibili.com/video/BV1xx411c7mD\n（替换为你要采集的B站视频链接）',
-    music: 'https://music.163.com/song?id=123456\n（替换为歌曲/专辑链接，支持网易云、QQ音乐）',
     xiaohongshu: 'https://www.xiaohongshu.com/explore/abc123\n（替换为小红书笔记链接）',
     movie: 'https://example.com/movie.mp4\n或电影网站页面URL，自动抓取页面内MP4/MKV视频',
     doc: 'https://example.com/doc.pdf\n或文档页面URL，自动抓取PDF/DOC/DOCX/XLS/PPT',
   };
   const radios = {
-    bilibili: 'both', music: 'music', xiaohongshu: 'both', movie: 'video', doc: 'both'
+    bilibili: 'both', xiaohongshu: 'both', movie: 'video', doc: 'both'
   };
   ta.value = hints[platform] || '';
   const radio = document.querySelector(`input[name="scrapeType"][value="${radios[platform] || 'both'}"]`);

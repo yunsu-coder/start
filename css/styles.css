@@ -275,6 +275,7 @@
   }
   .panel { display:none; max-width:900px; margin:0 auto; padding:1.5rem 1rem; }
   #panel-chat.panel { max-width: none; padding: 0; }
+  #panel-notes.panel { max-width: none; padding: .8rem 1rem .5rem; }
   .panel.active { display:block; }
 
   .time { font-size:3rem; font-weight:200; text-align:center; margin:.3rem 0; }
@@ -406,25 +407,23 @@
 
   .notes-topbar { display:flex; gap:.5rem; align-items:center; margin-bottom:.8rem; flex-wrap:wrap; }
   .notes-topbar .auto-save { font-size:.72rem; color:var(--ok); margin-left:auto; }
-  .notes-layout { display:flex; gap:.8rem; height:calc(100vh - 180px); }
-  .notes-sidebar { width:230px; min-width:230px; border-right:1px solid var(--border); flex-shrink:0; overflow-y:auto; overflow-x:hidden; padding-right:.3rem;
+  .notes-layout { display:flex; gap:0; height:calc(100vh - 155px); }
+  .notes-sidebar { width:180px; min-width:180px; border-right:1px solid var(--border); flex-shrink:0; overflow-y:auto; overflow-x:hidden; padding-right:.2rem;
     backdrop-filter:blur(var(--glass-blur)); -webkit-backdrop-filter:blur(var(--glass-blur));
     transition: width .35s cubic-bezier(.4,0,.2,1), min-width .35s cubic-bezier(.4,0,.2,1);
     position: relative; z-index: 5; }
   .notes-sidebar > * { transition: opacity .2s; }
-  /* Dock 智能隐藏：侧栏收缩至 8px 触发条，内容透明 */
-  .notes-layout.dock-hidden .notes-sidebar { width: 10px; min-width: 10px; padding-right: 0; }
+  .notes-layout.dock-hidden .notes-sidebar { width: 8px; min-width: 8px; padding-right: 0; }
   .notes-layout.dock-hidden .notes-sidebar > * { opacity: 0; pointer-events: none; }
-  /* 触发条视觉提示 */
   .notes-sidebar::after {
-    content: ''; position: absolute; right: 0; top: 0; bottom: 0;
-    width: 10px;
+    content: ''; position: absolute; right: -1px; top: 0; bottom: 0;
+    width: 8px;
     background: linear-gradient(90deg, transparent, var(--accent));
     opacity: 0; transition: opacity .3s;
     pointer-events: none;
   }
-  .notes-layout.dock-hidden .notes-sidebar::after { opacity: .35; }
-  .notes-layout.dock-hidden .notes-sidebar:hover { width: 230px; min-width: 230px; }
+  .notes-layout.dock-hidden .notes-sidebar::after { opacity: .4; }
+  .notes-layout.dock-hidden .notes-sidebar:hover { width: 180px; min-width: 180px; }
   .notes-layout.dock-hidden .notes-sidebar:hover > * { opacity: 1; pointer-events: auto; }
   .notes-layout.dock-hidden .notes-sidebar:hover::after { opacity: 0; }
   /* 笔记 vs 小说侧栏视觉隔离 */
@@ -453,22 +452,64 @@
   /* 小说模式：左侧强调色条 + pane 标题色 */
   .note-editor.novel-mode input.title { border-left:3px solid var(--accent); box-shadow:inset 3px 0 8px rgba(91,141,238,0.08); }
   .note-editor.novel-mode .pane-header:first-of-type { color:var(--accent); font-weight:600; }
-  .split-pane { display:flex; gap:.5rem; flex:1; min-height:0; }
+  .split-pane { display:flex; gap:.4rem; flex:1; min-height:0; min-width:0; }
   .split-pane .pane { flex:1; display:flex; flex-direction:column; min-width:0; border:1px solid var(--border); border-radius:8px; overflow:hidden;
     backdrop-filter:blur(var(--glass-blur)); -webkit-backdrop-filter:blur(var(--glass-blur)); }
   .split-pane .pane-header { font-size:.72rem; color:var(--sub); padding:.3rem .6rem; border-bottom:1px solid var(--border); background:var(--card); flex-shrink:0; }
   .split-pane textarea { flex:1; padding:.6rem; border:none; background:var(--editor-bg); color:var(--text); font-size:.85rem; resize:none; font-family:"SF Mono","Fira Code",monospace; outline:none; line-height:1.6; }
-  .split-pane .preview { flex:1; padding:.6rem; background:var(--preview-bg); overflow-y:auto; line-height:1.7; font-size:.85rem; }
-  .split-pane .preview h1,.split-pane .preview h2,.split-pane .preview h3 { margin:.6em 0 .3em; }
-  .split-pane .preview p { margin:.3em 0; }
-  .split-pane .preview code { background:var(--hover); padding:1px 5px; border-radius:3px; font-size:.8rem; }
-  .split-pane .preview pre { background:var(--hover); padding:.6rem; border-radius:6px; overflow-x:auto; }
-  .split-pane .preview pre code { background:none; padding:0; }
-  .split-pane .preview pre[data-lang] { position:relative; padding-top:1.8rem; }
-  .split-pane .preview pre[data-lang]::before { content:attr(data-lang); position:absolute; top:0; left:0; right:0; padding:2px .6rem; font-size:.65rem; color:var(--accent); background:var(--bg); border-radius:6px 6px 0 0; border-bottom:1px solid var(--border); font-weight:600; text-transform:uppercase; }
-  .split-pane .preview mark { background:var(--accent); color:#fff; padding:0 2px; border-radius:2px; opacity:.85; }
+  /* ---- 笔记预览 Prose（Obsidian/Typora 风格）---- */
+  .split-pane .preview {
+    flex:1; padding:1.2rem 1.5rem; background:var(--preview-bg); overflow-y:auto;
+    line-height:1.85; font-size:.88rem; color:var(--text);
+    font-family: 'Noto Serif SC', Georgia, 'Times New Roman', serif;
+    word-break:break-word;
+  }
+  .split-pane .preview h1 { font-size:1.5rem; font-weight:700; margin:1.5em 0 .4em; padding-bottom:.3em; border-bottom:2px solid var(--border); }
+  .split-pane .preview h2 { font-size:1.25rem; font-weight:650; margin:1.3em 0 .35em; padding-bottom:.2em; border-bottom:1px solid var(--border); }
+  .split-pane .preview h3 { font-size:1.1rem; font-weight:600; margin:1.1em 0 .3em; }
+  .split-pane .preview h4 { font-size:1rem; font-weight:600; margin:.9em 0 .25em; color:var(--sub); }
+  .split-pane .preview h5,.split-pane .preview h6 { font-size:.9rem; font-weight:600; margin:.7em 0 .2em; color:var(--sub); }
+  .split-pane .preview p { margin:.5em 0; }
+  .split-pane .preview :not(pre) > code {
+    background:var(--hover); color:var(--accent2); padding:.1em .35em;
+    border-radius:4px; font-size:.85em; font-family:'SF Mono','Fira Code',monospace; font-weight:500;
+  }
+  .split-pane .preview pre {
+    background:#1a1b26; padding:1rem 1.2rem; border-radius:10px; overflow-x:auto;
+    margin:.8em 0; border:1px solid var(--border); line-height:1.55; font-size:.82rem;
+  }
+  .split-pane .preview pre code { background:none; padding:0; font-size:inherit; color:#c0caf5; }
+  .split-pane .preview pre[data-lang] { position:relative; padding-top:2rem; }
+  .split-pane .preview pre[data-lang]::before {
+    content:attr(data-lang); position:absolute; top:0; left:0; right:0;
+    padding:2px .8rem; font-size:.65rem; color:var(--accent); background:rgba(0,0,0,.3);
+    border-radius:10px 10px 0 0; border-bottom:1px solid var(--border);
+    font-weight:600; text-transform:uppercase; letter-spacing:.5px;
+  }
+  .split-pane .preview blockquote {
+    border-left:4px solid var(--accent); margin:.8em 0; padding:.4em 1em;
+    color:var(--sub); background:rgba(128,128,160,.06); border-radius:0 6px 6px 0; font-style:italic;
+  }
+  .split-pane .preview table {
+    width:100%; border-collapse:collapse; margin:.8em 0; font-size:.82rem;
+    border-radius:8px; overflow:hidden; border:1px solid var(--border);
+  }
+  .split-pane .preview thead { background:rgba(128,128,160,.15); }
+  .split-pane .preview th { padding:.5rem .8rem; text-align:left; font-weight:600; border-bottom:2px solid var(--border); }
+  .split-pane .preview td { padding:.4rem .8rem; border-bottom:1px solid var(--border); }
+  .split-pane .preview tbody tr:hover { background:var(--hover); }
+  .split-pane .preview tbody tr:last-child td { border-bottom:none; }
+  .split-pane .preview ul, .split-pane .preview ol { padding-left:1.5em; margin:.4em 0; }
+  .split-pane .preview li { margin:.2em 0; }
+  .split-pane .preview li::marker { color:var(--accent); }
+  .split-pane .preview a { color:var(--accent); text-decoration:underline; text-underline-offset:2px; text-decoration-color:rgba(137,180,250,.4); }
+  .split-pane .preview a:hover { text-decoration-color:var(--accent); }
+  .split-pane .preview img { max-width:100%; border-radius:8px; margin:.4em 0; box-shadow:0 2px 8px rgba(0,0,0,.15); cursor:pointer; transition:transform .2s; }
+  .split-pane .preview img:hover { transform:scale(1.02); }
+  .split-pane .preview hr { border:none; border-top:2px solid var(--border); margin:1.5em 0; opacity:.4; }
+  .split-pane .preview mark { background:rgba(250,200,100,.25); color:var(--text); padding:.05em .2em; border-radius:3px; }
   .split-pane .preview sub,.split-pane .preview sup { font-size:.7rem; }
-  .split-pane .preview img { max-width:100%; border-radius:6px; }
+  .split-pane .preview del { color:var(--sub); text-decoration:line-through; }
   /* 沉浸模式：隐藏预览面板，编辑区全宽 */
   .split-pane.no-preview .pane:last-child { display:none; }
   .split-pane.no-preview .pane:first-child { flex:1 1 100%; }
@@ -476,7 +517,7 @@
   /* 纯预览模式：隐藏编辑区，只显示渲染结果 */
   .split-pane.preview-only .pane:first-child { display:none; }
   .split-pane.preview-only .pane:last-child { flex:1 1 100%; }
-  .split-pane.preview-only .preview { font-size:.9rem; line-height:1.8; }
+  .split-pane.preview-only .preview { font-size:.92rem; line-height:1.9; max-width:860px; margin:0 auto; }
   .btn { padding:.4rem 1rem; border:none; border-radius:7px; cursor:pointer; font-size:.8rem; transition:all .2s; }
   .btn:hover { opacity:.9; transform:translateY(-1px); }
   .btn.accent { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(91,141,238,0.25); }
@@ -566,6 +607,8 @@
   .work-chapter-item .ch-order { color:var(--accent); font-weight:500; min-width:1.2rem; text-align:right; }
   .work-chapter-item .ch-title { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .work-chapter-item .ch-del { cursor:pointer; color:var(--danger); font-size:.7rem; }
+  .work-chapter-item.dragging { opacity:.4; background:var(--accent); }
+  .work-chapter-item .ch-grip { flex-shrink:0; }
   .work-export-btns { display:flex; gap:.3rem; margin-top:.3rem; }
 
   .toast {
@@ -757,6 +800,64 @@
   /* EPUB 样式修复 */
   #readerContent iframe { width:100%;height:100%;border:none; }
   #readerContent img { max-width:100%;height:auto; }
+
+  /* === 阅读器布局 === */
+  #readerView { flex-direction:column; height:calc(100vh - 56px); }
+  #readerView.active { display:flex !important; }
+  #readerView > div:nth-child(2) { flex:1; overflow:hidden; min-height:0; }
+  #readerContent { height:auto !important; flex:1; }
+  #readerShelf .section { margin-bottom:1.5rem; }
+  #readerShelf .section-title { font-size:.78rem; letter-spacing:.05em; color:var(--sub); margin-bottom:.5rem; padding-left:.2rem; }
+  .reader-empty { text-align:center; padding:1.5rem 0; color:var(--sub); font-size:.8rem; }
+
+  /* 作品/小说书架卡片 */
+  .work-reader-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:.4rem; overflow:hidden; box-shadow:var(--shadow); backdrop-filter:blur(var(--glass-blur)); }
+  .work-reader-header { display:flex; align-items:center; gap:.5rem; padding:.6rem .8rem; cursor:default; }
+  .work-reader-title { flex:1; font-size:.85rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+  .work-reader-title:hover { color:var(--accent); }
+  .work-reader-meta { font-size:.68rem; color:var(--sub); flex-shrink:0; }
+  .work-expand-btn { transition:transform var(--dur-fast) var(--ease-smooth); }
+  .work-reader-card.open .work-expand-btn { transform:rotate(180deg); }
+  .work-reader-chapters { display:none; border-top:1px solid var(--border); }
+  .work-reader-card.open .work-reader-chapters { display:block; }
+  .work-reader-chapter { display:flex; align-items:center; gap:.4rem; padding:.4rem .8rem .4rem 1.6rem; cursor:pointer; font-size:.78rem; border-bottom:1px solid var(--hover); transition:background var(--dur-fast); }
+  .work-reader-chapter:hover { background:var(--hover); }
+  .work-reader-chapter .ch-num { color:var(--accent); font-size:.7rem; min-width:1.5rem; }
+
+  /* 阅读器 TOC 目录 */
+  .reader-toc-title { font-weight:600; font-size:.78rem; padding-bottom:.4rem; margin-bottom:.4rem; border-bottom:1px solid var(--border); }
+  .reader-toc-item { padding:.35rem .4rem; cursor:pointer; border-radius:5px; font-size:.75rem; display:flex; align-items:center; gap:.3rem; }
+  .reader-toc-item:hover { background:var(--hover); }
+  .reader-toc-item.active { color:var(--accent); font-weight:600; background:var(--hover); }
+  .reader-toc-item .ch-num { color:var(--sub); font-size:.65rem; min-width:1.4rem; }
+  .reader-toc-item .toc-label { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .toc-pct { font-size:.6rem; color:var(--sub); flex-shrink:0; }
+  #readerTOC.open { display:block !important; }
+
+  /* 小说章内导航 */
+  .novel-nav { display:flex; justify-content:space-between; gap:.8rem; margin-top:2rem; padding-top:1rem; border-top:1px solid var(--border); }
+  .novel-nav-btn { flex:1; max-width:48%; }
+
+  /* 阅读器沉浸模式 */
+  #readerView .reader-toolbar,
+  #readerView #readerProgress,
+  #readerView #readerTOC,
+  #readerView #readerProgress + div,
+  #readerView #readerPosition,
+  #readerView #readerShortcuts { transition:opacity var(--dur-normal) var(--ease-smooth), transform var(--dur-normal) var(--ease-smooth); }
+  #readerView.immersive .reader-toolbar,
+  #readerView.immersive #readerProgress,
+  #readerView.immersive #readerTOC,
+  #readerView.immersive #readerProgress + div { opacity:0; pointer-events:none; }
+  #readerView.immersive #readerTOC { transform:translateX(-100%); }
+  #readerView.immersive.reader-show-ui .reader-toolbar,
+  #readerView.immersive.reader-show-ui #readerProgress,
+  #readerView.immersive.reader-show-ui #readerProgress + div { opacity:1; pointer-events:auto; }
+
+  /* 阅读器内容宽度 */
+  .width-narrow .reader-content-inner { max-width:600px; }
+  .width-medium .reader-content-inner { max-width:750px; }
+  .width-wide .reader-content-inner { max-width:900px; }
 
   .preview table { border-collapse:collapse; margin:.8em 0; width:100%; }
   .preview th { background:var(--accent); color:#fff; padding:6px 10px; border:1px solid var(--accent); }

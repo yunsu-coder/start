@@ -33,10 +33,16 @@ async function loadWorks() {
 
       const chapterHtml = chapters.map((cid, i) => {
         const note = noteMap[cid];
-        return `<div class="work-chapter-item" draggable="true">
+        return `<div class="work-chapter-item" draggable="true"
+          ondragstart="chapterDragStart(event,'${escAttr(cid)}','${escAttr(w.id)}')"
+          ondragover="chapterDragOver(event)"
+          ondrop="chapterDrop(event,'${escAttr(cid)}','${escAttr(w.id)}')"
+          ondragend="chapterDragEnd(event)"
+          data-cid="${escAttr(cid)}">
+          <span class="ch-grip mi" style="cursor:grab;color:var(--sub);margin-right:4px;font-size:14px;">drag_indicator</span>
           <span class="ch-order">${i + 1}</span>
           <span class="ch-title">${escHtml(note?.title || '(已删除)')}</span>
-          <span class="ch-del" onclick="removeChapterFromWork('${escAttr(w.id)}','${escAttr(cid)}')">✕</span>
+          <span class="ch-del" onclick="event.stopPropagation();removeChapterFromWork('${escAttr(w.id)}','${escAttr(cid)}')">✕</span>
         </div>`;
       }).join('') || '<div class="empty-state" style="font-size:.7rem;padding:.2rem;">暂无章节</div>';
 
@@ -102,6 +108,60 @@ async function deleteWorkConfirm(id) {
   toast('🗑️ 已删除');
   loadWorks();
   loadWorkDropdowns();
+}
+
+// ---- 章节拖拽排序 ----
+let chapterDragData = null;
+
+function chapterDragStart(e, cid, workId) {
+  chapterDragData = { cid, workId };
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', cid);
+  e.currentTarget.classList.add('dragging');
+  setTimeout(() => { if (e.currentTarget) e.currentTarget.style.opacity = '0.4'; }, 0);
+}
+
+function chapterDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function chapterDrop(e, targetCid, workId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!chapterDragData || chapterDragData.cid === targetCid) return;
+
+  const list = e.currentTarget.parentElement;
+  const items = [...list.querySelectorAll('.work-chapter-item[data-cid]')];
+  const fromIdx = items.findIndex(el => el.dataset.cid === chapterDragData.cid);
+  const toIdx = items.findIndex(el => el.dataset.cid === targetCid);
+  if (fromIdx === -1 || toIdx === -1) return;
+
+  // 移动 DOM
+  if (fromIdx < toIdx) {
+    list.insertBefore(items[fromIdx], items[toIdx].nextSibling);
+  } else {
+    list.insertBefore(items[fromIdx], items[toIdx]);
+  }
+
+  // 更新序号
+  const newOrder = [...list.querySelectorAll('.work-chapter-item[data-cid]')].map(el => el.dataset.cid);
+  [...list.querySelectorAll('.ch-order')].forEach((el, i) => { el.textContent = i + 1; });
+
+  // 保存到服务端
+  fetch('/api/works/' + encodeURIComponent(workId) + '/reorder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chapterIds: newOrder })
+  }).catch(e => console.warn('[Works] reorder failed', e));
+
+  chapterDragData = null;
+}
+
+function chapterDragEnd(e) {
+  e.currentTarget.style.opacity = '';
+  e.currentTarget.classList.remove('dragging');
+  chapterDragData = null;
 }
 
 async function removeChapterFromWork(workId, noteId) {
@@ -324,7 +384,14 @@ loadNotesList = async function() {
     }
     list.innerHTML = notes.map(n => {
       const orderStr = n.chapterOrder > 0 ? ` #${n.chapterOrder}` : '';
-      return `<div class="note-list-item${currentNoteId === n.id ? ' active' : ''}" onclick="openNote('${n.id}')">
+      const cls = 'note-list-item' + (currentNoteId === n.id ? ' active' : '');
+      return `<div class="${cls}" data-note-id="${n.id}" draggable="true"
+        ondragstart="noteDragStart(event,'${n.id}')"
+        ondragover="noteDragOver(event,'${n.id}')"
+        ondragleave="noteDragLeave(event)"
+        ondrop="noteDrop(event,'${n.id}')"
+        ondragend="noteDragEnd(event)"
+        onclick="openNote('${n.id}')">
         <span class="ntitle">${escHtml(n.title || '无标题')}${orderStr}</span>
         <span class="ndate">${new Date(n.updated).toLocaleDateString('zh-CN')}</span>
       </div>`;
