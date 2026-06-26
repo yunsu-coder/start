@@ -182,19 +182,17 @@ openNote = async function(id) {
     document.getElementById('noteTitle').value = note.title;
     document.getElementById('noteContent').value = note.content;
     const workSel = document.getElementById('noteWorkId');
-    if (workSel) {
-      workSel.value = note.workId || '';
-    }
+    if (workSel) { workSel.value = note.workId || ''; }
     const orderSel = document.getElementById('noteChapterOrder');
-    if (orderSel) {
-      orderSel.value = note.chapterOrder || 0;
-    }
+    if (orderSel) { orderSel.value = note.chapterOrder || 0; }
     renderLive();
     updateWordCount();
     markClean();
     document.querySelectorAll('.note-list-item').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.note-list-item').forEach(el => { if (el.getAttribute('onclick')?.includes(id)) el.classList.add('active'); });
     startAutoSave();
+    // Dock 自动隐藏侧栏
+    setTimeout(() => { if (typeof dockEnabled !== 'undefined' && dockEnabled) { const l = document.querySelector('.notes-layout'); if (l) l.classList.add('dock-hidden'); } }, 700);
   } catch(e) { console.error(e); }
 };
 
@@ -209,13 +207,23 @@ newNote = async function() {
   document.getElementById('noteContent').value = '';
   document.getElementById('notePreview').innerHTML = '';
   const workSel = document.getElementById('noteWorkId');
-  if (workSel) workSel.value = currentWorkFilter || '';
+  if (workSel) {
+    // 小说模式：优先用作品筛选器选中的，否则自动选第一个作品
+    if (currentNoteTab === 'novel') {
+      const filterVal = (document.getElementById('workFilter')?.value || '');
+      workSel.value = filterVal || workSel.options[1]?.value || '';
+    } else {
+      workSel.value = '';
+    }
+  }
   const orderSel = document.getElementById('noteChapterOrder');
   if (orderSel) orderSel.value = 0;
   updateWordCount();
   document.getElementById('noteTitle').focus();
   document.querySelectorAll('.note-list-item').forEach(el => el.classList.remove('active'));
   markClean(); startAutoSave();
+  // Dock 自动隐藏侧栏
+  setTimeout(() => { if (typeof dockEnabled !== 'undefined' && dockEnabled) { const l = document.querySelector('.notes-layout'); if (l) l.classList.add('dock-hidden'); } }, 700);
 };
 
 // ===== 笔记侧栏标签切换 =====
@@ -237,6 +245,7 @@ function switchNoteTab(tab) {
 
   const btnQuick = document.getElementById('btnQuickNew');
   const btnChapter = document.getElementById('btnNewChapter');
+  const assocRow = document.getElementById('workAssocRow');
 
   if (tab === 'novel') {
     tabNotes.style.background = 'var(--hover)';
@@ -256,6 +265,8 @@ function switchNoteTab(tab) {
     if (noteTitle) noteTitle.placeholder = '章节标题…';
     if (noteContent) noteContent.placeholder = '章节内容…';
     if (searchInput) searchInput.placeholder = '搜索章节标题…';
+    // 显示作品关联行
+    if (assocRow) assocRow.style.display = 'flex';
     // 显示醒目的「新章节」按钮，隐藏小按钮
     if (btnQuick) btnQuick.style.display = 'none';
     if (btnChapter) btnChapter.style.display = 'inline-flex';
@@ -268,7 +279,7 @@ function switchNoteTab(tab) {
     tabNotes.style.color = '#fff';
     tabNotes.style.border = 'none';
     tabNotes.style.fontWeight = '500';
-    if (workFilter) workFilter.style.display = 'none';
+    if (workFilter) { workFilter.style.display = 'none'; workFilter.value = ''; currentWorkFilter = ''; }
     if (titleEl) titleEl.innerHTML = '<span class="mi">note</span> 笔记';
     // 侧栏视觉隔离
     if (sidebar) { sidebar.classList.add('note-sidebar'); sidebar.classList.remove('novel-sidebar'); }
@@ -277,6 +288,8 @@ function switchNoteTab(tab) {
     if (noteTitle) noteTitle.placeholder = '标题...';
     if (noteContent) noteContent.placeholder = '开始写作…';
     if (searchInput) searchInput.placeholder = '搜索标题...';
+    // 隐藏作品关联行
+    if (assocRow) assocRow.style.display = 'none';
     // 显示小按钮，隐藏醒目按钮
     if (btnQuick) btnQuick.style.display = 'inline-block';
     if (btnChapter) btnChapter.style.display = 'none';
@@ -284,24 +297,23 @@ function switchNoteTab(tab) {
   loadNotesList();
 }
 
-// ===== 重写 loadNotesList 最终版（作品过滤 + 标签过滤）=====
+// ===== 重写 loadNotesList 最终版（服务端类型隔离）=====
 loadNotesList = async function() {
   try {
-    let url = '/api/notes';
+    const params = new URLSearchParams();
     const q = document.getElementById('noteSearch')?.value || '';
-    if (q) url += '?q=' + encodeURIComponent(q);
-    let notes = await (await fetch(url)).json();
-
-    // 标签过滤
+    if (q) params.set('q', q);
+    // 按标签类型隔离：笔记(standalone) vs 小说(novel)
     if (currentNoteTab === 'novel') {
-      notes = notes.filter(n => n.workId && n.workId !== '');
+      params.set('type', 'novel');
       const wf = document.getElementById('workFilter');
-      if (wf && wf.value) {
-        notes = notes.filter(n => n.workId === wf.value);
-      }
+      if (wf && wf.value) params.set('work_id', wf.value);
     } else {
-      notes = notes.filter(n => !n.workId || n.workId === '');
+      params.set('type', 'standalone');
     }
+    const qs = params.toString();
+    const url = '/api/notes' + (qs ? '?' + qs : '');
+    const notes = await (await fetch(url)).json();
 
     const list = document.getElementById('noteList');
     if (!notes.length) {
@@ -327,10 +339,16 @@ async function exportNote(format) {
   if (!title && !content) { toast('⚠️ 没有可导出的内容', 'warning'); return; }
 
   try {
+    const body = { title: title || '文档', content: content || '', format };
+    // PDF 导出时附带已渲染的 HTML，让 Puppeteer 直接使用客户端预览结果
+    if (format === 'pdf') {
+      const preview = document.getElementById('notePreview');
+      if (preview) body.html = '<h1>' + (title || '文档') + '</h1>\n' + preview.innerHTML;
+    }
     const resp = await fetch('/api/export', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title || '文档', content: content || '', format }),
+      body: JSON.stringify(body),
     });
     if (!resp.ok) { toast('❌ 导出失败', 'error'); return; }
     const blob = await resp.blob();

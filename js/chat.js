@@ -197,31 +197,162 @@ function updateChatCount() {
   }
 }
 
+// ---- 视觉模型检测 ----
+function isVisionModel(model) {
+  if (!model) return false;
+  const m = model.toLowerCase();
+  return m.includes('vl') || m.includes('vision') || m.includes('glm-4v') || m.includes('gpt-4o') || m.includes('gemini') || m.includes('claude');
+}
+
+// ---- 图片压缩 ----
+function compressImage(file, maxW = 1500, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) { reject(new Error('非图片文件')); return; }
+    // SVG/GIF 不压缩，直接读
+    if (file.type === 'image/svg+xml' || file.type === 'image/gif') {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+      return;
+    }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        if (!blob) { // fallback to JPEG
+          canvas.toBlob((jpegBlob) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result);
+            r.onerror = reject;
+            r.readAsDataURL(jpegBlob);
+          }, 'image/jpeg', 0.75);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      }, 'image/webp', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片加载失败')); };
+    img.src = url;
+  });
+}
+
 // ---- 图片处理 ----
 function triggerImageUpload() { chatImageInput?.click(); }
-function handleChatImage(e) {
+async function handleChatImage(e) {
   const files = e.target.files;
   if (!files?.length) return;
   for (const f of files) {
-    if (!f.type.startsWith('image/')) continue;
-    const reader = new FileReader();
-    reader.onload = () => { addImagePreview(reader.result, f.name); };
-    reader.readAsDataURL(f);
+    if (f.type.startsWith('image/')) {
+      try {
+        const dataUrl = await compressImage(f);
+        addImagePreview(dataUrl, f.name);
+      } catch (err) { toast?.('图片处理失败: ' + err.message, 'error'); }
+    } else {
+      // 非图片文件 → 文档上传
+      await uploadDocFile(f);
+    }
   }
   chatImageInput.value = '';
 }
-function handleChatPaste(e) {
-  const items = e.clipboardData?.items;
-  if (!items) return;
-  for (const item of items) {
-    if (!item.type.startsWith('image/')) continue;
-    e.preventDefault();
-    const blob = item.getAsFile();
-    const reader = new FileReader();
-    reader.onload = () => { addImagePreview(reader.result, '截图'); };
-    reader.readAsDataURL(blob);
+// handleChatPaste 定义在文件末尾，支持图片+文件粘贴
+
+// ---- 文档上传 ----
+async function uploadDocFile(file) {
+  const MAX = 30 * 1024 * 1024;
+  if (file.size > MAX) { toast?.('文件过大（最大30MB）', 'error'); return; }
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const resp = await fetch('/api/chat/upload-doc', { method: 'POST', body: form });
+    const data = await resp.json();
+    if (!data.ok) { toast?.(data.error || '上传失败', 'error'); return; }
+    // 在输入框插入文档引用，替换发送逻辑时识别
+    const docChip = document.createElement('span');
+    docChip.className = 'chat-doc-chip';
+    docChip.title = data.text.slice(0, 200);
+    docChip.innerHTML = '<span class="mi">description</span> ' + escapeHtml(data.filename) + ' (' + data.fileType + ', ' + (data.size / 1024).toFixed(1) + 'K)';
+    docChip.onclick = () => docChip.remove();
+    const existed = document.querySelectorAll('.chat-doc-chip');
+    if (existed.length) { for (const c of existed) c.remove(); } // 一次只允许一个文档
+    chatImagePreview.appendChild(docChip);
+    // 暂存文档文本
+    window._chatDocText = data.text;
+    window._chatDocName = data.filename;
+    toast?.('已添加 ' + data.filename + '（' + data.charCount + ' 字）', 'success');
+  } catch (e) {
+    toast?.('文档上传失败: ' + e.message, 'error');
   }
 }
+
+// ---- 拖拽上传 ----
+(function() {
+  const area = document.querySelector('.chat-input-area');
+  if (!area) return;
+  let dragCounter = 0;
+  area.addEventListener('dragover', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  area.addEventListener('dragenter', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter++;
+    if (dragCounter === 1) area.classList.add('drag-over');
+  });
+  area.addEventListener('dragleave', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter--;
+    if (dragCounter === 0) area.classList.remove('drag-over');
+  });
+  area.addEventListener('drop', async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter = 0;
+    area.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if (!files?.length) return;
+    for (const f of files) {
+      if (f.type.startsWith('image/')) {
+        try {
+          const dataUrl = await compressImage(f);
+          addImagePreview(dataUrl, f.name);
+        } catch (err) { /* skip */ }
+      } else {
+        await uploadDocFile(f);
+      }
+    }
+  });
+  // 也可拖到整个聊天区域
+  const msgArea = document.getElementById('chatMessages');
+  if (msgArea) {
+    msgArea.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
+    msgArea.addEventListener('drop', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      area.classList.remove('drag-over');
+      const files = e.dataTransfer.files;
+      if (!files?.length) return;
+      for (const f of files) {
+        if (f.type.startsWith('image/')) {
+          try {
+            const dataUrl = await compressImage(f);
+            addImagePreview(dataUrl, f.name);
+          } catch (err) { /* skip */ }
+        } else {
+          await uploadDocFile(f);
+        }
+      }
+    });
+  }
+})();
 function addImagePreview(dataUrl, name) {
   pendingImages.push(dataUrl);
   const chip = document.createElement('span');
@@ -242,24 +373,43 @@ function handleChatKey(e) {
 function sendChat() {
   if (chatStreaming) return;
   const text = chatInput.value.trim();
-  if (!text && !pendingImages.length) return;
+  if (!text && !pendingImages.length && !window._chatDocText) return;
   chatInput.value = '';
   chatInput.style.height = 'auto';
 
   const welcome = chatMessages.querySelector('.chat-welcome');
   if (welcome) welcome.remove();
 
-  let content;
-  if (pendingImages.length) {
+  // 组装消息内容
+  let content, displayText = text;
+  const hasImages = pendingImages.length > 0;
+  const hasDoc = !!window._chatDocText;
+
+  if (hasImages || hasDoc) {
     content = [];
-    if (text) content.push({ type: 'text', text });
-    for (const img of pendingImages) content.push({ type: 'image_url', image_url: { url: img } });
+    let fullText = text || '';
+    if (hasDoc) {
+      const docLabel = window._chatDocName || '文档';
+      fullText = (fullText ? fullText + '\n\n' : '') + '📄 [' + docLabel + '] 内容:\n```\n' + window._chatDocText + '\n```';
+      displayText = (text || '') + (text ? '\n' : '') + '📎 ' + docLabel;
+    }
+    if (hasImages) {
+      if (fullText) content.push({ type: 'text', text: fullText });
+      for (const img of pendingImages) content.push({ type: 'image_url', image_url: { url: img } });
+      if (!fullText && hasDoc) content.unshift({ type: 'text', text: fullText });
+    } else {
+      content.push({ type: 'text', text: fullText });
+    }
   } else { content = text; }
 
   chatHistory.push({ role: 'user', content });
-  appendUserMsg(text, pendingImages);
+  appendUserMsg(displayText, pendingImages);
   pendingImages = [];
   chatImagePreview.innerHTML = '';
+  // 清理文档状态
+  window._chatDocText = null;
+  window._chatDocName = null;
+  document.querySelectorAll('.chat-doc-chip').forEach(c => c.remove());
 
   currentMsgEl = createAssistantMsg();
   currentToolEls = {};
@@ -333,7 +483,7 @@ async function streamAgent() {
         try {
           const payload = JSON.parse(data);
           handleEvent(event, payload);
-          if (event === 'content') contentText = payload.text;
+          if (event === 'content_delta') contentText += payload.delta;
           if (event === 'done') { chatHistory.push({ role: 'assistant', content: contentText }); }
         } catch {}
       }
@@ -385,24 +535,51 @@ function handleEvent(event, data) {
       resultDiv.classList.remove('loading');
       const r = data.result; let out = '';
       if (r.error) { out = '<span class="tool-err">' + escapeHtml(r.error) + '</span>'; tc.classList.add('tool-error'); }
-      else if (r.content !== undefined) { out = '<pre>' + escapeHtml(r.content.slice(0, 3000)) + '</pre>'; if (r.truncated) out += '<em>（文件过长，已截断）</em>'; }
-      else if (r.stdout !== undefined) { out = '<pre>' + escapeHtml(r.stdout.slice(0, 3000)) + '</pre>'; if (r.stderr) out += '<pre class="tool-err">' + escapeHtml(r.stderr.slice(0, 500)) + '</pre>'; out += '<span class="tool-exit">退出码: ' + (r.exitCode || 0) + '</span>'; }
+      else if (r.content !== undefined) { out = renderToolFileResult(r); }
+      else if (r.stdout !== undefined) { out = renderToolStdout(r); }
       else if (r.matches !== undefined) { out = '<pre>' + escapeHtml(r.matches.slice(0, 3000)) + '</pre>'; }
-      else if (r.files !== undefined) { out = '<pre>' + escapeHtml(r.files) + '</pre>'; }
-      else if (r.written || r.edited) { out = '<span class="tool-ok">✓ ' + (r.written ? '已写入 ' + r.path + ' (' + (r.size || 0) + ' 字节)' : '已编辑 ' + r.path) + '</span>'; }
-      else if (r.width) { out = '<span class="tool-ok">📷 ' + r.width + '×' + r.height + ' ' + (r.format || '') + ' ' + (r.sizeDisplay || '') + '</span>'; }
+      else if (r.files !== undefined) { out = renderToolFiles(r); }
+      else if (r.written || r.edited) { out = renderToolWritten(r); }
+      else if (r.width) { out = renderToolImageInfo(r); }
       else { out = '<pre>' + escapeHtml(JSON.stringify(r, null, 2).slice(0, 2000)) + '</pre>'; }
       resultDiv.innerHTML = out;
       chatMessages.scrollTop = chatMessages.scrollHeight;
       break;
     }
-    case 'content': {
+    case 'content_delta': {
       clearTyping();
       const body = currentBody(); if (!body) return;
       let contentDiv = body.querySelector('.chat-content');
       if (!contentDiv) { contentDiv = document.createElement('div'); contentDiv.className = 'chat-content'; body.appendChild(contentDiv); }
-      contentDiv.innerHTML = renderMarkdown(data.text);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+      if (!contentDiv._streamBuffer) contentDiv._streamBuffer = '';
+      contentDiv._streamBuffer += data.delta;
+      if (!contentDiv._renderScheduled) {
+        contentDiv._renderScheduled = true;
+        requestAnimationFrame(() => {
+          contentDiv._renderScheduled = false;
+          if (typeof contentDiv._streamBuffer !== 'string') return; // done 已清理
+          const fullText = contentDiv._streamBuffer;
+          contentDiv.innerHTML = renderMarkdown(fullText);
+          enhanceCodeBlocks(contentDiv);
+          renderMermaidDiagrams(contentDiv);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+      }
+      break;
+    }
+    case 'done': {
+      // 最终渲染 + 清理 stream buffer
+      const body = currentBody(); if (body) {
+        let contentDiv = body.querySelector('.chat-content');
+        if (contentDiv && contentDiv._streamBuffer) {
+          contentDiv.innerHTML = renderMarkdown(contentDiv._streamBuffer);
+          enhanceCodeBlocks(contentDiv);
+          renderMermaidDiagrams(contentDiv);
+          delete contentDiv._streamBuffer;
+          delete contentDiv._renderScheduled;
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+      }
       break;
     }
     case 'error': {
@@ -436,42 +613,333 @@ async function finishStream() {
   await saveConv();
 }
 
-// ---- Markdown ----
+// ---- Markdown 增强版 ----
 function escapeHtml(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function unescapeHtml(s) { return s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"'); }
+
 function renderMarkdown(text) {
   if (!text) return '';
-  let html = escapeHtml(text);
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // 分离代码块，保护内容不被转义
+  const codeBlocks = [];
+  let html = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push({ lang: lang || '', code: code.trimEnd() });
+    return `%%CODEBLOCK_${idx}%%`;
+  });
+  // 分离行内代码
+  const inlineCodes = [];
+  html = html.replace(/`([^`]+)`/g, (_, code) => {
+    const idx = inlineCodes.length;
+    inlineCodes.push(code);
+    return `%%INLINECODE_${idx}%%`;
+  });
+
+  html = escapeHtml(html);
+
+  // 恢复行内代码
+  html = html.replace(/%%INLINECODE_(\d+)%%/g, (_, i) => `<code>${escapeHtml(inlineCodes[+i])}</code>`);
+
+  // 表格（在转义后处理——需要还原管道符）
+  html = html.replace(/\|(.+)\|\n\|[-| :]+\|\n((?:\|.+\|\n?)*)/g, (match, header, rows) => {
+    const hcells = header.split('|').map(h => h.trim()).filter(Boolean);
+    const thead = '<thead><tr>' + hcells.map(h => `<th>${h}</th>`).join('') + '</tr></thead>';
+    const tbody = '<tbody>' + rows.trim().split('\n').map(row => {
+      const cells = row.split('|').map(c => c.trim()).filter(Boolean);
+      return '<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>';
+    }).join('') + '</tbody>';
+    return `<div class="table-wrap"><table>${thead}${tbody}</table></div>`;
+  });
+
+  // 任务列表
+  html = html.replace(/^- \[([ x])\] (.+)$/gm, (_, checked, label) =>
+    `<div class="task-item"><input type="checkbox" ${checked==='x'?'checked':''} disabled><span>${label}</span></div>`);
+
+  // 图片 ![](url)
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="chat-img-inline" loading="lazy" onclick="viewChatImage(this.src)">');
+
+  // 链接 [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  // 粗斜体
+  html = html.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+  // 标题
+  html = html.replace(/^#### (.+)$/gm, '<h5>$1</h5>');
   html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
   html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
-  html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+
+  // 引用
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+  // 分割线
+  html = html.replace(/^---$/gm, '<hr>');
+
+  // 无序列表
   html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
   html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+  // 组装列表
   const lines = html.split('\n');
-  let result = '', inList = false;
+  let result = '', inList = false, inTable = false;
   for (let i = 0; i < lines.length; i++) {
-    const isLi = lines[i].startsWith('<li>');
-    if (isLi && !inList) { result += '<ul>'; inList = true; }
-    if (!isLi && inList) { result += '</ul>'; inList = false; }
-    result += lines[i]; if (i < lines.length - 1) result += '\n';
+    const line = lines[i];
+    if (line.startsWith('<div class="table-wrap">')) { if (inList) { result += '</ul>'; inList = false; } inTable = true; result += line; continue; }
+    if (line === '</div>' && inTable) { inTable = false; result += line; continue; }
+    if (inTable) { result += line; continue; }
+    const isLi = line.startsWith('<li>');
+    const isTask = line.startsWith('<div class="task-item">');
+    if ((isLi || isTask) && !inList) { result += '<ul class="chat-list">'; inList = true; }
+    if (!isLi && !isTask && inList) { result += '</ul>'; inList = false; }
+    result += line;
+    if (i < lines.length - 1) result += '\n';
   }
   if (inList) result += '</ul>';
   html = result;
-  html = html.replace(/<\/blockquote>\n<blockquote>/g, '\n');
+
+  // 合并连续引用和段落
+  html = html.replace(/<\/blockquote>\n<blockquote>/g, '<br>');
   html = html.replace(/\n\n/g, '</p><p>');
   html = html.replace(/\n/g, '<br>');
   if (!html.startsWith('<')) html = '<p>' + html + '</p>';
+
+  // 恢复代码块
+  html = html.replace(/%%CODEBLOCK_(\d+)%%/g, (_, i) => {
+    const cb = codeBlocks[+i];
+    const langLabel = cb.lang ? `<span class="code-lang">${escapeHtml(cb.lang)}</span>` : '';
+    const copyBtn = `<button class="code-copy-btn" onclick="copyCodeBlock(this)" title="复制代码"><span class="mi">content_copy</span></button>`;
+    return `<div class="code-block-wrap">${langLabel}${copyBtn}<pre><code class="${cb.lang ? 'lang-'+escapeHtml(cb.lang) : ''}">${escapeHtml(cb.code)}</code></pre></div>`;
+  });
+
+  // 包裹顶层裸文本
+  if (html.trim() && !html.startsWith('<')) html = '<p>' + html + '</p>';
   return html;
+}
+
+// ---- 代码块增强：复制按钮 ----
+function copyCodeBlock(btn) {
+  const pre = btn.parentElement.querySelector('pre code');
+  if (!pre) return;
+  const text = unescapeHtml(pre.textContent || '');
+  navigator.clipboard.writeText(text).then(() => {
+    btn.classList.add('copied');
+    btn.querySelector('.mi').textContent = 'check';
+    setTimeout(() => { btn.classList.remove('copied'); btn.querySelector('.mi').textContent = 'content_copy'; }, 2000);
+  }).catch(() => { /* 降级：选中文本 */ });
+}
+
+function enhanceCodeBlocks(container) {
+  // 为代码块添加语言标签后的额外处理（当前 renderMarkdown 已处理主要逻辑）
+  // 此处为后续扩展保留
+}
+
+// ---- Mermaid 图表渲染 ----
+function renderMermaidDiagrams(container) {
+  const mermaidBlocks = container.querySelectorAll('.lang-mermaid');
+  if (!mermaidBlocks.length) return;
+  if (typeof mermaid === 'undefined') {
+    // Mermaid 未加载，显示原始代码
+    mermaidBlocks.forEach(b => { b.classList.add('mermaid-fallback'); });
+    return;
+  }
+  mermaidBlocks.forEach(async (block) => {
+    const wrap = block.closest('.code-block-wrap');
+    if (!wrap || wrap._mermaidRendered) return;
+    wrap._mermaidRendered = true;
+    const code = unescapeHtml(block.textContent || '');
+    try {
+      const { svg } = await mermaid.render('mermaid-' + Math.random().toString(36).slice(2,8), code);
+      const svgDiv = document.createElement('div');
+      svgDiv.className = 'mermaid-rendered';
+      svgDiv.innerHTML = svg;
+      wrap.insertAdjacentElement('afterend', svgDiv);
+      wrap.style.display = 'none'; // 隐藏原始代码块
+    } catch (e) {
+      // 渲染失败，保留原始代码
+      block.classList.add('mermaid-error');
+      block.title = 'Mermaid 渲染失败: ' + e.message;
+    }
+  });
+}
+
+// ---- 点击查看大图 ----
+function viewChatImage(src) {
+  const overlay = document.createElement('div');
+  overlay.className = 'chat-img-overlay';
+  overlay.innerHTML = `<img src="${src}">`;
+  overlay.onclick = () => overlay.remove();
+  document.body.appendChild(overlay);
+}
+
+// ---- 工具结果多模态渲染 ----
+function isImageExt(name) {
+  const n = (name || '').toLowerCase();
+  return /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(n);
+}
+function isViewableExt(name) {
+  const n = (name || '').toLowerCase();
+  return /\.(png|jpe?g|gif|webp|svg|pdf|mp4|webm|mov|mp3|wav|ogg)$/i.test(n);
+}
+function fileIcon(name) {
+  if (isImageExt(name)) return 'image';
+  if (/\.pdf$/i.test(name)) return 'picture_as_pdf';
+  if (/\.(mp4|webm|mov)$/i.test(name)) return 'movie';
+  if (/\.(mp3|wav|ogg|flac)$/i.test(name)) return 'music_note';
+  if (/\.(zip|tar|gz|rar)$/i.test(name)) return 'folder_zip';
+  if (/\.(js|py|sh|ts|json|html|css|md|txt)$/i.test(name)) return 'code';
+  return 'description';
+}
+
+function fileCardHtml(name, size, extra) {
+  const viewUrl = '/api/view/' + encodeURIComponent(name);
+  const dlUrl = '/api/dl/' + encodeURIComponent(name);
+  const icon = fileIcon(name);
+  const sizeStr = size ? (size > 1024*1024 ? (size/(1024*1024)).toFixed(1)+'MB' : (size>1024?(size/1024).toFixed(1)+'KB':size+'B')) : '';
+  let preview = '';
+  if (isImageExt(name)) {
+    preview = `<img src="${viewUrl}" class="tool-img-preview" loading="lazy" onclick="viewChatImage(this.src)" title="点击查看大图">`;
+  }
+  return `<div class="tool-file-card">
+    <div class="tool-file-icon mi">${icon}</div>
+    <div class="tool-file-info">
+      <span class="tool-file-name">${escapeHtml(name)}</span>
+      <span class="tool-file-meta">${sizeStr}${extra ? ' · ' + extra : ''}</span>
+    </div>
+    <div class="tool-file-actions">
+      <a href="${viewUrl}" target="_blank" class="tool-file-btn" title="预览"><span class="mi">visibility</span></a>
+      <a href="${dlUrl}" class="tool-file-btn" title="下载"><span class="mi">download</span></a>
+    </div>
+    ${preview}
+  </div>`;
+}
+
+function renderToolFileResult(r) {
+  // 如果是图片路径，显示预览
+  let out = '<pre>' + escapeHtml(r.content.slice(0, 3000)) + '</pre>';
+  if (r.truncated) out += '<em>（文件过长，已截断）</em>';
+  return out;
+}
+
+function renderToolStdout(r) {
+  let out = '<pre>' + escapeHtml(r.stdout.slice(0, 3000)) + '</pre>';
+  if (r.stderr) out += '<pre class="tool-err">' + escapeHtml(r.stderr.slice(0, 500)) + '</pre>';
+  out += '<span class="tool-exit">退出码: ' + (r.exitCode || 0) + '</span>';
+  return out;
+}
+
+function renderToolFiles(r) {
+  // Glob/Grep 结果：检测是否有图片文件
+  const fileList = (r.files || '').split('\n').filter(Boolean);
+  if (fileList.length > 0 && fileList.every(f => isImageExt(f))) {
+    // 全是图片：显示缩略图网格
+    const imgs = fileList.slice(0, 20).map(f => {
+      const url = '/api/view/' + encodeURIComponent(f.trim());
+      return `<img src="${url}" class="tool-img-grid-item" loading="lazy" onclick="viewChatImage(this.src)">`;
+    }).join('');
+    return `<div class="tool-img-grid">${imgs}</div><span class="tool-exit">${fileList.length} 个图片文件</span>`;
+  }
+  return '<pre>' + escapeHtml(r.files) + '</pre>';
+}
+
+function renderToolWritten(r) {
+  const name = r.path || '';
+  const size = r.size || 0;
+  // 图片或可预览文件显示卡片
+  if (name && (isImageExt(name) || isViewableExt(name))) {
+    return fileCardHtml(name, size, r.written ? '已创建' : '已编辑');
+  }
+  return '<span class="tool-ok">✓ ' + (r.written ? '已写入 ' + name + ' (' + size + ' 字节)' : '已编辑 ' + name) + '</span>';
+}
+
+function renderToolImageInfo(r) {
+  // ReadImage 结果：显示缩略图 + 元信息
+  let out = '<span class="tool-ok">📷 ' + r.width + '×' + r.height + ' ' + (r.format || '') + ' ' + (r.sizeDisplay || '') + '</span>';
+  if (r.path && isImageExt(r.path)) {
+    const viewUrl = '/api/view/' + encodeURIComponent(r.path);
+    out += `<br><img src="${viewUrl}" class="tool-img-preview" loading="lazy" onclick="viewChatImage(this.src)" style="margin-top:.5rem;max-width:300px;max-height:200px;border-radius:8px;cursor:pointer;">`;
+  }
+  return out;
 }
 
 // 侧栏折叠
 function toggleChatSidebar() {
   const sidebar = document.getElementById('chatSidebar');
   if (sidebar) sidebar.classList.toggle('collapsed');
+}
+
+// ---- 语音输入 (Web Speech API) ----
+let speechRecognition = null;
+let isListening = false;
+function toggleSpeechInput() {
+  const micBtn = document.getElementById('chatMicBtn');
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    toast?.('浏览器不支持语音输入', 'error'); return;
+  }
+  if (isListening) {
+    speechRecognition?.stop();
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  speechRecognition = new SR();
+  speechRecognition.lang = 'zh-CN';
+  speechRecognition.interimResults = true;
+  speechRecognition.continuous = true;
+  speechRecognition.maxAlternatives = 1;
+
+  speechRecognition.onstart = () => {
+    isListening = true;
+    if (micBtn) { micBtn.classList.add('listening'); micBtn.querySelector('.mi').textContent = 'mic_off'; }
+    toast?.('🎤 正在聆听...', 'success');
+  };
+  speechRecognition.onend = () => {
+    isListening = false;
+    if (micBtn) { micBtn.classList.remove('listening'); micBtn.querySelector('.mi').textContent = 'mic'; }
+  };
+  speechRecognition.onerror = (e) => {
+    isListening = false;
+    if (micBtn) { micBtn.classList.remove('listening'); micBtn.querySelector('.mi').textContent = 'mic'; }
+    if (e.error !== 'aborted') toast?.('语音识别失败: ' + e.error, 'error');
+  };
+  speechRecognition.onresult = (e) => {
+    let final = '', interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t;
+      else interim += t;
+    }
+    if (final) { chatInput.value = (chatInput.value + ' ' + final).trim(); }
+    // 临时显示未确认文本（可选）
+    chatInput.focus();
+  };
+  speechRecognition.start();
+}
+
+// 粘贴事件也支持文档文件
+async function handleChatPaste(e) {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      const blob = item.getAsFile();
+      try {
+        const dataUrl = await compressImage(blob);
+        addImagePreview(dataUrl, '截图');
+      } catch (err) { toast?.('截图处理失败', 'error'); }
+      return;
+    }
+  }
+  // 检查是否有文件
+  for (const item of items) {
+    if (item.kind === 'file') {
+      e.preventDefault();
+      const file = item.getAsFile();
+      await uploadDocFile(file);
+      return;
+    }
+  }
 }
 
 // 输入框自适应

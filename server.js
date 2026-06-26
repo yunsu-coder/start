@@ -581,12 +581,20 @@ const server = http.createServer(async (req, res) => {
   // --- 笔记 ---
   if (p === '/api/notes' && m === 'GET') {
     const q = url.searchParams.get('q') || '';
-    const notes = listNotes();
+    const type = url.searchParams.get('type') || '';
+    const workId = url.searchParams.get('work_id') || '';
+    let notes = listNotes();
+    // 按类型隔离：standalone=独立笔记(无workId), novel=小说章节(有workId)
+    if (type === 'standalone') {
+      notes = notes.filter(n => !n.workId || n.workId === '');
+    } else if (type === 'novel') {
+      notes = notes.filter(n => n.workId && n.workId !== '');
+      if (workId) notes = notes.filter(n => n.workId === workId);
+    }
     if (q) {
-      const filtered = notes.filter(n =>
+      notes = notes.filter(n =>
         n.title.includes(q) || (n.preview || '').includes(q)
       );
-      return sendJSON(res, 200, filtered);
     }
     return sendJSON(res, 200, notes);
   }
@@ -675,7 +683,7 @@ const server = http.createServer(async (req, res) => {
       let buf, mime, ext;
       switch (fmt) {
         case 'pdf':
-          buf = await exportToPDF(title, content);
+          buf = await exportToPDF(title, content, body.html || null);
           mime = 'application/pdf';
           ext = '.pdf';
           break;
@@ -916,6 +924,61 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': isVideo ? 'video/mp4' : 'audio/mpeg', 'Transfer-Encoding': 'chunked', 'Cache-Control': 'no-cache' });
     vlc.stdout.pipe(res);
     req.on('close', () => { vlc.kill(); });
+    return;
+  }
+
+  // ===== 文档上传（对话多模态）=====
+  if (p === '/api/chat/upload-doc' && m === 'POST') {
+    try {
+      const raw = await readBody(req, 30 * 1024 * 1024);
+      const boundary = (req.headers['content-type'] || '').match(/boundary=(.+)/);
+      if (!boundary) { sendJSON(res, 400, { error: '需要 multipart/form-data' }); return; }
+      const parts = parseMultipart(raw, boundary[1]);
+      const filePart = parts.find(p => p.filename);
+      if (!filePart) { sendJSON(res, 400, { error: '未找到文件' }); return; }
+      const fname = (filePart.filename || '').toLowerCase();
+      const ext = path.extname(fname);
+      let text = '', fileType = '';
+
+      if (ext === '.pdf') {
+        fileType = 'PDF';
+        try {
+          const pdfParse = require('pdf-parse');
+          const result = await pdfParse(filePart.data);
+          text = result.text || '';
+        } catch (e) { text = '(PDF 解析失败: ' + e.message + ')'; }
+      } else if (ext === '.docx') {
+        fileType = 'Word';
+        try {
+          const mammoth = require('mammoth');
+          const result = await mammoth.extractRawText({ buffer: filePart.data });
+          text = result.value || '';
+        } catch (e) { text = '(DOCX 解析失败: ' + e.message + ')'; }
+      } else if (['.txt', '.md', '.json', '.csv', '.log', '.xml', '.yml', '.yaml', '.env', '.js', '.py', '.html', '.css'].includes(ext)) {
+        fileType = ext.toUpperCase().slice(1);
+        text = filePart.data.toString('utf8');
+      } else {
+        sendJSON(res, 400, { error: '不支持的文件类型: ' + ext + '（支持 PDF/DOCX/TXT/MD 等文本文件）' });
+        return;
+      }
+
+      // 截断过长文本
+      const MAX_CHARS = 50000;
+      let truncated = false;
+      if (text.length > MAX_CHARS) { text = text.slice(0, MAX_CHARS); truncated = true; }
+
+      sendJSON(res, 200, {
+        ok: true,
+        filename: filePart.filename,
+        fileType,
+        size: filePart.data.length,
+        text,
+        truncated,
+        charCount: text.length,
+      });
+    } catch (e) {
+      sendJSON(res, 500, { error: '文档处理失败: ' + e.message });
+    }
     return;
   }
 
@@ -1217,7 +1280,7 @@ const server = http.createServer(async (req, res) => {
               break;
             case 'content':
               contentText += evt.text;
-              sendSSE(res, 'content', { text: contentText });
+              sendSSE(res, 'content_delta', { delta: evt.text });
               break;
             case 'tool_delta':
               for (const tc of (evt.tool_calls || [])) {

@@ -1,5 +1,132 @@
 // ===== 笔记 =====
 let currentNoteId = null, noteDirty = false, autoSaveTimer = null;
+
+// Emoji 短码映射（常用 60 个）
+const EMOJI = {
+  smile:'😊',grin:'😁',joy:'😂',rofl:'🤣',wink:'😉',stuck_out_tongue:'😛',yum:'😋',sunglasses:'😎',
+  heart:'❤️',broken_heart:'💔',sparkling_heart:'💖',yellow_heart:'💛',
+  thumbsup:'👍',thumbsdown:'👎',clap:'👏',pray:'🙏',ok_hand:'👌',raised_hands:'🙌',muscle:'💪',wave:'👋',
+  fire:'🔥',star:'⭐',sparkles:'✨',zap:'⚡',boom:'💥',dash:'💨',snowflake:'❄️',
+  rocket:'🚀',eyes:'👀',bulb:'💡',lock:'🔒',unlock:'🔓',key:'🔑',
+  warning:'⚠️',check:'✅',x:'❌',question:'❓',exclamation:'❗',
+  info:'ℹ️',coffee:'☕',book:'📖',books:'📚',memo:'📝',pencil:'✏️',paperclip:'📎',
+  package:'📦',wrench:'🔧',bug:'🐛',gear:'⚙️',hammer:'🔨',
+  link:'🔗',pin:'📌',bell:'🔔',mute:'🔇',microphone:'🎤',mag:'🔍',
+  camera:'📷',video:'🎬',clapper:'🎬',music:'🎵',musical_note:'🎵',art:'🎨',
+  hourglass:'⏳',calendar:'📅',clock:'🕐',alarm_clock:'⏰',
+  email:'📧',phone:'📱',computer:'💻',globe:'🌐',house:'🏠',
+  '100':'💯',tada:'🎉',trophy:'🏆',medal:'🏅',crown:'👑',gem:'💎',
+  up:'⬆️',down:'⬇️',left:'⬅️',right:'➡️',arrow_up:'⬆️',arrow_down:'⬇️',
+};
+
+// 语法高亮：对代码块按语言用 span token 着色
+function highlightCode(code, lang) {
+  if (!lang || !code) return code;
+  const l = lang.toLowerCase();
+  // 转义 HTML 已在调用处完成，这里 code 已经是安全的
+
+  // 通用：字符串
+  let h = code;
+  const tokenize = (patterns) => {
+    // patterns: [{ re: /regex/g, cls: 'syn-xxx', priority: 0 }]  — 高优先级先匹配
+    const sorted = [...patterns].sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    // 用占位符保护已匹配 token
+    const tokens = [];
+    sorted.forEach((p, pi) => {
+      h = h.replace(p.re, (match) => {
+        const idx = tokens.length;
+        tokens.push('<span class="' + p.cls + '">' + match + '</span>');
+        return '\x10' + idx + '\x10';
+      });
+    });
+    // 还原占位符
+    h = h.replace(/\x10(\d+)\x10/g, (_, i) => tokens[+i]);
+  };
+
+  if (l === 'js' || l === 'javascript' || l === 'ts' || l === 'typescript' || l === 'jsx' || l === 'tsx') {
+    tokenize([
+      { re: /\/\/.*$|\/\*[\s\S]*?\*\//gm, cls: 'syn-cm', priority: 10 },
+      { re: /`[^`]*`/g, cls: 'syn-str', priority: 9 },
+      { re: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, cls: 'syn-str', priority: 9 },
+      { re: /\b(const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|new|typeof|instanceof|void|delete|yield|await|async|of|in|class|extends|super|import|export|default|from|throw|try|catch|finally|debugger|with)\b/g, cls: 'syn-kw', priority: 8 },
+      { re: /\b(true|false|null|undefined|NaN|Infinity)\b/g, cls: 'syn-num', priority: 7 },
+      { re: /\b([a-zA-Z_$]\w*)\s*\(/g, cls: 'syn-fn', priority: 6 },
+      { re: /\b(\d+\.?\d*(?:e\d+)?)\b/g, cls: 'syn-num', priority: 5 },
+      { re: /(=>|===|!==|==|!=|<=|>=|&&|\|\||\?\?|\.\.\.|->)/g, cls: 'syn-op', priority: 4 },
+    ]);
+  } else if (l === 'py' || l === 'python') {
+    tokenize([
+      { re: /#.*$/gm, cls: 'syn-cm', priority: 10 },
+      { re: /"""(?:[^"\\]|\\.)*?"""|'''(?:[^'\\]|\\.)*?'''/g, cls: 'syn-str', priority: 9 },
+      { re: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, cls: 'syn-str', priority: 9 },
+      { re: /\b(def|class|return|if|elif|else|for|while|import|from|as|try|except|finally|with|yield|lambda|pass|break|continue|raise|assert|del|global|nonlocal|in|is|not|and|or|True|False|None)\b/g, cls: 'syn-kw', priority: 8 },
+      { re: /@\w+/g, cls: 'syn-fn', priority: 7 },
+      { re: /\b([a-zA-Z_]\w*)\s*\(/g, cls: 'syn-fn', priority: 6 },
+      { re: /\b(\d+\.?\d*(?:e\d+)?)\b/g, cls: 'syn-num', priority: 5 },
+    ]);
+  } else if (l === 'html' || l === 'xml' || l === 'svg') {
+    tokenize([
+      { re: /<!--[\s\S]*?-->/g, cls: 'syn-cm', priority: 10 },
+      { re: /"[^"]*"|'[^']*'/g, cls: 'syn-str', priority: 9 },
+      { re: /<\/?[a-zA-Z][a-zA-Z0-9-]*/g, cls: 'syn-tag', priority: 8 },
+      { re: /\b[a-zA-Z-]+(?=\s*=\s*["'])/g, cls: 'syn-attr', priority: 7 },
+    ]);
+  } else if (l === 'css' || l === 'scss' || l === 'less') {
+    tokenize([
+      { re: /\/\*[\s\S]*?\*\//g, cls: 'syn-cm', priority: 10 },
+      { re: /"[^"]*"|'[^']*'/g, cls: 'syn-str', priority: 9 },
+      { re: /\b([a-zA-Z-]+)(?=\s*:)/g, cls: 'syn-attr', priority: 8 },
+      { re: /#[a-fA-F0-9]{3,8}\b|rgba?\s*\([^)]+\)|hsl[a]?\s*\([^)]+\)/g, cls: 'syn-num', priority: 7 },
+      { re: /\b(\d+\.?\d*(?:em|px|rem|%|vh|vw|ch|ex|cm|mm|pt|s|ms|deg)?)\b/g, cls: 'syn-num', priority: 6 },
+      { re: /[@.:#][a-zA-Z-]+/g, cls: 'syn-tag', priority: 5 },
+      { re: /\b(important|url|none|auto|inherit|initial|unset|var|calc)\b/g, cls: 'syn-kw', priority: 4 },
+    ]);
+  } else if (l === 'json' || l === 'json5' || l === 'jsonc') {
+    tokenize([
+      { re: /"[^"]*"\s*:/g, cls: 'syn-attr', priority: 10 },
+      { re: /"(?:[^"\\]|\\.)*"/g, cls: 'syn-str', priority: 9 },
+      { re: /\b(true|false|null)\b/g, cls: 'syn-num', priority: 8 },
+      { re: /\b(-?\d+\.?\d*(?:e[+-]?\d+)?)\b/g, cls: 'syn-num', priority: 7 },
+    ]);
+  } else if (l === 'bash' || l === 'sh' || l === 'zsh' || l === 'shell') {
+    tokenize([
+      { re: /#.*$/gm, cls: 'syn-cm', priority: 10 },
+      { re: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, cls: 'syn-str', priority: 9 },
+      { re: /\b(if|then|else|elif|fi|for|while|do|done|case|esac|in|function|return|local|export|source|alias|unset|exit|break|continue|echo|printf|read|cd|ls|cat|grep|sed|awk|curl|wget|chmod|chown|mkdir|rm|cp|mv|sudo|docker|git|npm|node|python|ssh|scp|kill|ps|top|find|tar|gzip|zip|unzip)\b/g, cls: 'syn-kw', priority: 8 },
+      { re: /(&&|\|\||\||&|>>|>|<<|<|;)/g, cls: 'syn-op', priority: 5 },
+      { re: /\$\{?[a-zA-Z_]\w*\}?/g, cls: 'syn-fn', priority: 6 },
+    ]);
+  } else if (l === 'sql') {
+    tokenize([
+      { re: /--.*$/gm, cls: 'syn-cm', priority: 10 },
+      { re: /'(?:[^'\\]|\\.)*'/g, cls: 'syn-str', priority: 9 },
+      { re: /\b(SELECT|FROM|WHERE|AND|OR|NOT|IN|LIKE|BETWEEN|IS|NULL|AS|ON|JOIN|LEFT|RIGHT|INNER|OUTER|CROSS|FULL|GROUP|BY|ORDER|ASC|DESC|HAVING|LIMIT|OFFSET|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|ALTER|DROP|TABLE|INDEX|VIEW|TRIGGER|PROCEDURE|FUNCTION|DATABASE|SCHEMA|PRIMARY|KEY|FOREIGN|REFERENCES|UNIQUE|CHECK|DEFAULT|CONSTRAINT|CASCADE|UNION|ALL|ANY|EXISTS|CASE|WHEN|THEN|ELSE|END|DISTINCT|COUNT|SUM|AVG|MIN|MAX|COALESCE|CAST|CONVERT|IF|IFNULL|NULLIF)\b/gi, cls: 'syn-kw', priority: 8 },
+      { re: /\b(\d+\.?\d*)\b/g, cls: 'syn-num', priority: 7 },
+    ]);
+  } else if (l === 'go' || l === 'golang') {
+    tokenize([
+      { re: /\/\/.*$|\/\*[\s\S]*?\*\//gm, cls: 'syn-cm', priority: 10 },
+      { re: /`[^`]*`/g, cls: 'syn-str', priority: 9 },
+      { re: /"(?:[^"\\]|\\.)*"/g, cls: 'syn-str', priority: 9 },
+      { re: /\b(func|return|if|else|for|range|switch|case|default|break|continue|go|defer|chan|select|map|struct|interface|type|package|import|var|const|nil|true|false)\b/g, cls: 'syn-kw', priority: 8 },
+      { re: /\b(\d+\.?\d*(?:e\d+)?)\b/g, cls: 'syn-num', priority: 5 },
+    ]);
+  } else if (l === 'rust' || l === 'rs') {
+    tokenize([
+      { re: /\/\/.*$|\/\*[\s\S]*?\*\//gm, cls: 'syn-cm', priority: 10 },
+      { re: /"(?:[^"\\]|\\.)*"/g, cls: 'syn-str', priority: 9 },
+      { re: /\b(fn|let|mut|const|if|else|for|while|loop|match|return|struct|enum|impl|trait|use|mod|pub|self|super|where|as|in|ref|move|unsafe|async|await|dyn|true|false|Some|None|Ok|Err|Result|Option|Vec|String)\b/g, cls: 'syn-kw', priority: 8 },
+      { re: /'[a-zA-Z_]\w*/g, cls: 'syn-num', priority: 7 },
+      { re: /#\[[^\]]+\]/g, cls: 'syn-fn', priority: 6 },
+      { re: /\b(\d+\.?\d*(?:e\d+)?[a-zA-Z_]*)\b/g, cls: 'syn-num', priority: 5 },
+    ]);
+  } else {
+    // 通用 fallback：只标记字符串和注释
+    h = h.replace(/(\/\/.*$|\/\*[\s\S]*?\*\/|#.*$)/gm, '<span class="syn-cm">$1</span>');
+    h = h.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '<span class="syn-str">$&</span>');
+  }
+  return h;
+}
 function isNoteDirty() { return noteDirty; }
 function markDirty() { noteDirty = true; document.getElementById('saveIndicator').textContent = '● 未保存'; }
 function markClean() { noteDirty = false; document.getElementById('saveIndicator').textContent = ''; }
@@ -10,8 +137,10 @@ function md2html(md) {
   // ① 保护代码块和行内代码（防转义破坏内部内容）
   const codeBlocks = [];
   const inlineCodes = [];
+  // 支持 ``escaped ` backtick`` 双反引号语法
+  s = s.replace(/``([\s\S]*?)``/g, (_, c) => { inlineCodes.push(c); return '\x02' + (inlineCodes.length - 1) + '\x02'; });
   s = s.replace(/`([^`]+)`/g, (_, c) => { inlineCodes.push(c); return '\x01' + (inlineCodes.length - 1) + '\x01'; });
-  s = s.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+  s = s.replace(/```(\S*)\n([\s\S]*?)```/g, (_, lang, code) => {
     codeBlocks.push({ lang, code });
     return '\x00' + (codeBlocks.length - 1) + '\x00';
   });
@@ -19,12 +148,25 @@ function md2html(md) {
   // ② HTML 转义
   s = s.replace(/&(?!\w+;)/g, '&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // ③ 表格
-  s = s.replace(/^\|(.+)\|\s*$\n\|[-: |]+\|\s*$(?:\n\|.+\|\s*$)*/gm, (match) => {
+  // ③ 表格（支持 :-- :--: --: 对齐）
+  s = s.replace(/^\|(.+)\|\s*$\n\|[-:\s|]+\|\s*$(?:\n\|.+\|\s*$)*/gm, (match) => {
     const lines = match.trim().split('\n');
     if (lines.length < 2) return match;
-    const hc = lines[0].split('|').filter(c => c.trim()).map(c => '<th>' + c.trim() + '</th>').join('');
-    const rc = lines.slice(2).map(r => '<tr>' + r.split('|').filter(c => c.trim()).map(c => '<td>' + c.trim() + '</td>').join('') + '</tr>').join('');
+    const alignRow = lines[1].split('|').filter(c => c.trim());
+    const aligns = alignRow.map(c => {
+      const t = c.trim();
+      if (t.startsWith(':') && t.endsWith(':')) return 'center';
+      if (t.endsWith(':')) return 'right';
+      return 'left';
+    });
+    const hc = lines[0].split('|').filter(c => c.trim()).map((c, i) => {
+      const a = aligns[i] ? ' style="text-align:' + aligns[i] + '"' : '';
+      return '<th' + a + '>' + c.trim() + '</th>';
+    }).join('');
+    const rc = lines.slice(2).map(r => '<tr>' + r.split('|').filter(c => c.trim()).map((c, i) => {
+      const a = aligns[i] ? ' style="text-align:' + aligns[i] + '"' : '';
+      return '<td' + a + '>' + c.trim() + '</td>';
+    }).join('') + '</tr>').join('');
     return '<table><thead><tr>' + hc + '</tr></thead><tbody>' + rc + '</tbody></table>';
   });
 
@@ -39,10 +181,21 @@ function md2html(md) {
   s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
   s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>');
 
-  // ⑥ 引用块（支持多行）
+  // ⑥ 引用块（支持嵌套 > > 和 > 多级）
   s = s.replace(/^(?:&gt;\s?.+\n?)+/gm, (match) => {
-    const inner = match.replace(/^&gt;\s?/gm, '').trim();
-    return '<blockquote>' + inner.replace(/\n{2,}/g, '<br><br>') + '</blockquote>';
+    const lines = match.split('\n').filter(l => l.trim());
+    // 计算嵌套层级
+    let depth = 1;
+    for (const line of lines) {
+      const m = line.match(/^(&gt;\s?)+/);
+      if (m) depth = Math.max(depth, m[0].match(/&gt;/g).length);
+    }
+    // 逐层包裹
+    let inner = lines.map(l => l.replace(/^(&gt;\s?)+/, '')).join('<br>').trim();
+    for (let i = 0; i < depth; i++) {
+      inner = '<blockquote>' + inner + '</blockquote>';
+    }
+    return inner;
   });
 
   // ⑦ 任务列表
@@ -88,6 +241,12 @@ function md2html(md) {
   s = s.replace(/\^(.+?)\^/g, '<sup>$1</sup>');
   s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
 
+  // ⑪ Emoji 短码
+  s = s.replace(/:([a-z0-9_+-]+):/gi, (m, name) => EMOJI[name.toLowerCase()] || m);
+
+  // ⑫ 裸 URL 自动链接（不触碰已在 <a> 或 <img> 标签内的）
+  s = s.replace(/(?<!href="|src="|">)(https?:\/\/[^\s<>\[\]]+)/g, '<a href="$1" target="_blank">$1</a>');
+
   // 链接和图片
   s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%">');
   s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
@@ -95,9 +254,13 @@ function md2html(md) {
   // 恢复代码块和行内代码（还原保护的内容）
   s = s.replace(/\x00(\d+)\x00/g, (_, i) => {
     const b = codeBlocks[+i];
-    return '<pre><code class="' + (b.lang || '') + '">' + b.code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code></pre>';
+    const escaped = b.code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const highlighted = highlightCode(escaped, b.lang);
+    const langTag = b.lang ? ' data-lang="' + b.lang + '"' : '';
+    return '<pre' + langTag + '><code class="' + (b.lang || '') + '">' + highlighted + '</code></pre>';
   });
   s = s.replace(/\x01(\d+)\x01/g, (_, i) => '<code>' + inlineCodes[+i].replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code>');
+  s = s.replace(/\x02(\d+)\x02/g, (_, i) => '<code>' + inlineCodes[+i].replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code>');
 
   return s || '<p></p>';
 }
@@ -238,17 +401,7 @@ function initSidebarDock() {
 }
 // 页面加载后初始化
 document.addEventListener('DOMContentLoaded', initSidebarDock);
-// 打开/新建笔记时自动触发隐藏
-const _origOpenNote = openNote;
-openNote = async function(id) {
-  await _origOpenNote(id);
-  setTimeout(() => { if (dockEnabled) { const l = document.querySelector('.notes-layout'); if (l) l.classList.add('dock-hidden'); } }, 700);
-};
-const _origNewNote = newNote;
-newNote = async function() {
-  await _origNewNote();
-  setTimeout(() => { if (dockEnabled) { const l = document.querySelector('.notes-layout'); if (l) l.classList.add('dock-hidden'); } }, 700);
-};
+// 打开/新建笔记时的 dock 隐藏逻辑已整合到 works-panel.js 的 openNote/newNote 覆写中
 
 async function saveNoteSilent() {
   const title = document.getElementById('noteTitle').value.trim();
@@ -256,6 +409,11 @@ async function saveNoteSilent() {
   if (!title && !content) return;
   const body = { title: title || '无标题', content };
   if (currentNoteId) body.id = currentNoteId;
+  // 发送作品关联字段，防止自动保存清空关联
+  const workId = document.getElementById('noteWorkId')?.value || '';
+  const chapterOrder = parseInt(document.getElementById('noteChapterOrder')?.value || '0', 10);
+  body.workId = workId;
+  if (chapterOrder > 0) body.chapterOrder = chapterOrder;
   try {
     const r = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await r.json();

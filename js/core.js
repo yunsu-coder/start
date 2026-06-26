@@ -119,9 +119,9 @@ document.querySelectorAll('.nav-item').forEach(btn => {
 })();
 
 // ===== 主题 =====
-const themes = ['azure','emerald','ember','snow','midnight'];
+const themes = ['catppuccin','tokyo','dracula','nord','latte'];
 const themeBtn = document.getElementById('themeBtn');
-S.theme = localStorage.getItem('theme') || 'azure';
+S.theme = localStorage.getItem('theme') || 'catppuccin';
 applyTheme(S.theme);
 themeBtn.addEventListener('click', () => {
   const idx = themes.indexOf(S.theme);
@@ -136,7 +136,7 @@ themeBtn.addEventListener('contextmenu', e => {
   themeMenu = document.createElement('div');
   themeMenu.style.cssText = 'position:fixed;z-index:9999;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.3rem;box-shadow:0 8px 24px rgba(0,0,0,0.4);';
   document.body.appendChild(themeMenu);
-  const names = {azure:'① 青蓝科技',emerald:'② 暗夜绿',ember:'③ 暖橙棕',snow:'④ 极简白',midnight:'⑤ 墨绿金'};
+  const names = {catppuccin:'① Catppuccin Mocha',tokyo:'② Tokyo Night',dracula:'③ Dracula',nord:'④ Nord',latte:'⑤ Catppuccin Latte'};
   themes.forEach(t => {
     const item = document.createElement('div');
     item.style.cssText = 'padding:.4rem .8rem;cursor:pointer;border-radius:6px;font-size:.8rem;white-space:nowrap;color:var(--text);';
@@ -334,8 +334,10 @@ document.addEventListener('keydown', e => {
           const rect = card.getBoundingClientRect();
           const x = (e.clientX - rect.left) / rect.width;
           const y = (e.clientY - rect.top) / rect.height;
-          const tiltX = (y - 0.5) * -12;
-          const tiltY = (x - 0.5) * 12;
+          const t = document.body.getAttribute('data-tilt');
+          const mult = t === 'off' ? 0 : (t === 'subtle' ? 6 : 12);
+          const tiltX = (y - 0.5) * -mult;
+          const tiltY = (x - 0.5) * mult;
           card.style.transform = `perspective(600px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
         }
         ticking = false;
@@ -370,8 +372,17 @@ document.addEventListener('keydown', e => {
     addParticle();
   });
 
+  function getMaxParticles() {
+    const d = Yiwei.customize ? Yiwei.customize.get('particles') : 'normal';
+    if (d === 'off') return 0;
+    if (d === 'light') return 10;
+    return 30;
+  }
+
   function addParticle() {
-    if (particles.length >= maxParticles) particles.shift();
+    const max = getMaxParticles();
+    if (max === 0) { particles.length = 0; return; }
+    if (particles.length >= max) particles.shift();
     particles.push({
       x: mouseX, y: mouseY,
       vx: (Math.random() - 0.5) * 2,
@@ -402,6 +413,113 @@ document.addEventListener('keydown', e => {
     if (document.hidden) { cancelAnimationFrame(animId); animId = null; }
     else if (!animId) animId = requestAnimationFrame(draw);
   });
+})();
+
+// ===== 自定义设置系统 =====
+(function(){
+  const KEY = 'yiwei_customize';
+  const DEFAULTS = {
+    font: 'system',
+    particles: 'normal',   // off | light | normal
+    tilt: 'normal',        // off | subtle | normal
+    orbSpeed: 'normal',    // slow | normal | fast
+    clickRipple: true,
+  };
+  let _cfg = {};
+  try { _cfg = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
+  Object.keys(DEFAULTS).forEach(k => { if (!(k in _cfg)) _cfg[k] = DEFAULTS[k]; });
+
+  function save() { localStorage.setItem(KEY, JSON.stringify(_cfg)); }
+  function get(k) { return _cfg[k] ?? DEFAULTS[k]; }
+  function set(k, v) { _cfg[k] = v; save(); apply(k); }
+
+  // Google Fonts 字体映射
+  const FONT_MAP = {
+    system: { name: '系统默认', css: '', family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+    wenkai: { name: '霞鹜文楷', css: 'https://fonts.googleapis.com/css2?family=LXGW+WenKai&display=swap', family: '"LXGW WenKai", sans-serif' },
+    noto: { name: '思源黑体', css: 'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap', family: '"Noto Sans SC", sans-serif' },
+    kuaile: { name: '快乐体', css: 'https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap', family: '"ZCOOL KuaiLe", sans-serif' },
+  };
+
+  let fontLinkEl = null;
+  function applyFont(key) {
+    const font = FONT_MAP[key] || FONT_MAP.system;
+    // 动态加载 Google Font
+    if (fontLinkEl) { fontLinkEl.remove(); fontLinkEl = null; }
+    if (font.css) {
+      fontLinkEl = document.createElement('link');
+      fontLinkEl.rel = 'stylesheet';
+      fontLinkEl.href = font.css;
+      document.head.appendChild(fontLinkEl);
+    }
+    document.body.style.fontFamily = font.family;
+    // 保存到独立的 key，方便其他模块读取
+    localStorage.setItem('yiwei_font', key);
+  }
+
+  function applyParticles(val) {
+    document.body.setAttribute('data-particles', val);
+  }
+
+  function applyTilt(val) {
+    document.body.setAttribute('data-tilt', val);
+  }
+
+  function applyOrbSpeed(val) {
+    document.body.setAttribute('data-orb-speed', val);
+  }
+
+  function apply(k) {
+    if (k === 'font') applyFont(get('font'));
+    if (k === 'particles') applyParticles(get('particles'));
+    if (k === 'tilt') applyTilt(get('tilt'));
+    if (k === 'orbSpeed') applyOrbSpeed(get('orbSpeed'));
+  }
+
+  function applyAll() { Object.keys(DEFAULTS).forEach(k => apply(k)); }
+
+  // 初始化：恢复所有设置
+  applyAll();
+
+  window.Yiwei.customize = { get, set, save, applyAll, DEFAULTS, FONT_MAP };
+})();
+
+// ===== 点击涟漪特效 =====
+(function(){
+  const canvas = document.createElement('canvas');
+  canvas.id = 'rippleCanvas';
+  canvas.style.cssText = 'position:fixed;top:0;left:0;pointer-events:none;z-index:9998;';
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  let w, h;
+  const ripples = [];
+
+  function resize() { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+
+  document.addEventListener('click', e => {
+    if (!Yiwei.customize.get('clickRipple')) return;
+    const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#89b4fa';
+    ripples.push({ x: e.clientX, y: e.clientY, radius: 0, maxRadius: 38, life: 1, color: accent });
+  });
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const r = ripples[i];
+      r.radius += 1.4;
+      r.life = 1 - r.radius / r.maxRadius;
+      if (r.life <= 0) { ripples.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+      ctx.strokeStyle = r.color + Math.floor(r.life * 70).toString(16).padStart(2, '0');
+      ctx.lineWidth = 2.2 * r.life;
+      ctx.stroke();
+    }
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
 })();
 
 // ===== 全局错误捕获 =====
@@ -440,6 +558,77 @@ function closeWallpaperModal() {
   updateOnline();
 })();
 
+// ===== 自定义面板 (字体/特效/动画参数) =====
+window.openCustomizeModal = function() {
+  const modal = document.getElementById('customizeModal');
+  if (!modal) return;
+  // 同步 UI
+  const cfg = Yiwei.customize;
+  ['font','particles','tilt','orbSpeed'].forEach(k => {
+    const el = document.getElementById('cfg-'+k);
+    if (el) el.value = cfg.get(k);
+  });
+  document.getElementById('cfg-clickRipple').checked = cfg.get('clickRipple');
+  document.getElementById('cfg-wpOpacity').value = localStorage.getItem('wpOpacity') || 100;
+  updateWpOpacityLabel();
+  modal.classList.add('show');
+};
+
+window.closeCustomizeModal = function() {
+  document.getElementById('customizeModal').classList.remove('show');
+};
+
+// 设置变更事件
+document.addEventListener('change', e => {
+  if (!e.target.id || !e.target.id.startsWith('cfg-')) return;
+  const key = e.target.id.replace('cfg-', '');
+  if (key === 'clickRipple') {
+    Yiwei.customize.set('clickRipple', e.target.checked);
+  } else if (key === 'wpOpacity') {
+    localStorage.setItem('wpOpacity', e.target.value);
+    applyWallpaperOpacity(e.target.value);
+    updateWpOpacityLabel();
+  }
+  if (['font','particles','tilt','orbSpeed'].includes(key)) {
+    Yiwei.customize.set(key, e.target.value);
+  }
+});
+
+function updateWpOpacityLabel() {
+  const el = document.getElementById('cfgWpOpacityVal');
+  if (el) el.textContent = (localStorage.getItem('wpOpacity') || 100) + '%';
+}
+
+// 壁纸透明度初始化恢复（依赖 wallpaper.js 的 applyWallpaperOpacity 全局函数）
+(function(){
+  const saved = localStorage.getItem('wpOpacity');
+  if (saved) {
+    setTimeout(() => { if (typeof applyWallpaperOpacity === 'function') applyWallpaperOpacity(saved); }, 500);
+  }
+})();
+
+// 恢复字体（页面加载时，在 customize 系统初始化后）
+(function(){
+  const fontKey = localStorage.getItem('yiwei_font') || 'system';
+  if (fontKey !== 'system') {
+    const font = Yiwei.customize.FONT_MAP[fontKey];
+    if (font && font.css) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet'; link.href = font.css;
+      document.head.appendChild(link);
+    }
+    if (font) document.body.style.fontFamily = font.family;
+  }
+})();
+
+// ESC 关闭自定义面板
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const m = document.getElementById('customizeModal');
+    if (m && m.classList.contains('show')) { closeCustomizeModal(); e.stopPropagation(); }
+  }
+});
+
 // ===== API 设置（翻译 & 对话独立配置）=====
 (function () {
   const PRESETS = {
@@ -462,6 +651,16 @@ function closeWallpaperModal() {
       baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
       model: 'qwen-plus',
       hint: '阿里百炼，新用户千万 Token 免费额度，<a href="https://dashscope.aliyun.com" target="_blank">获取 Key →</a>',
+    },
+    siliconVision: {
+      baseUrl: 'https://api.siliconflow.cn/v1/chat/completions',
+      model: 'Qwen/Qwen2.5-VL-32B-Instruct',
+      hint: '🖼️ <strong>Qwen2.5-VL-32B</strong> 视觉多模态，¥1.5/百万Tokens，<a href="https://siliconflow.cn/models/Qwen2.5-VL-32B" target="_blank">模型详情 →</a>',
+    },
+    zhipuVision: {
+      baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+      model: 'glm-4v-plus',
+      hint: '🖼️ <strong>GLM-4V-Plus</strong> 视觉+视频理解，¥4/百万Tokens，<a href="https://docs.bigmodel.cn/cn/guide/models/vlm/glm-4v-plus-0111" target="_blank">模型详情 →</a>',
     },
   };
 
@@ -538,6 +737,13 @@ function closeWallpaperModal() {
     document.querySelectorAll('.api-tab').forEach(t => t.classList.remove('active'));
     const target = document.querySelector('.api-tab[data-tab="' + tab + '"]');
     if (target) target.classList.add('active');
+    // 视觉预设仅对话 tab 显示
+    const visionSection = document.getElementById('visionPresets');
+    if (visionSection) {
+      const label = visionSection.previousElementSibling;
+      if (tab === 'chat') { visionSection.style.display = ''; if (label) label.style.display = ''; }
+      else { visionSection.style.display = 'none'; if (label) label.style.display = 'none'; }
+    }
     fillUI();
   }
 
@@ -576,6 +782,13 @@ function closeWallpaperModal() {
     document.querySelectorAll('.api-tab').forEach(t => t.classList.remove('active'));
     const target = document.querySelector('.api-tab[data-tab="' + activeTab + '"]');
     if (target) target.classList.add('active');
+    // 视觉预设仅对话 tab 显示
+    const visionSection = document.getElementById('visionPresets');
+    if (visionSection) {
+      const label = visionSection.previousElementSibling;
+      if (activeTab === 'chat') { visionSection.style.display = ''; if (label) label.style.display = ''; }
+      else { visionSection.style.display = 'none'; if (label) label.style.display = 'none'; }
+    }
     fillUI();
     document.getElementById('apiModal').classList.add('show');
   };

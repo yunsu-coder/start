@@ -6,7 +6,7 @@
 <title>一苇</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
-<link rel="stylesheet" href="/css/styles.css?v=1781357630">
+<link rel="stylesheet" href="/css/styles.css?v=1782655000">
 <script src="/lib/jszip/dist/jszip.min.js"></script>
 <script src="/lib/epubjs/dist/epub.min.js"></script>
 </head>
@@ -59,6 +59,7 @@
   <div class="section"><div class="section-title"><span class="mi">build</span> 工具</div><div class="grid" id="tools"></div></div>
   <!-- 壁纸入口浮窗 -->
   <button class="wp-fab mi" id="wpFab" onclick="openWallpaperModal()" title="壁纸设置">wallpaper</button>
+  <button class="cust-fab mi" id="custFab" onclick="openCustomizeModal()" title="自定义">tune</button>
 </div>
 
 <!-- 文件 -->
@@ -151,6 +152,7 @@
         <span id="wordCount">📊 0 字</span>
         <span id="readTime"></span>
         <span style="flex:1;"></span>
+        <span id="workAssocRow" style="display:none;align-items:center;gap:.3rem;">
         <span style="color:var(--border);">|</span>
         <span class="mi" style="font-size:.85rem;">book</span>
         <select id="noteWorkId" onchange="markDirty()" style="padding:.2rem .3rem;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--text);font-size:.72rem;outline:none;">
@@ -158,6 +160,7 @@
         </select>
         <span style="color:var(--sub);">#</span>
         <input type="number" id="noteChapterOrder" value="0" min="0" step="1" onchange="markDirty()" style="width:40px;padding:.2rem;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--text);font-size:.72rem;outline:none;">
+        </span>
       </div>
       <div class="toolbar">
         <button class="btn-sm" id="btnTogglePreview" onclick="togglePreview()" title="切换预览 Ctrl+\"><span class="mi">visibility</span></button>
@@ -385,12 +388,14 @@
             <p>聊天、创作、看图、搜索、帮你做事——我在这里陪你</p>
           </div>
         </div>
-        <div class="chat-input-area">
+        <div class="chat-input-area" id="chatInputArea">
           <div class="chat-image-preview" id="chatImagePreview"></div>
           <div class="chat-input-row">
-            <button id="chatImageBtn" onclick="triggerImageUpload()" title="添加图片"><span class="mi">image</span></button>
-            <input type="file" id="chatImageInput" accept="image/*" multiple style="display:none" onchange="handleChatImage(event)">
-            <textarea id="chatInput" rows="1" placeholder="想说点什么？聊聊天、问问题、发图片让我看看..." onkeydown="handleChatKey(event)" onpaste="handleChatPaste(event)"></textarea>
+            <button id="chatImageBtn" onclick="triggerImageUpload()" title="添加图片/文档（支持拖拽）"><span class="mi">image</span></button>
+            <input type="file" id="chatImageInput" accept="image/*,.pdf,.docx,.txt,.md,.csv,.json" multiple style="display:none" onchange="handleChatImage(event)">
+            <button id="chatDocBtn" onclick="triggerImageUpload()" title="上传文档（PDF/Word/TXT）"><span class="mi">upload_file</span></button>
+            <textarea id="chatInput" rows="1" placeholder="想说点什么？聊聊天、问问题、发图片让我看看...&#10;💡 支持拖拽图片/文档、粘贴截图、语音输入" onkeydown="handleChatKey(event)" onpaste="handleChatPaste(event)"></textarea>
+            <button id="chatMicBtn" onclick="toggleSpeechInput()" title="语音输入"><span class="mi">mic</span></button>
             <button id="chatSendBtn" onclick="sendChat()"><span class="mi">send</span></button>
           </div>
         </div>
@@ -429,6 +434,11 @@
         <button data-api="deepseek"><strong>DeepSeek</strong><span>deepseek-chat</span></button>
         <button data-api="silicon"><strong>SiliconFlow</strong><span>开源模型聚合</span></button>
         <button data-api="alibaba"><strong>阿里百炼</strong><span>通义千问系列</span></button>
+      </div>
+      <div class="api-presets-label" style="margin-top:.5rem;">🖼️ 视觉多模态（对话专用）</div>
+      <div class="api-presets" id="visionPresets">
+        <button data-api="siliconVision"><strong>SiliconFlow 视觉</strong><span>Qwen2.5-VL-32B ¥1.5/M</span></button>
+        <button data-api="zhipuVision"><strong>智谱 视觉</strong><span>GLM-4V-Plus ¥4/M</span></button>
       </div>
       <div class="api-hint">
         <span class="mi">info</span>
@@ -513,6 +523,69 @@
   </div>
 </div>
 
+<!-- 自定义弹窗 -->
+<div class="modal-overlay" id="customizeModal" onclick="if(event.target===this)closeCustomizeModal()">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <span class="m-title"><span class="mi">tune</span> 自定义</span>
+      <button class="m-close" onclick="closeCustomizeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="cfg-field">
+        <label><span class="mi">font_download</span> 字体</label>
+        <select id="cfg-font">
+          <option value="system">系统默认</option>
+          <option value="wenkai">霞鹜文楷</option>
+          <option value="noto">思源黑体 (Noto Sans SC)</option>
+          <option value="kuaile">ZCOOL 快乐体</option>
+        </select>
+        <p class="cfg-hint">中文字体较大（~5MB），首次加载需等待几秒</p>
+      </div>
+      <div class="cfg-field">
+        <label><span class="mi">opacity</span> 壁纸透明度</label>
+        <div class="cfg-range-row">
+          <input type="range" id="cfg-wpOpacity" min="10" max="100" value="100">
+          <span class="cfg-range-val" id="cfgWpOpacityVal">100%</span>
+        </div>
+      </div>
+      <div class="cfg-field">
+        <label><span class="mi">blur_on</span> 鼠标粒子</label>
+        <select id="cfg-particles">
+          <option value="off">关闭</option>
+          <option value="light">少量</option>
+          <option value="normal">正常</option>
+        </select>
+      </div>
+      <div class="cfg-field">
+        <label><span class="mi">3d_rotation</span> 卡片倾斜</label>
+        <select id="cfg-tilt">
+          <option value="off">关闭</option>
+          <option value="subtle">轻微</option>
+          <option value="normal">正常</option>
+        </select>
+      </div>
+      <div class="cfg-field">
+        <label><span class="mi">blur_medium</span> 背景光晕动画</label>
+        <select id="cfg-orbSpeed">
+          <option value="slow">慢速</option>
+          <option value="normal">正常</option>
+          <option value="fast">快速</option>
+        </select>
+      </div>
+      <div class="cfg-field">
+        <label class="cfg-check-label">
+          <input type="checkbox" id="cfg-clickRipple" checked>
+          <span><span class="mi">touch_app</span> 点击涟漪特效</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn outline" onclick="Yiwei.customize.set('font','system');Yiwei.customize.set('particles','normal');Yiwei.customize.set('tilt','normal');Yiwei.customize.set('orbSpeed','normal');Yiwei.customize.set('clickRipple',true);localStorage.setItem('wpOpacity',100);applyWallpaperOpacity(100);openCustomizeModal();">恢复默认</button>
+      <button class="btn accent" onclick="closeCustomizeModal()">完成</button>
+    </div>
+  </div>
+</div>
+
 <!-- 预览弹窗 -->
 <div class="modal-overlay" id="previewModal" onclick="if(event.target===this)closePreview()">
   <div class="modal">
@@ -538,15 +611,17 @@
 <div class="toast" id="toast"></div>
 
 <!-- app.js → 分拆为 5 个模块 -->
-<script src="/js/core.js?v=1780652200"></script>
+<script src="/js/core.js?v=1781416000"></script>
 <script src="/js/files-panel.js?v=1780652200"></script>
-<script src="/js/notes-panel.js?v=1780653100"></script>
+<script src="/js/notes-panel.js?v=1782655000"></script>
 <script src="/js/reader-panel.js?v=1777704498"></script>
-<script src="/js/works-panel.js?v=1780653100"></script>
+<script src="/js/works-panel.js?v=1782655000"></script>
 <script src="/js/scrape.js?v=1777704498"></script>
 <script src="/js/upscale-engine.js?v=1780653200"></script>
 <script src="/js/wallpaper.js?v=1780653000"></script>
 <script src="/js/translate-panel.js?v=1780450482"></script>
-<script src="/js/chat.js?v=1781356633"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });</script>
+<script src="/js/chat.js?v=1782000000"></script>
 </body>
 </html>
