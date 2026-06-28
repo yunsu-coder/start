@@ -30,7 +30,7 @@ function switchPanel(name) {
   }
   if (name === 'files') { loadFiles(); updateStorageBar(); }
   if (name === 'notes') {
-    loadNotesList();
+    if (typeof loadNotesList === 'function') loadNotesList();
     if (typeof loadWorks === 'function') loadWorks();
   }
   if (name === 'scrape') loadScrapeSessions();
@@ -184,10 +184,17 @@ function getGreeting() {
 }
 function tick() {
   const now = new Date();
-  document.getElementById('clock').textContent = now.toLocaleTimeString('zh-CN', { hour12: false });
+  const is24h = Yiwei.customize ? Yiwei.customize.get('clockFormat') === '24h' : true;
+  document.getElementById('clock').textContent = now.toLocaleTimeString('zh-CN', { hour12: !is24h });
   document.getElementById('date').textContent = now.toLocaleDateString('zh-CN', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
   const g = document.getElementById('greeting');
-  if (g) g.textContent = getGreeting();
+  if (g && Yiwei.customize) {
+    const show = Yiwei.customize.get('greeting');
+    g.style.display = show ? '' : 'none';
+    if (show) g.textContent = getGreeting();
+  } else if (g) {
+    g.textContent = getGreeting();
+  }
 }
 tick(); setInterval(tick, 1000);
 
@@ -302,12 +309,12 @@ document.addEventListener('keydown', e => {
   if (S.currentPanel === 'read' && currentBook) { closeReader(); return; }
 });
 
-// ===== 刷新恢复面板 =====
-(function(){
+// ===== 刷新恢复面板（延迟到所有脚本加载完成后执行）=====
+document.addEventListener('DOMContentLoaded', function(){
   const hash = location.hash.slice(1);
-  const valid = ['home','files','notes','scrape','read','translate','monitors','workflows'];
+  const valid = ['home','files','notes','scrape','read','translate','chat'];
   if (hash && valid.includes(hash)) switchPanel(hash);
-})();
+});
 
 
 // ===== 背景环境光晕 =====
@@ -334,8 +341,7 @@ document.addEventListener('keydown', e => {
           const rect = card.getBoundingClientRect();
           const x = (e.clientX - rect.left) / rect.width;
           const y = (e.clientY - rect.top) / rect.height;
-          const t = document.body.getAttribute('data-tilt');
-          const mult = t === 'off' ? 0 : (t === 'subtle' ? 6 : 12);
+          const mult = 12; // normal tilt — always on
           const tiltX = (y - 0.5) * -mult;
           const tiltY = (x - 0.5) * mult;
           card.style.transform = `perspective(600px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
@@ -373,10 +379,7 @@ document.addEventListener('keydown', e => {
   });
 
   function getMaxParticles() {
-    const d = Yiwei.customize ? Yiwei.customize.get('particles') : 'normal';
-    if (d === 'off') return 0;
-    if (d === 'light') return 10;
-    return 30;
+    return 30; // normal particles — always on
   }
 
   function addParticle() {
@@ -420,10 +423,11 @@ document.addEventListener('keydown', e => {
   const KEY = 'yiwei_customize';
   const DEFAULTS = {
     font: 'system',
-    particles: 'normal',   // off | light | normal
-    tilt: 'normal',        // off | subtle | normal
-    orbSpeed: 'normal',    // slow | normal | fast
-    clickRipple: true,
+    uiStyle: 'outlined',   // outlined | rounded | sharp | filled
+    glassBlur: 'medium',   // light | medium | heavy
+    animIntensity: 'normal', // reduced | normal | playful
+    greeting: true,
+    clockFormat: '24h',    // 24h | 12h
   };
   let _cfg = {};
   try { _cfg = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
@@ -433,12 +437,21 @@ document.addEventListener('keydown', e => {
   function get(k) { return _cfg[k] ?? DEFAULTS[k]; }
   function set(k, v) { _cfg[k] = v; save(); apply(k); }
 
-  // Google Fonts 字体映射
+  // Google Fonts 字体映射（12 种，按风格排序）
   const FONT_MAP = {
-    system: { name: '系统默认', css: '', family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
-    wenkai: { name: '霞鹜文楷', css: 'https://fonts.googleapis.com/css2?family=LXGW+WenKai&display=swap', family: '"LXGW WenKai", sans-serif' },
-    noto: { name: '思源黑体', css: 'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap', family: '"Noto Sans SC", sans-serif' },
-    kuaile: { name: '快乐体', css: 'https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap', family: '"ZCOOL KuaiLe", sans-serif' },
+    system:     { name: '系统默认', css: '', family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+    kuaile:     { name: '快乐体', css: 'https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap', family: '"ZCOOL KuaiLe", sans-serif' },
+    xiaowei:    { name: '小薇体', css: 'https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&display=swap', family: '"ZCOOL XiaoWei", sans-serif' },
+    hunyin:     { name: '粉圆体', css: 'https://fonts.googleapis.com/css2?family=Noto+Sans+HK:wght@400;500;700&display=swap', family: '"Noto Sans HK", sans-serif' },
+    qingke:     { name: '黄油体', css: 'https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&display=swap', family: '"ZCOOL QingKe HuangYou", sans-serif' },
+    wenkai:     { name: '霞鹜文楷', css: 'https://fonts.googleapis.com/css2?family=LXGW+WenKai&display=swap', family: '"LXGW WenKai", sans-serif' },
+    'wenkai-mono': { name: '文楷等宽', css: 'https://fonts.googleapis.com/css2?family=LXGW+WenKai+Mono&display=swap', family: '"LXGW WenKai Mono", monospace' },
+    longcang:   { name: '龙藏体', css: 'https://fonts.googleapis.com/css2?family=Long+Cang&display=swap', family: '"Long Cang", serif' },
+    mashan:     { name: '马山正', css: 'https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap', family: '"Ma Shan Zheng", serif' },
+    liujian:    { name: '柳建毛草', css: 'https://fonts.googleapis.com/css2?family=Liu+Jian+Mao+Cao&display=swap', family: '"Liu Jian Mao Cao", serif' },
+    zhimang:    { name: '志莽行', css: 'https://fonts.googleapis.com/css2?family=Zhi+Mang+Xing&display=swap', family: '"Zhi Mang Xing", serif' },
+    noto:       { name: '思源黑体', css: 'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap', family: '"Noto Sans SC", sans-serif' },
+    'noto-serif': { name: '思源宋体', css: 'https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;700&display=swap', family: '"Noto Serif SC", serif' },
   };
 
   let fontLinkEl = null;
@@ -453,35 +466,79 @@ document.addEventListener('keydown', e => {
       document.head.appendChild(fontLinkEl);
     }
     document.body.style.fontFamily = font.family;
+    // 强制全局继承（覆盖组件自身字体设定）
+    document.body.style.setProperty('--font-body', font.family);
     // 保存到独立的 key，方便其他模块读取
     localStorage.setItem('yiwei_font', key);
   }
 
-  function applyParticles(val) {
-    document.body.setAttribute('data-particles', val);
+  function applyUIStyle(val) {
+    document.body.setAttribute('data-ui-style', val);
+    // 动态加载对应的 Material Symbols 字体变体
+    loadIconFont(val);
   }
 
-  function applyTilt(val) {
-    document.body.setAttribute('data-tilt', val);
+  const iconFontLoaded = {};
+  function loadIconFont(style) {
+    if (style === 'outlined' || style === 'filled' || iconFontLoaded[style]) return;
+    const urls = {
+      rounded: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200',
+      sharp: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Sharp:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200',
+    };
+    const url = urls[style];
+    if (!url) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = url;
+    document.head.appendChild(link);
+    iconFontLoaded[style] = true;
   }
 
-  function applyOrbSpeed(val) {
-    document.body.setAttribute('data-orb-speed', val);
+  function applyGlassBlur(val) {
+    document.body.setAttribute('data-glass-blur', val);
+  }
+
+  function applyAnimIntensity(val) {
+    document.body.setAttribute('data-anim', val);
+  }
+
+  function applyGreeting(val) {
+    document.body.setAttribute('data-greeting', val ? 'on' : 'off');
+    const el = document.getElementById('greeting');
+    if (el) el.style.display = val ? '' : 'none';
+  }
+
+  function applyClockFormat(val) {
+    tick();
   }
 
   function apply(k) {
     if (k === 'font') applyFont(get('font'));
-    if (k === 'particles') applyParticles(get('particles'));
-    if (k === 'tilt') applyTilt(get('tilt'));
-    if (k === 'orbSpeed') applyOrbSpeed(get('orbSpeed'));
+    if (k === 'uiStyle') applyUIStyle(get('uiStyle'));
+    if (k === 'glassBlur') applyGlassBlur(get('glassBlur'));
+    if (k === 'animIntensity') applyAnimIntensity(get('animIntensity'));
+    if (k === 'greeting') applyGreeting(get('greeting'));
+    if (k === 'clockFormat') applyClockFormat(get('clockFormat'));
   }
 
   function applyAll() { Object.keys(DEFAULTS).forEach(k => apply(k)); }
 
+  function resetAll() {
+    Object.keys(DEFAULTS).forEach(k => {
+      _cfg[k] = DEFAULTS[k];
+    });
+    save();
+    applyAll();
+    localStorage.setItem('wpOpacity', 100);
+    if (typeof applyWallpaperOpacity === 'function') applyWallpaperOpacity(100);
+    // Re-open modal to refresh UI
+    openCustomizeModal();
+  }
+
   // 初始化：恢复所有设置
   applyAll();
 
-  window.Yiwei.customize = { get, set, save, applyAll, DEFAULTS, FONT_MAP };
+  window.Yiwei.customize = { get, set, save, applyAll, resetAll, DEFAULTS, FONT_MAP };
 })();
 
 // ===== 点击涟漪特效 =====
@@ -499,7 +556,7 @@ document.addEventListener('keydown', e => {
   window.addEventListener('resize', resize);
 
   document.addEventListener('click', e => {
-    if (!Yiwei.customize.get('clickRipple')) return;
+    // ripple always on
     const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#89b4fa';
     ripples.push({ x: e.clientX, y: e.clientY, radius: 0, maxRadius: 38, life: 1, color: accent });
   });
@@ -560,18 +617,22 @@ function closeWallpaperModal() {
 
 // ===== 自定义面板 (字体/特效/动画参数) =====
 window.openCustomizeModal = function() {
-  const modal = document.getElementById('customizeModal');
-  if (!modal) return;
-  // 同步 UI
-  const cfg = Yiwei.customize;
-  ['font','particles','tilt','orbSpeed'].forEach(k => {
-    const el = document.getElementById('cfg-'+k);
-    if (el) el.value = cfg.get(k);
-  });
-  document.getElementById('cfg-clickRipple').checked = cfg.get('clickRipple');
-  document.getElementById('cfg-wpOpacity').value = localStorage.getItem('wpOpacity') || 100;
-  updateWpOpacityLabel();
-  modal.classList.add('show');
+  try {
+    const modal = document.getElementById('customizeModal');
+    if (!modal) return;
+    // 同步 UI
+    const cfg = Yiwei.customize;
+    ['font','uiStyle','glassBlur','animIntensity','clockFormat'].forEach(k => {
+      const el = document.getElementById('cfg-'+k);
+      if (el) el.value = cfg.get(k);
+    });
+    const greetingEl = document.getElementById('cfg-greeting');
+    if (greetingEl) greetingEl.checked = cfg.get('greeting');
+    const opacityEl = document.getElementById('cfg-wpOpacity');
+    if (opacityEl) opacityEl.value = localStorage.getItem('wpOpacity') || 100;
+    updateWpOpacityLabel();
+    modal.classList.add('show');
+  } catch(e) { console.error('[Yiwei] openCustomizeModal:', e); }
 };
 
 window.closeCustomizeModal = function() {
@@ -582,14 +643,14 @@ window.closeCustomizeModal = function() {
 document.addEventListener('change', e => {
   if (!e.target.id || !e.target.id.startsWith('cfg-')) return;
   const key = e.target.id.replace('cfg-', '');
-  if (key === 'clickRipple') {
-    Yiwei.customize.set('clickRipple', e.target.checked);
+  if (key === 'greeting') {
+    Yiwei.customize.set(key, e.target.checked);
   } else if (key === 'wpOpacity') {
     localStorage.setItem('wpOpacity', e.target.value);
     applyWallpaperOpacity(e.target.value);
     updateWpOpacityLabel();
-  }
-  if (['font','particles','tilt','orbSpeed'].includes(key)) {
+  } else {
+    // All select fields (font, particles, tilt, orbSpeed, density, cardRadius, glassBlur, animIntensity, clockFormat)
     Yiwei.customize.set(key, e.target.value);
   }
 });
@@ -617,7 +678,10 @@ function updateWpOpacityLabel() {
       link.rel = 'stylesheet'; link.href = font.css;
       document.head.appendChild(link);
     }
-    if (font) document.body.style.fontFamily = font.family;
+    if (font) {
+      document.body.style.fontFamily = font.family;
+      document.body.style.setProperty('--font-body', font.family);
+    }
   }
 })();
 
@@ -629,218 +693,70 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// ===== API 设置（翻译 & 对话独立配置）=====
+// ===== API 设置（云雾 Grok 中转）=====
 (function () {
-  const PRESETS = {
-    zhipu: {
-      baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-      model: 'glm-4-flash',
-      hint: '推荐<strong>智谱 GLM-4-Flash</strong>（永久免费），<a href="https://open.bigmodel.cn" target="_blank">注册获取 Key →</a>',
-    },
-    deepseek: {
-      baseUrl: 'https://api.deepseek.com/v1/chat/completions',
-      model: 'deepseek-chat',
-      hint: 'DeepSeek 官方 API，<a href="https://platform.deepseek.com" target="_blank">获取 Key →</a>',
-    },
-    silicon: {
-      baseUrl: 'https://api.siliconflow.cn/v1/chat/completions',
-      model: 'Qwen/Qwen2.5-7B-Instruct',
-      hint: 'SiliconFlow 聚合平台，9B 以下模型永久免费，<a href="https://siliconflow.cn" target="_blank">获取 Key →</a>',
-    },
-    alibaba: {
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-      model: 'qwen-plus',
-      hint: '阿里百炼，新用户千万 Token 免费额度，<a href="https://dashscope.aliyun.com" target="_blank">获取 Key →</a>',
-    },
-    siliconVision: {
-      baseUrl: 'https://api.siliconflow.cn/v1/chat/completions',
-      model: 'Qwen/Qwen2.5-VL-32B-Instruct',
-      hint: '🖼️ <strong>Qwen2.5-VL-32B</strong> 视觉多模态，¥1.5/百万Tokens，<a href="https://siliconflow.cn/models/Qwen2.5-VL-32B" target="_blank">模型详情 →</a>',
-    },
-    zhipuVision: {
-      baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-      model: 'glm-4v-plus',
-      hint: '🖼️ <strong>GLM-4V-Plus</strong> 视觉+视频理解，¥4/百万Tokens，<a href="https://docs.bigmodel.cn/cn/guide/models/vlm/glm-4v-plus-0111" target="_blank">模型详情 →</a>',
-    },
-  };
+  const BASE_URL = 'https://api.yunwu.ai/v1/chat/completions';
+  const DEFAULT_MODEL = 'grok-4.3';
+  const STORAGE_KEY = 'yiwei_api_v2';
 
-  const STORAGE_KEY = 'yiwei_api_config';
-  const CHAT_STORAGE_KEY = 'yiwei_chat_api_config';
-  let activeTab = 'translate';
-
-  function storageKey(tab) {
-    return tab === 'chat' ? CHAT_STORAGE_KEY : STORAGE_KEY;
-  }
-
-  function load(tab) {
-    try { return JSON.parse(localStorage.getItem(storageKey(tab || activeTab))) || {}; }
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
     catch { return {}; }
   }
+  function save(cfg) { localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); }
 
-  function save(cfg, tab) {
-    localStorage.setItem(storageKey(tab || activeTab), JSON.stringify(cfg));
-  }
+  window.getChatApiConfig = function () {
+    const cfg = load();
+    return { apiKey: cfg.apiKey || '', baseUrl: BASE_URL, model: cfg.model || DEFAULT_MODEL };
+  };
 
-  function getConfig() {
-    const cfg = load('translate');
-    return {
-      apiKey: cfg.apiKey || '',
-      baseUrl: cfg.baseUrl || PRESETS.zhipu.baseUrl,
-      model: cfg.model || PRESETS.zhipu.model,
-    };
-  }
+  window.getApiConfig = function () {
+    const cfg = load();
+    return { apiKey: cfg.apiKey || '', baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', model: 'glm-4-flash' };
+  };
 
-  function getChatConfig() {
-    const cfg = load('chat');
-    return {
-      apiKey: cfg.apiKey || '',
-      baseUrl: cfg.baseUrl || PRESETS.deepseek.baseUrl,
-      model: cfg.model || PRESETS.deepseek.model,
-    };
-  }
-
-  // 暴露给翻译面板和对话面板使用
-  window.getApiConfig = getConfig;
-  window.getChatApiConfig = getChatConfig;
-
-  // 更新 A 按钮状态点（任一配置有 key 即亮）
   function updateDot() {
     const dot = document.getElementById('apiDot');
     if (!dot) return;
-    const tCfg = load('translate');
-    const cCfg = load('chat');
-    if (tCfg.apiKey || cCfg.apiKey) dot.classList.add('set');
-    else dot.classList.remove('set');
+    if (load().apiKey) dot.classList.add('set'); else dot.classList.remove('set');
   }
   updateDot();
 
-  // 填入 UI（根据当前 tab）
   function fillUI() {
     const cfg = load();
     const keyEl = document.getElementById('apiKeyInput');
-    const baseEl = document.getElementById('apiBaseInput');
     const modelEl = document.getElementById('apiModelInput');
-    const defaults = activeTab === 'chat' ? PRESETS.deepseek : PRESETS.zhipu;
     if (keyEl) keyEl.value = cfg.apiKey || '';
-    if (baseEl) baseEl.value = cfg.baseUrl || defaults.baseUrl;
-    if (modelEl) modelEl.value = cfg.model || defaults.model;
-    highlightPreset(cfg.baseUrl || defaults.baseUrl, cfg.model || defaults.model);
+    if (modelEl) { modelEl.value = cfg.model || ''; modelEl.placeholder = DEFAULT_MODEL; }
   }
 
-  // 切换 tab：先保存当前输入到旧 tab，再加载新 tab
-  function switchTab(tab) {
-    if (tab === activeTab) return;
-    // 保存当前输入到旧 tab
-    flushToStorage();
-    activeTab = tab;
-    // 更新 tab UI
-    document.querySelectorAll('.api-tab').forEach(t => t.classList.remove('active'));
-    const target = document.querySelector('.api-tab[data-tab="' + tab + '"]');
-    if (target) target.classList.add('active');
-    // 视觉预设仅对话 tab 显示
-    const visionSection = document.getElementById('visionPresets');
-    if (visionSection) {
-      const label = visionSection.previousElementSibling;
-      if (tab === 'chat') { visionSection.style.display = ''; if (label) label.style.display = ''; }
-      else { visionSection.style.display = 'none'; if (label) label.style.display = 'none'; }
-    }
-    fillUI();
-  }
-
-  // 把当前输入框的值写入 activeTab 的 storage
-  function flushToStorage() {
-    const apiKey = document.getElementById('apiKeyInput').value.trim();
-    const baseUrl = document.getElementById('apiBaseInput').value.trim();
-    const model = document.getElementById('apiModelInput').value.trim();
-    save({ apiKey, baseUrl, model });
-  }
-
-  function highlightPreset(baseUrl, model) {
-    document.querySelectorAll('.api-presets button').forEach(btn => {
-      btn.classList.remove('active');
-      const preset = PRESETS[btn.dataset.api];
-      if (preset && preset.baseUrl === baseUrl && preset.model === model) {
-        btn.classList.add('active');
-      }
-    });
-    // 同步更新 hint 文字
-    const hintEl = document.getElementById('apiHintText');
-    if (!hintEl) return;
-    for (const [key, preset] of Object.entries(PRESETS)) {
-      if (preset.baseUrl === baseUrl && preset.model === model) {
-        hintEl.innerHTML = preset.hint;
-        return;
-      }
-    }
-    hintEl.innerHTML = '';
-  }
-
-  // 打开弹窗，默认翻译，可传 tab 指定
-  window.openApiModal = function (initialTab) {
-    // 上次使用的 tab 优先（同一次会话中记忆）
-    if (initialTab) activeTab = initialTab;
-    document.querySelectorAll('.api-tab').forEach(t => t.classList.remove('active'));
-    const target = document.querySelector('.api-tab[data-tab="' + activeTab + '"]');
-    if (target) target.classList.add('active');
-    // 视觉预设仅对话 tab 显示
-    const visionSection = document.getElementById('visionPresets');
-    if (visionSection) {
-      const label = visionSection.previousElementSibling;
-      if (activeTab === 'chat') { visionSection.style.display = ''; if (label) label.style.display = ''; }
-      else { visionSection.style.display = 'none'; if (label) label.style.display = 'none'; }
-    }
+  window.openApiModal = function () {
     fillUI();
     document.getElementById('apiModal').classList.add('show');
   };
-
   document.getElementById('apiBtn').addEventListener('click', () => window.openApiModal());
 
-  // Tab 点击
-  document.querySelectorAll('.api-tab').forEach(tab => {
-    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
-  });
-
-  // 关闭弹窗（自动保存当前 tab）
   window.closeApiModal = function () {
-    flushToStorage();
-    updateDot();
     document.getElementById('apiModal').classList.remove('show');
   };
 
-  // 预设按钮（立即保存到当前 tab，防止切 tab 时串号）
-  document.querySelectorAll('.api-presets button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const preset = PRESETS[btn.dataset.api];
-      if (!preset) return;
-      document.getElementById('apiBaseInput').value = preset.baseUrl;
-      document.getElementById('apiModelInput').value = preset.model;
-      highlightPreset(preset.baseUrl, preset.model);
-      flushToStorage();
-    });
-  });
-
-  // 保存
   document.getElementById('apiSave').addEventListener('click', () => {
-    flushToStorage();
+    const apiKey = document.getElementById('apiKeyInput').value.trim();
+    const model = document.getElementById('apiModelInput').value.trim();
+    save({ apiKey, model });
     updateDot();
-    toast('✅ ' + (activeTab === 'chat' ? '对话' : '翻译') + ' API 配置已保存');
+    toast('✅ API 配置已保存');
     closeApiModal();
   });
 
-  // 重置
   document.getElementById('apiReset').addEventListener('click', () => {
-    const defaults = activeTab === 'chat' ? PRESETS.deepseek : PRESETS.zhipu;
     document.getElementById('apiKeyInput').value = '';
-    document.getElementById('apiBaseInput').value = defaults.baseUrl;
-    document.getElementById('apiModelInput').value = defaults.model;
-    document.getElementById('apiHintText').innerHTML = defaults.hint;
-    save({ apiKey: '', baseUrl: defaults.baseUrl, model: defaults.model });
+    document.getElementById('apiModelInput').value = '';
+    save({ apiKey: '', model: '' });
     updateDot();
-    highlightPreset(defaults.baseUrl, defaults.model);
-    toast('↩ 已恢复默认（' + (activeTab === 'chat' ? 'DeepSeek' : '智谱 GLM-4-Flash') + '）');
+    toast('↩ 已清除');
   });
 
-  // ESC 关闭
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       const modal = document.getElementById('apiModal');

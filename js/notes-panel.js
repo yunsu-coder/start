@@ -1,28 +1,90 @@
 // ===== 笔记 =====
 let currentNoteId = null, noteDirty = false, autoSaveTimer = null;
 
-// ===== marked.js 配置（marked/hljs/mermaid 由 index.html CDN 加载）=====
-if (typeof marked !== 'undefined') {
-  // marked v14+ 废弃 highlight 选项，但 setOptions 仍可用
-  try { marked.setOptions({ gfm: true, breaks: true }); } catch(e) {}
+// ===== markdown-it 渲染器（单例，替代 marked.js）=====
+var mdRenderer = null;
+function getMdRenderer() {
+  if (mdRenderer) return mdRenderer;
+  if (typeof markdownit === 'undefined') return null;
+
+  var md = markdownit({
+    html: true, linkify: true, typographer: true, breaks: true,
+    highlight: function(str, lang) {
+      if (lang && typeof hljs !== 'undefined' && hljs.getLanguage(lang)) {
+        try { return hljs.highlight(str, { language: lang, ignoreIllegals: true }).value; } catch(__) {}
+      }
+      return ''; // 使用默认转义
+    }
+  });
+
+  // 挂载插件（由 index.html CDN 加载）
+  if (typeof markdownitEmoji !== 'undefined') md.use(markdownitEmoji);
+  if (typeof markdownitSub !== 'undefined')   md.use(markdownitSub);
+  if (typeof markdownitSup !== 'undefined')   md.use(markdownitSup);
+  if (typeof markdownitFootnote !== 'undefined') md.use(markdownitFootnote);
+  if (typeof markdownitMark !== 'undefined')  md.use(markdownitMark);
+  if (typeof markdownitIns !== 'undefined')   md.use(markdownitIns);
+  if (typeof markdownitTaskLists !== 'undefined') md.use(markdownitTaskLists);
+
+  mdRenderer = md;
+  return mdRenderer;
 }
 function isNoteDirty() { return noteDirty; }
-function markDirty() { noteDirty = true; document.getElementById('saveIndicator').textContent = '● 未保存'; }
-function markClean() { noteDirty = false; document.getElementById('saveIndicator').textContent = ''; }
+function markDirty() { noteDirty = true; if (document.getElementById('saveIndicator')) document.getElementById('saveIndicator').textContent = '● 未保存'; }
+function markClean() { noteDirty = false; if (document.getElementById('saveIndicator')) document.getElementById('saveIndicator').textContent = ''; }
 
-// ===== marked.js MD 渲染 =====
+// ===== Callout 容器预处理 =====
+// 语法: ::: note|warning|tip|danger|info \n 内容 \n :::
+// 内层内容先通过 markdown-it 渲染，再包裹为 callout HTML
+var CALLOUT_LABELS = { note: '📝 笔记', warning: '⚠️ 警告', tip: '💡 提示', danger: '🔥 注意', info: 'ℹ️ 信息', details: '📋 详情' };
+var CALLOUT_RE = /^:::\s*(note|warning|tip|danger|info|details)\s*\n([\s\S]*?)^:::\s*$/gm;
+
+function preprocessCallouts(mdText) {
+  var renderer = getMdRenderer();
+  if (!renderer) return mdText;
+  return mdText.replace(CALLOUT_RE, function(_, type, content) {
+    var label = CALLOUT_LABELS[type] || type;
+    var innerHtml = renderer.render(content.trim());
+    return '<div class="callout callout-' + type + '">' +
+           '<div class="callout-title">' + label + '</div>' +
+           '<div class="callout-body">' + innerHtml + '</div>' +
+           '</div>';
+  });
+}
+
+// ===== MD → HTML 渲染（向后兼容，reader/files 面板也调用）=====
 function md2html(md) {
   if (!md) return '<p></p>';
-  if (typeof marked !== 'undefined') {
+  var renderer = getMdRenderer();
+  if (renderer) {
     try {
-      var h = marked.parse(md);
-      // 后处理
+      // 0. 提取脚注定义（markdown-it-footnote 不识别 HTML block 后的定义）
+      var footnoteDefs = '';
+      var mdClean = md.replace(/^\[\^[^\]]+\]:\s*.+(\n\s{2,}.+)*/gm, function(m) {
+        footnoteDefs += (footnoteDefs ? '\n' : '') + m.trim();
+        return '';
+      });
+      // 1. 预处理 callout 容器
+      var processed = preprocessCallouts(mdClean);
+      // 2. 将脚注定义插到第一个 callout HTML block 之前（否则不被识别）
+      if (footnoteDefs) {
+        var firstCallout = processed.indexOf('<div class="callout');
+        if (firstCallout > -1) {
+          processed = processed.slice(0, firstCallout) + footnoteDefs + '\n\n' + processed.slice(firstCallout);
+        } else {
+          processed += '\n\n' + footnoteDefs;
+        }
+      }
+      // 3. 主渲染
+      var h = renderer.render(processed);
+      // 4. 后处理
       h = h.replace(/<img /g, '<img loading="lazy" ');
       h = h.replace(/<a /g, '<a target="_blank" rel="noopener" ');
       h = h.replace(/<pre><code class="language-(\w+)">/g, '<pre data-lang="$1"><code class="language-$1">');
       return h || '<p></p>';
-    } catch(e) {}
+    } catch(e) { console.warn('[md2html] render error', e); }
   }
+  // 降级：纯文本转义
   return '<p>' + (md || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>') + '</p>';
 }
 
@@ -30,13 +92,7 @@ function renderLive() {
   var preview = document.getElementById('notePreview');
   var md = document.getElementById('noteContent').value;
   preview.innerHTML = md2html(md);
-  // 对代码块应用 hljs 语法高亮（marked v14 废弃了 highlight 选项）
-  if (typeof hljs !== 'undefined') {
-    preview.querySelectorAll('pre code[class*="language-"]').forEach(function(el) {
-      try { hljs.highlightElement(el); } catch(e) {}
-    });
-  }
-  // mermaid 图表渲染
+  // mermaid 图表渲染（markdown-it 已将代码块高亮，hljs 不认识 mermaid，故代码块为纯文本）
   if (typeof mermaid !== 'undefined') {
     preview.querySelectorAll('pre code.language-mermaid').forEach(function(el) {
       var id = 'm-' + Math.random().toString(36).slice(2, 8);
@@ -208,8 +264,9 @@ function updatePreviewHint() {
 }
 
 // ===== 侧栏 Dock 智能隐藏 =====
-let dockTimer = null, dockEnabled = true;
+let dockTimer = null, dockEnabled = !('ontouchstart' in window || navigator.maxTouchPoints > 0);
 function initSidebarDock() {
+  if (!dockEnabled) return;
   const layout = document.querySelector('.notes-layout');
   const sidebar = document.querySelector('.notes-sidebar');
   const editor = document.getElementById('noteEditor');
@@ -244,6 +301,33 @@ function initSidebarDock() {
 }
 // 页面加载后初始化
 document.addEventListener('DOMContentLoaded', initSidebarDock);
+// 防止浏览器自动填充搜索框（Chrome 在面板激活/页面加载时异步填充，需多次清除）
+(function(){
+  function clearNoteSearch() {
+    const s = document.getElementById('noteSearch');
+    if (!s) return;
+    // 多次清除对抗 Chrome 异步 autofill
+    [50, 150, 400].forEach(function(ms) {
+      setTimeout(function() { if (s.value && document.getElementById('panel-notes')?.classList.contains('active')) s.value = ''; }, ms);
+    });
+  }
+  // 首次页面加载
+  document.addEventListener('DOMContentLoaded', function() { setTimeout(clearNoteSearch, 50); });
+  // 面板切换时（监听 panel-notes 的 active class 变化）
+  var panelEl = document.getElementById('panel-notes');
+  if (panelEl) {
+    new MutationObserver(function(mutations) {
+      mutations.forEach(function(m) {
+        if (m.attributeName === 'class' && panelEl.classList.contains('active')) {
+          clearNoteSearch();
+          guideActive = false;
+          var gbtn = document.getElementById('btnToggleGuide');
+          if (gbtn) gbtn.style.color = 'var(--sub)';
+        }
+      });
+    }).observe(panelEl, { attributes: true, attributeFilter: ['class'] });
+  }
+})();
 // 打开/新建笔记时的 dock 隐藏逻辑已整合到 works-panel.js 的 openNote/newNote 覆写中
 
 async function saveNoteSilent() {
@@ -510,5 +594,54 @@ async function importNoteFromFile(relPath, filename) {
     toast('✅ 已导入: ' + filename);
   } catch(e) {
     toast('❌ 导入失败: ' + e.message, 'error');
+  }
+}
+
+// ===== 语法指南（内嵌预览，不跳转新标签页）=====
+var guideCache = null, guideActive = false;
+
+async function toggleGuide() {
+  var preview = document.getElementById('notePreview');
+  var btn = document.getElementById('btnToggleGuide');
+  if (!preview) return;
+
+  if (guideActive) {
+    // 关闭指南，从编辑区重新渲染预览
+    guideActive = false;
+    if (btn) btn.style.color = 'var(--sub)';
+    renderLive();
+    if (!previewVisible) togglePreview(); // 确保预览面板可见
+    updatePreviewHint();
+    return;
+  }
+
+  // 确保编辑器可见（未打开笔记时也能看到指南）
+  var editor = document.getElementById('noteEditor');
+  if (editor && editor.style.display === 'none') {
+    editor.style.display = 'flex';
+    if (editor.style.flexDirection !== 'column') editor.style.flexDirection = 'column';
+  }
+
+  // 确保预览面板可见
+  if (!previewVisible) togglePreview();
+
+  guideActive = true;
+  if (btn) btn.style.color = 'var(--accent)';
+  preview.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--sub);">⏳ 加载语法指南...</div>';
+  preview.style.overflowY = 'auto';
+
+  if (guideCache) { preview.innerHTML = guideCache; return; }
+
+  try {
+    var resp = await fetch('/docs/notes-guide.html');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var fullHTML = await resp.text();
+    var m = fullHTML.match(/<body>([\s\S]*)<\/body>/i);
+    guideCache = m ? m[1] : fullHTML;
+    preview.innerHTML = guideCache;
+  } catch(e) {
+    preview.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--danger);">❌ 加载失败</div>';
+    guideActive = false;
+    if (btn) btn.style.color = 'var(--sub)';
   }
 }

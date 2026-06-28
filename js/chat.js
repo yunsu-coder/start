@@ -65,6 +65,9 @@ let chatStreaming = false;
 let currentMsgEl = null;
 let currentToolEls = {};
 let pendingImages = [];
+let pinPendingConvId = null;
+let pinMode = 'unlock'; // 'unlock' | 'delete' | 'set' | 'clear'
+let unlockVerified = null; // 刚验证通过的对话 ID，loadConv 使用后清除
 
 const chatMessages = document.getElementById('chatMessages');
 const chatInput = document.getElementById('chatInput');
@@ -96,9 +99,27 @@ async function loadConv(id) {
   if (!conv) return;
   activeConvId = id;
   chatHistory = conv.messages || [];
+
+  // 检查锁定状态：已锁且未验证通过，不渲染消息
+  if (conv.pinHash && unlockVerified !== id) {
+    chatMessages.innerHTML = `<div class="chat-welcome">
+      <div class="chat-welcome-icon mi">lock</div>
+      <h3>此对话已加密</h3>
+      <p>需要 PIN 才能查看</p>
+      <button class="btn accent" style="margin-top:.8rem;" onclick="pinPendingConvId='${id}';showPinModal('请输入 PIN 以查看此对话','unlock')"><span class="mi">lock_open</span> 解锁查看</button></div>`;
+    chatHistory = []; // 清空内存中的历史，直到解锁
+    chatMessages.scrollTop = 0;
+    if (chatHeaderTitle) chatHeaderTitle.innerHTML = '<span class="mi">smart_toy</span> <span class="mi" style="font-size:.7rem;color:var(--accent);">lock</span> ' + escapeHtml(conv.title || '小苇');
+    updateChatCount();
+    updatePinHeaderButton(activeConvId);
+    return;
+  }
+
+  // 已验证通过，清除标记
+  if (unlockVerified === id) unlockVerified = null;
+
   // 重建 UI
   chatMessages.innerHTML = '';
-  const welcome = chatMessages.querySelector('.chat-welcome');
   for (const m of chatHistory) {
     if (m.role === 'user') {
       const div = document.createElement('div');
@@ -123,6 +144,7 @@ async function loadConv(id) {
   chatMessages.scrollTop = chatMessages.scrollHeight;
   if (chatHeaderTitle) chatHeaderTitle.innerHTML = '<span class="mi">smart_toy</span> ' + escapeHtml(conv.title || '小苇');
   updateChatCount();
+  updatePinHeaderButton(activeConvId);
 }
 
 async function newConversation() {
@@ -136,6 +158,9 @@ async function newConversation() {
   if (chatHeaderTitle) chatHeaderTitle.innerHTML = '<span class="mi">smart_toy</span> 小苇';
   updateChatCount();
   refreshConvList();
+  // 新对话隐藏锁按钮
+  const c = document.getElementById('chatLockBtnContainer');
+  if (c) c.style.display = 'none';
 }
 
 async function switchConversation(id) {
@@ -153,8 +178,112 @@ async function deleteConversation(id) {
     chatMessages.innerHTML = `<div class="chat-welcome">
       <div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你兄弟</h3>
       <p>啥都能聊，别跟我见外</p></div>`;
+    // 隐藏锁按钮
+    const c = document.getElementById('chatLockBtnContainer');
+    if (c) c.style.display = 'none';
   }
   refreshConvList();
+}
+
+// ---- PIN 锁功能 ----
+async function handleConvClick(id) {
+  if (chatStreaming) return;
+  const conv = await ChatDB.get(id);
+  if (conv?.pinHash) { pinPendingConvId = id; showPinModal('请输入 PIN 以查看此对话', 'unlock'); return; }
+  switchConversation(id);
+}
+
+async function handleDeleteConv(id) {
+  const conv = await ChatDB.get(id);
+  if (conv?.pinHash) { pinPendingConvId = id; showPinModal('请输入 PIN 以删除此对话', 'delete'); return; }
+  deleteConversation(id);
+}
+
+async function lockConversation(id, pin) {
+  const conv = await ChatDB.get(id);
+  if (!conv) return;
+  conv.pinHash = await sha256(pin);
+  conv.updatedAt = Date.now();
+  await ChatDB.put(conv);
+  refreshConvList();
+  updatePinHeaderButton(id);
+}
+
+async function unlockConversation(id) {
+  const conv = await ChatDB.get(id);
+  if (!conv) return;
+  delete conv.pinHash;
+  conv.updatedAt = Date.now();
+  await ChatDB.put(conv);
+  refreshConvList();
+  updatePinHeaderButton(id);
+}
+
+async function verifyPin(id, pin) {
+  const conv = await ChatDB.get(id);
+  if (!conv || !conv.pinHash) return true;
+  return (await sha256(pin)) === conv.pinHash;
+}
+
+function showPinModal(msg, mode) {
+  pinMode = mode || 'unlock';
+  pinPendingConvId = pinPendingConvId || activeConvId;
+  const titleEl = document.getElementById('pinModalTitle');
+  if (titleEl) titleEl.textContent = mode === 'set' ? '设置加密' : mode === 'clear' ? '解除加密' : '对话加密';
+  const promptEl = document.getElementById('pinPromptText');
+  if (promptEl) promptEl.textContent = msg;
+  const inputEl = document.getElementById('pinInput');
+  if (inputEl) { inputEl.value = ''; }
+  const errEl = document.getElementById('pinError');
+  if (errEl) errEl.style.display = 'none';
+  document.getElementById('pinModal').classList.add('show');
+  setTimeout(() => { const inp = document.getElementById('pinInput'); if (inp) inp.focus(); }, 100);
+}
+
+function closePinModal() {
+  document.getElementById('pinModal').classList.remove('show');
+  pinPendingConvId = null;
+}
+
+async function submitPin() {
+  const input = document.getElementById('pinInput');
+  const pin = input.value.trim();
+  const errEl = document.getElementById('pinError');
+  if (!/^\d{1,6}$/.test(pin)) { errEl.textContent = '请输入 1-6 位数字'; errEl.style.display = 'block'; return; }
+  const id = pinPendingConvId || activeConvId;
+  if (!id) { closePinModal(); return; }
+
+  if (pinMode === 'set') {
+    await lockConversation(id, pin);
+    toast?.('对话已加密', 'success');
+    closePinModal();
+    return;
+  }
+  if (pinMode === 'clear') {
+    if (!await verifyPin(id, pin)) { errEl.textContent = 'PIN 错误，请重试'; errEl.style.display = 'block'; input.value = ''; return; }
+    await unlockConversation(id);
+    toast?.('对话已解锁', 'success');
+    closePinModal();
+    return;
+  }
+  if (!await verifyPin(id, pin)) { errEl.textContent = 'PIN 错误，请重试'; errEl.style.display = 'block'; input.value = ''; return; }
+  // 标记已验证，loadConv 凭此放行
+  unlockVerified = id;
+  closePinModal();
+  if (pinMode === 'delete') { unlockVerified = null; deleteConversation(id); }
+  else { switchConversation(id); }
+}
+
+function updatePinHeaderButton(id) {
+  const container = document.getElementById('chatLockBtnContainer');
+  if (!container) return;
+  ChatDB.get(id).then(conv => {
+    if (!conv || !id || id !== activeConvId) { container.style.display = 'none'; return; }
+    container.style.display = '';
+    container.innerHTML = conv.pinHash
+      ? '<button onclick="showPinModal(\'输入当前 PIN 以解锁\',\'clear\')" title="解锁对话" class="chat-lock-btn"><span class="mi">lock</span></button>'
+      : '<button onclick="pinPendingConvId=activeConvId;showPinModal(\'设置数字 PIN\',\'set\')" title="锁定对话" class="chat-lock-btn"><span class="mi">lock_open</span></button>';
+  });
 }
 
 async function refreshConvList() {
@@ -163,14 +292,15 @@ async function refreshConvList() {
   convs.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   chatConvList.innerHTML = convs.map(c => {
     const active = c.id === activeConvId ? ' active' : '';
+    const locked = c.pinHash ? '<span class="mi chat-conv-lock">lock</span>' : '';
     const date = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '';
-    return `<div class="chat-conv-item${active}" data-id="${c.id}" onclick="switchConversation('${c.id}')">
+    return `<div class="chat-conv-item${active}" data-id="${c.id}" onclick="handleConvClick('${c.id}')">
+      ${locked}
       <span class="chat-conv-title">${escapeHtml(c.title || '新对话')}</span>
       <span class="chat-conv-date">${date}</span>
-      <button class="chat-conv-del" onclick="event.stopPropagation();deleteConversation('${c.id}')" title="删除">✕</button>
+      <button class="chat-conv-del" onclick="event.stopPropagation();handleDeleteConv('${c.id}')" title="删除">✕</button>
     </div>`;
   }).join('') || '<div class="chat-conv-empty">还没有对话，点击 + 新建</div>';
-  // 高亮当前
   if (activeConvId) {
     const active = chatConvList.querySelector(`[data-id="${activeConvId}"]`);
     if (active) active.classList.add('active');
@@ -201,11 +331,11 @@ function updateChatCount() {
 function isVisionModel(model) {
   if (!model) return false;
   const m = model.toLowerCase();
-  return m.includes('vl') || m.includes('vision') || m.includes('glm-4v') || m.includes('gpt-4o') || m.includes('gemini') || m.includes('claude');
+  return m.includes('vl') || m.includes('vision') || m.includes('glm-4v') || m.includes('gpt-4o') || m.includes('gemini') || m.includes('claude') || m.includes('grok');
 }
 
 // ---- 图片压缩 ----
-function compressImage(file, maxW = 1500, quality = 0.7) {
+function compressImage(file, maxW = 1024, quality = 0.75) {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/')) { reject(new Error('非图片文件')); return; }
     // SVG/GIF 不压缩，直接读
@@ -226,21 +356,13 @@ function compressImage(file, maxW = 1500, quality = 0.7) {
       canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, w, h);
+      // 统一用 JPEG（兼容性最好，Grok/Claude/GPT 都支持）
       canvas.toBlob((blob) => {
-        if (!blob) { // fallback to JPEG
-          canvas.toBlob((jpegBlob) => {
-            const r = new FileReader();
-            r.onload = () => resolve(r.result);
-            r.onerror = reject;
-            r.readAsDataURL(jpegBlob);
-          }, 'image/jpeg', 0.75);
-          return;
-        }
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
         reader.readAsDataURL(blob);
-      }, 'image/webp', quality);
+      }, 'image/jpeg', 0.8);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片加载失败')); };
     img.src = url;
@@ -453,7 +575,8 @@ async function streamAgent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: chatHistory,
-        apiKey: chatCfg.apiKey, baseUrl: chatCfg.baseUrl, model: chatCfg.model,
+        apiKey: chatCfg.apiKey || '', baseUrl: chatCfg.baseUrl || '',
+        model: chatCfg.model || 'grok-4.3',
         compress: needCompress, keepRecent: KEEP_RECENT
       }),
     });
@@ -616,6 +739,10 @@ async function finishStream() {
 // ---- Markdown 增强版 ----
 function escapeHtml(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function unescapeHtml(s) { return s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"'); }
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 function renderMarkdown(text) {
   if (!text) return '';
@@ -869,6 +996,21 @@ function toggleChatSidebar() {
   if (sidebar) sidebar.classList.toggle('collapsed');
 }
 
+// 沉浸模式切换
+function toggleImmersive() {
+  const layout = document.querySelector('.chat-layout');
+  if (!layout) return;
+  layout.classList.toggle('immersive');
+  const isImmersive = layout.classList.contains('immersive');
+  localStorage.setItem('yiwei_chat_immersive', isImmersive ? '1' : '');
+  const btn = document.getElementById('chatImmersiveBtn');
+  if (btn) {
+    btn.querySelector('.mi').textContent = isImmersive ? 'fullscreen_exit' : 'fullscreen';
+    btn.title = isImmersive ? '退出沉浸模式' : '沉浸模式';
+  }
+  if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
 // ---- 语音输入 (Web Speech API) ----
 let speechRecognition = null;
 let isListening = false;
@@ -948,11 +1090,29 @@ chatInput.addEventListener('input', () => {
   chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
 });
 
+// PIN 输入框回车提交
+document.getElementById('pinInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); submitPin(); }
+});
+
+// ESC 关闭 PIN 弹窗
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const pm = document.getElementById('pinModal');
+    if (pm && pm.classList.contains('show')) { closePinModal(); e.stopPropagation(); }
+  }
+});
+
 // ---- 初始化 ----
 (async function init() {
   const convs = await ChatDB.getAll();
   convs.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  if (convs.length > 0) {
+  // 自动加载最近对话，但跳过已锁的
+  const firstUnlocked = convs.find(c => !c.pinHash);
+  if (firstUnlocked) {
+    await loadConv(firstUnlocked.id);
+  } else if (convs.length > 0) {
+    // 全部已锁或只有已锁对话，加载第一个（会显示解锁界面）
     await loadConv(convs[0].id);
   } else {
     activeConvId = convId();
@@ -972,4 +1132,14 @@ chatInput.addEventListener('input', () => {
       localStorage.removeItem('yiwei_chat_history');
     }
   } catch {}
+
+  // 恢复沉浸模式
+  if (localStorage.getItem('yiwei_chat_immersive')) {
+    const layout = document.querySelector('.chat-layout');
+    if (layout) {
+      layout.classList.add('immersive');
+      const btn = document.getElementById('chatImmersiveBtn');
+      if (btn) { btn.querySelector('.mi').textContent = 'fullscreen_exit'; btn.title = '退出沉浸模式'; }
+    }
+  }
 })();

@@ -18,6 +18,7 @@
     "cheerio": "^1.2.0",
     "docx": "^9.6.1",
     "epubjs": "^0.3.93",
+    "imgminer": "^1.0.0",
     "jszip": "^3.10.1",
     "mammoth": "^1.12.0",
     "NeteaseCloudMusicApi": "^4.31.0",
@@ -31,6 +32,7 @@
     "upscalejs": "^2.1.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "playwright": "^1.61.1"
   }
 }

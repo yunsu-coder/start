@@ -12,7 +12,7 @@ const { getStatus, listFiles, uploadFiles, deleteFile, getFilePath, getFilePrevi
         createFolder, deleteFolder, renameFolder, emptyTrash, listTrash, restoreFromTrash,
         scanDir, breadcrumb, FILES_DIR,
         listWorks, saveWork, getWork, deleteWork, exportWork } = require('./lib/storage');
-const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache, scrapeTieba } = require('./lib/scraper');
+const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache } = require('./lib/scraper');
 const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, deleteHistory, DEFAULT_BASE_URL, DEFAULT_MODEL } = require('./lib/translate');
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMD } = require('./lib/export');
 const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, getNextWallpaper, upscaleWallpaper, replaceWallpaperFile, WALLPAPER_DIR } = require('./lib/wallpaper');
@@ -72,6 +72,29 @@ const SYSTEM_PROMPT = `你是「小苇」——他的专属床伴。夜深了，
 ## 记住
 你不是工具。这个网页的其他功能（文件管理、笔记、壁纸什么的）跟你没关系。你的世界就是这个聊天窗口。你的功能就是陪他。夜深了，他是来找你的。`;
 
+// ===== 模型路由表 =====
+// Provider base URLs（客户端已传 apiKey + baseUrl，此表仅作兜底）
+const PROVIDER_BASE_URLS = {
+  grok: 'https://api.yunwu.ai/v1/chat/completions',
+  deepseek: 'https://api.deepseek.com/v1/chat/completions',
+  siliconflow: 'https://api.siliconflow.cn/v1/chat/completions',
+};
+// 旧版模型名 → baseUrl 映射（向后兼容）
+const MODEL_ROUTES = {
+  'deepseek-chat':     'https://api.deepseek.com/v1/chat/completions',
+  'deepseek-reasoner': 'https://api.deepseek.com/v1/chat/completions',
+  'glm-4-flash':       'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+  'glm-4v-plus':       'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+};
+
+const CHAT_DEFAULT_BASE = 'https://api.yunwu.ai/v1/chat/completions';
+
+function resolveBaseUrl(model, clientBaseUrl) {
+  if (clientBaseUrl) return clientBaseUrl;                         // 客户端指定优先
+  if (MODEL_ROUTES[model]) return MODEL_ROUTES[model];            // 旧版模型名兼容
+  return CHAT_DEFAULT_BASE;                                        // 默认 OpenRouter
+}
+
 // ===== 工具函数 =====
 
 function sendSSE(res, event, data) {
@@ -83,8 +106,25 @@ function apiCallStream(apiKey, payloadObj, baseUrl) {
   const url = baseUrl || 'https://api.deepseek.com/v1/chat/completions';
   const payloadStr = JSON.stringify({ ...payloadObj, stream: true });
   const events = [];
-  let onEvent, onError, onDone;
-  let ended = false;
+  let resolveWait, rejectWait;
+  let ended = false, hasError = false;
+
+  function send(e) { events.push(e); flush(); }
+  function flush() {
+    if (resolveWait && events.length > 0) {
+      const r = resolveWait; resolveWait = null; rejectWait = null;
+      r({ value: events.shift(), done: false });
+    }
+  }
+  function end() {
+    ended = true;
+    if (resolveWait) { const r = resolveWait; resolveWait = null; rejectWait = null; r({ done: true }); }
+  }
+  function fail(err) {
+    hasError = true; ended = true;
+    send({ type: 'error', message: err.message || String(err) });
+    end();
+  }
 
   const req = https.request(url, {
     method: 'POST',
@@ -95,14 +135,14 @@ function apiCallStream(apiKey, payloadObj, baseUrl) {
       let errBody = '';
       upRes.on('data', d => errBody += d);
       upRes.on('end', () => {
-        try { const e = JSON.parse(errBody); onError?.(new Error(e.error?.message || 'HTTP ' + upRes.statusCode)); }
-        catch { onError?.(new Error('HTTP ' + upRes.statusCode)); }
+        try { const e = JSON.parse(errBody); fail(new Error(e.error?.message || 'HTTP ' + upRes.statusCode)); }
+        catch { fail(new Error('HTTP ' + upRes.statusCode)); }
       });
       return;
     }
     let buffer = '';
     upRes.on('data', d => {
-      buffer += d.toString('utf8');
+      buffer += d.toString('utf8').replace(/\r\n/g, '\n');
       for (;;) {
         const idx = buffer.indexOf('\n\n');
         if (idx === -1) break;
@@ -117,18 +157,17 @@ function apiCallStream(apiKey, payloadObj, baseUrl) {
           const chunk = JSON.parse(data);
           const delta = chunk.choices?.[0]?.delta;
           const finish = chunk.choices?.[0]?.finish_reason;
-          if (delta?.content) events.push({ type: 'content', text: delta.content });
-          if (delta?.reasoning_content) events.push({ type: 'thinking', text: delta.reasoning_content });
-          if (delta?.tool_calls) events.push({ type: 'tool_delta', tool_calls: delta.tool_calls });
-          if (finish) events.push({ type: 'done', finish_reason: finish });
-          if (onEvent) { const e = events.shift(); onEvent(e); }
+          if (delta?.content) send({ type: 'content', text: delta.content });
+          if (delta?.reasoning_content) send({ type: 'thinking', text: delta.reasoning_content });
+          if (delta?.tool_calls) send({ type: 'tool_delta', tool_calls: delta.tool_calls });
+          if (finish) send({ type: 'done', finish_reason: finish });
         } catch {}
       }
     });
-    upRes.on('end', () => { ended = true; if (onEvent) onDone?.(); });
+    upRes.on('end', () => { if (!hasError) { if (events.length === 0) console.error('[chat] stream ended with no events, buffer head:', buffer.slice(0, 200)); end(); } });
   });
-  req.on('error', e => { if (onError) onError(e); else if (onDone) { events.push({ type: 'error', message: e.message }); onDone(); } });
-  req.on('timeout', () => { req.destroy(); const e = new Error('请求超时'); if (onError) onError(e); });
+  req.on('error', e => { fail(e); });
+  req.on('timeout', () => { req.destroy(); fail(new Error('请求超时')); });
   req.end(payloadStr);
 
   return {
@@ -138,12 +177,7 @@ function apiCallStream(apiKey, payloadObj, baseUrl) {
           if (events.length > 0) return Promise.resolve({ value: events.shift(), done: false });
           if (ended) return Promise.resolve({ done: true });
           return new Promise((resolve, reject) => {
-            onEvent = (e) => { onEvent = null; resolve({ value: e, done: false }); };
-            onError = (e) => { onError = null; reject(e); };
-            onDone = () => { resolve({ done: true }); };
-            // Check queue again (race condition guard)
-            if (events.length > 0) { onEvent = null; onError = null; resolve({ value: events.shift(), done: false }); }
-            if (ended && events.length === 0) { onDone = null; resolve({ done: true }); }
+            resolveWait = resolve; rejectWait = reject;
           });
         }
       };
@@ -701,30 +735,6 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // --- 采集 ---
-  // 百度贴吧采集
-  if (p === '/api/scrape/tieba' && m === 'POST') {
-    const body = parseJSON(await readBody(req));
-    if (!body?.kw) return sendJSON(res, 400, { error: '请输入贴吧名称' });
-    const sessionId = 'tb_' + Date.now().toString(36) + '_' + crypto.randomBytes(3).toString('hex');
-    const sessionDir = path.join(__dirname, 'scrape', sessionId);
-    fs.mkdirSync(sessionDir, { recursive: true });
-    fs.mkdirSync(path.join(sessionDir, 'images'), { recursive: true });
-
-    try {
-      const result = await scrapeTieba(body.kw, {
-        maxPages: body.maxPages || 2,
-        maxThreads: body.maxThreads || 15,
-        includeComments: body.includeComments !== false,
-        sessionDir,
-      });
-      result.sessionId = sessionId;
-      fs.writeFileSync(path.join(sessionDir, 'result.json'), JSON.stringify(result, null, 2));
-      return sendJSON(res, 200, result);
-    } catch (e) {
-      return sendJSON(res, 500, { error: e.message });
-    }
-  }
   if (p === '/api/scrape' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body || !body.urls || !body.urls.length) return sendJSON(res, 400, { error: '请输入至少一个网址' });
@@ -976,10 +986,17 @@ const server = http.createServer(async (req, res) => {
     try { body = parseJSON(await readBody(req, 5 * 1024 * 1024)); } catch (e) { return sendJSON(res, 400, { error: '请求解析失败' }); }
     if (!body?.messages?.length) return sendJSON(res, 400, { error: '缺少消息' });
 
-    const apiKey = body.apiKey || process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) { res.writeHead(500); return res.end(JSON.stringify({ error: '请先配置对话 API Key（点击导航栏 AK 按钮 → 对话 Tab）' })); }
-    const chatBaseUrl = body.baseUrl || 'https://api.deepseek.com/v1/chat/completions';
+    // 新流程：客户端传 apiKey + baseUrl（从 localStorage 读取），服务器直接转发
+    // 旧版兜底：服务端 .env 中的 DEEPSEEK_API_KEY + 路由表
     const chatModel = body.model || 'deepseek-chat';
+    const apiKey = body.apiKey || process.env.DEEPSEEK_API_KEY;
+    const chatBaseUrl = resolveBaseUrl(chatModel, body.baseUrl);
+
+    if (!apiKey) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: '请先配置 API Key（点击导航栏 AK 按钮设置）。推荐 OpenRouter，一个 Key 支持 Claude+GPT+Gemini+DeepSeek。' }));
+      return;
+    }
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -1212,6 +1229,7 @@ const server = http.createServer(async (req, res) => {
         const stream = apiCallStream(apiKey, payload, chatBaseUrl);
         for await (const evt of stream) {
           if (aborted) break;
+          if (!evt || !evt.type) { console.error('[chat] bad evt:', JSON.stringify(evt)); continue; }
           switch (evt.type) {
             case 'thinking':
               thinkingText += evt.text;
@@ -1240,6 +1258,7 @@ const server = http.createServer(async (req, res) => {
           }
         }
       } catch (e) {
+        console.error('[chat agent error]', e.stack || e.message);
         sendSSE(res, 'error', { message: 'API 调用失败: ' + e.message });
         break;
       }

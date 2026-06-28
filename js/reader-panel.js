@@ -1,12 +1,10 @@
 // ===== 阅读器 =====
-const READABLE_EXTS = ['epub','pdf','txt','md','js','ts','jsx','tsx','py','html','css','json','xml','yaml','yml','toml','c','cpp','h','hpp','java','go','rs','rb','php','sh','bash','sql','swift','kt','vue','svelte','r','m','mm','pl','lua','scala','zig','tex','ini','cfg','conf','env','gradle','makefile','dockerfile'];
+const READABLE_EXTS = ['pdf','txt','md','js','ts','jsx','tsx','py','html','css','json','xml','yaml','yml','toml','c','cpp','h','hpp','java','go','rs','rb','php','sh','bash','sql','swift','kt','vue','svelte','r','m','mm','pl','lua','scala','zig','tex','ini','cfg','conf','env','gradle','makefile','dockerfile'];
 const CODE_EXTS = ['js','ts','jsx','tsx','py','html','css','json','xml','yaml','yml','toml','c','cpp','h','hpp','java','go','rs','rb','php','sh','bash','sql','swift','kt','vue','svelte','r','m','mm','pl','lua','scala','zig','tex','ini','cfg','conf','env','gradle','makefile','dockerfile'];
 let currentBook = null;
-let readerEpubRendition = null;
-let readerEpubBook = null;
 let readerType = null; // 'file' | 'note'
 
-const READER_ICONS = { epub:'<span class="mi">menu_book</span>', pdf:'<span class="mi">picture_as_pdf</span>', txt:'<span class="mi">text_snippet</span>', md:'<span class="mi">description</span>' };
+const READER_ICONS = { pdf:'<span class="mi">picture_as_pdf</span>', txt:'<span class="mi">text_snippet</span>', md:'<span class="mi">description</span>' };
 
 async function loadReaderBooks() {
   // 并行加载文件、笔记、作品
@@ -82,12 +80,12 @@ async function loadReaderBooks() {
             pct + '</div>';
         }).join('') + '</div>';
       }
-      // 点击作品标题→直接打开第一章；展开按钮→查看目录
+      // 点击作品标题 → 展开/折叠章节目录
       return '<div class="work-reader-card">' +
         '<div class="work-reader-header">' +
           '<span class="mi" style="color:var(--accent);">book</span>' +
           (firstId
-            ? '<span class="work-reader-title" onclick="openBook(\'' + escAttr(firstId) + '\',\'note\')" title="开始阅读">' + escHtml(w.title) + '</span>'
+            ? '<span class="work-reader-title" style="cursor:pointer;" onclick="this.closest(\'.work-reader-card\').classList.toggle(\'open\')" title="展开目录">' + escHtml(w.title) + '</span>'
             : '<span class="work-reader-title">' + escHtml(w.title) + '</span>'
           ) +
           '<span class="work-reader-meta">' + chCount + ' 章</span>' +
@@ -114,8 +112,6 @@ async function openFileBook(name) {
   const ext = name.split('.').pop().toLowerCase();
   currentBook = name;
   readerType = 'file';
-  readerEpubRendition = null;
-  readerEpubBook = null;
   showReaderView(name);
 
   const content = document.getElementById('readerContent');
@@ -125,53 +121,6 @@ async function openFileBook(name) {
 
   if (ext === 'pdf') {
     content.innerHTML = '<div style="padding:.5rem 1rem;"><a href="/api/dl/' + encodeURIComponent(name) + '" class="btn-sm">⬇ 下载 PDF</a></div><iframe src="/api/view/' + encodeURIComponent(name) + '" style="width:100%;height:100%;border:none;"></iframe>';
-  } else if (ext === 'epub') {
-    if (typeof ePub === 'undefined') {
-      content.innerHTML = '<div style="text-align:center;padding:3rem;">❌ epub.js 未加载</div>';
-      return;
-    }
-    try {
-      const url = location.origin + '/api/view/' + encodeURIComponent(name);
-      const book = ePub(url);
-      readerEpubBook = book;
-      const rendition = book.renderTo(content, { width: '100%', height: '100%', flow: 'paginated', spread: 'none', manager: 'default' });
-      readerEpubRendition = rendition;
-      const pos = document.getElementById('readerPosition');
-      pos.textContent = '第 1 页';
-
-      rendition.on('relocated', function(loc) {
-        if (loc.location && loc.location.start) {
-          const cfi = loc.location.start.cfi;
-          if (book.locations) {
-            const pct = Math.round(book.locations.percentageFromCfi(cfi) * 100);
-            const fill = document.getElementById('readerProgressFill');
-            if (fill) fill.style.width = pct + '%';
-            localStorage.setItem('read-file-' + name, JSON.stringify({ location: cfi, pct }));
-          }
-          if (loc.location.start.displayed) {
-            pos.textContent = '第 ' + (loc.location.start.displayed.page + 1) + ' 页 / 共 ' + (loc.location.start.displayed.total || '?') + ' 页';
-          }
-        }
-      });
-
-      book.loaded.navigation.then(nav => {
-        const toc = document.getElementById('readerTOC');
-        toc.innerHTML = nav.toc.map(item =>
-          '<div class="reader-toc-item" data-href="' + item.href + '">' + item.label + '</div>'
-        ).join('');
-        toc.querySelectorAll('.reader-toc-item').forEach(el => {
-          el.addEventListener('click', () => { rendition.display(el.dataset.href); toc.classList.remove('open'); });
-        });
-        toc.classList.add('open');
-      });
-
-      book.ready.then(() => book.locations.generate(1000).then(() => {
-        if (progress.location) rendition.display(progress.location);
-        else rendition.display();
-      }));
-    } catch(e) {
-      content.innerHTML = '<div style="text-align:center;padding:3rem;">❌ EPUB 加载失败<br><small>' + e.message + '</small></div>';
-    }
   } else {
     // TXT/MD/Code
     try {
@@ -200,8 +149,6 @@ async function openFileBook(name) {
 async function openNoteBook(noteId) {
   currentBook = noteId;
   readerType = 'note';
-  readerEpubRendition = null;
-  readerEpubBook = null;
 
   try {
     const resp = await fetch('/api/notes/' + noteId);
@@ -295,12 +242,15 @@ function showReaderView(title) {
   view.classList.add('active');
   document.getElementById('readerTitle').textContent = title;
 
-  // 恢复主题/字号/宽度
+  // 恢复主题/字号/字体/宽度
   const theme = localStorage.getItem('reader-theme') || 'light';
   const fontSize = localStorage.getItem('reader-font') || '18';
+  const fontFamily = localStorage.getItem('reader-font-family') || 'serif';
   const width = localStorage.getItem('reader-width') || 'medium';
   document.getElementById('readerTheme').value = theme;
   document.getElementById('readerFont').value = fontSize;
+  const ffSel = document.getElementById('readerFontFamily');
+  if (ffSel) ffSel.value = fontFamily;
   const widthSel = document.getElementById('readerWidth');
   if (widthSel) widthSel.value = width;
 
@@ -309,8 +259,6 @@ function showReaderView(title) {
   document.getElementById('readerPosition').textContent = '';
   document.getElementById('readerStats').textContent = '';
 
-  // 启动沉浸模式
-  initImmersiveMode();
 }
 
 // ── 滚动进度 ──
@@ -336,75 +284,15 @@ function closeReader() {
     content.removeEventListener('scroll', content._scrollHandler);
     content._scrollHandler = null;
   }
-  if (content._immersiveScroll) {
-    content.removeEventListener('scroll', content._immersiveScroll);
-    content._immersiveScroll = null;
-  }
-  if (content._immersiveMouse) {
-    document.removeEventListener('mousemove', content._immersiveMouse);
-    content._immersiveMouse = null;
-  }
-  clearTimeout(immersiveTimer);
-  immersiveActive = false;
   document.getElementById('readerShelf').style.display = 'block';
   const view = document.getElementById('readerView');
   view.style.display = 'none';
-  view.classList.remove('active', 'immersive', 'reader-show-ui');
+  view.classList.remove('active');
   content.innerHTML = '';
-  readerEpubRendition = null;
-  readerEpubBook = null;
   currentBook = null;
   readerType = null;
   if (document.fullscreenElement) document.exitFullscreen();
   loadReaderBooks();
-}
-
-// ===== 沉浸模式 =====
-let immersiveTimer = null;
-let immersiveActive = false;
-
-function initImmersiveMode() {
-  immersiveActive = false;
-  const view = document.getElementById('readerView');
-  view.classList.remove('immersive', 'reader-show-ui');
-  clearTimeout(immersiveTimer);
-
-  const content = document.getElementById('readerContent');
-  const toolbar = document.querySelector('.reader-toolbar');
-
-  // 滚动时进入沉浸，上滑或触底时退出
-  let lastScroll = content.scrollTop;
-  const onScroll = () => {
-    const dy = content.scrollTop - lastScroll;
-    lastScroll = content.scrollTop;
-    if (dy > 30) {
-      // 向下滚动 → 沉浸
-      if (!immersiveActive) { immersiveActive = true; view.classList.add('immersive'); view.classList.remove('reader-show-ui'); }
-    } else if (dy < -20) {
-      // 向上滚动 → 显示 UI
-      if (immersiveActive) { view.classList.add('reader-show-ui'); clearTimeout(immersiveTimer); immersiveTimer = setTimeout(() => view.classList.remove('reader-show-ui'), 2500); }
-    }
-  };
-  content._immersiveScroll = onScroll;
-  content.addEventListener('scroll', onScroll, { passive: true });
-
-  // 光标触顶 50px → 显示 UI
-  const onMouse = (e) => {
-    if (!immersiveActive) return;
-    if (e.clientY < 50 || e.clientY > window.innerHeight - 50) {
-      view.classList.add('reader-show-ui');
-      clearTimeout(immersiveTimer);
-      immersiveTimer = setTimeout(() => view.classList.remove('reader-show-ui'), 2500);
-    }
-  };
-  document.addEventListener('mousemove', onMouse);
-  content._immersiveMouse = onMouse;
-
-  // 初始进入 2 秒后进入沉浸
-  clearTimeout(immersiveTimer);
-  immersiveTimer = setTimeout(() => {
-    if (currentBook) { immersiveActive = true; view.classList.add('immersive'); }
-  }, 3000);
 }
 
 function updateReadingStats(text) {
@@ -413,42 +301,18 @@ function updateReadingStats(text) {
   document.getElementById('readerStats').textContent = '📊 ' + chars.toLocaleString() + ' 字 · ⏱ ~' + mins + ' 分钟';
 }
 
-// ===== 阅读器键盘控制 =====
-document.addEventListener('keydown', function(e) {
-  if (!currentBook) return;
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
-
-  if (e.key === 'Escape') { closeReader(); return; }
-
-  if (e.key === 'f' && !e.ctrlKey && !e.metaKey) {
-    const view = document.getElementById('readerView');
-    document.fullscreenElement ? document.exitFullscreen() : view.requestFullscreen();
-    return;
-  }
-
-  if (e.key === 'ArrowLeft' && readerEpubRendition) {
-    e.preventDefault(); readerEpubRendition.prev(); return;
-  }
-  if (e.key === 'ArrowRight' && readerEpubRendition) {
-    e.preventDefault(); readerEpubRendition.next(); return;
-  }
-
-  const content = document.getElementById('readerContent');
-  if (e.key === ' ') { e.preventDefault(); content.scrollBy({ top: content.clientHeight * 0.85, behavior: 'smooth' }); }
-  if (e.key === 'ArrowDown') { e.preventDefault(); content.scrollBy({ top: 80, behavior: 'smooth' }); }
-  if (e.key === 'ArrowUp') { e.preventDefault(); content.scrollBy({ top: -80, behavior: 'smooth' }); }
-});
-
 function updateReaderSettings() {
   const theme = document.getElementById('readerTheme').value;
   const fontSize = document.getElementById('readerFont').value;
+  const fontFamily = document.getElementById('readerFontFamily')?.value || 'serif';
   const width = document.getElementById('readerWidth')?.value || 'medium';
   localStorage.setItem('reader-theme', theme);
   localStorage.setItem('reader-font', fontSize);
+  localStorage.setItem('reader-font-family', fontFamily);
   localStorage.setItem('reader-width', width);
 
   const content = document.getElementById('readerContent');
-  content.className = 'reader-content reader-' + theme + ' width-' + width;
+  content.className = 'reader-content reader-' + theme + ' width-' + width + ' font-' + fontFamily;
   content.style.fontSize = fontSize + 'px';
 
   const inner = content.querySelector('.reader-content-inner');
@@ -499,3 +363,4 @@ document.addEventListener('mouseup', function(e) {
 
   setTimeout(() => popup.remove(), 3000);
 });
+

@@ -87,7 +87,6 @@ function renderWallpapers() {
       <div style="display:flex;gap:.3rem;margin-top:.3rem;">
         <button class="btn-sm" onclick="event.stopPropagation();setWallpaper('${wp.id}')" title="设为壁纸"><span class="mi">wallpaper</span></button>
         <button class="btn-sm" onclick="event.stopPropagation();delWallpaper('${wp.id}')" title="删除"><span class="mi">delete</span></button>
-        <button class="btn-sm" onclick="event.stopPropagation();upscaleWallpaper('${wp.id}')" title="AI 超清（服务端处理）"><span class="mi">auto_fix_high</span></button>
       </div>
     </div>
   `).join('');
@@ -132,12 +131,6 @@ async function delWallpaper(id) {
     await loadWallpapers();
     toast('🗑️ 已删除');
   }
-}
-
-function setWallpaperOpacity() {
-  const slider = document.getElementById('wpOpacitySlider');
-  if (!slider) return;
-  slider.style.display = slider.style.display === 'none' ? 'flex' : 'none';
 }
 
 function applyWallpaperOpacity(val) {
@@ -275,64 +268,17 @@ async function saveToWallpaper(sid, fname) {
   } catch(e) { toast('❌ ' + e.message, 'error'); }
 }
 
-// ===== AI 超清（服务端：Bigjpg API → sharp 兜底）=====
-// Bigjpg 免费 20 张/月，AI 深度学习超分，国内服务速度快
-// 配置：在 .env 中设置 BIGJPG_API_KEY=你的Key（登录 bigjpg.com 获取）
-async function upscaleWallpaper(id, _unused) {
-  const wp = S.wpList.find(w => w.id === id);
-  if (!wp) { toast('壁纸不存在', 'error'); return; }
-  const ext = (wp.filename || '').split('.').pop().toLowerCase();
-  if (ext === 'svg' || ext === 'gif') { toast('SVG/GIF 不支持 AI 超清', 'error'); return; }
-
-  if (!confirm('将用 AI 超分辨率增强这张壁纸\n（Bigjpg 深度学习模型 · 服务端处理）\n继续？')) return;
-
-  const overlay = document.getElementById('wpUpscaleOverlay');
-  const barEl = document.getElementById('wpUpscaleBar');
-  const pctEl = document.getElementById('wpUpscalePercent');
-  const resEl = document.getElementById('wpUpscaleRes');
-  const labelEl = document.getElementById('wpUpscaleLabel');
-  if (overlay) overlay.classList.add('show');
-  if (barEl) { barEl.style.width = '0%'; barEl.classList.remove('done'); }
-  if (pctEl) pctEl.textContent = '0%';
-  if (labelEl) labelEl.textContent = '🔮 AI 超清处理中...';
-  if (resEl) resEl.textContent = 'Bigjpg 深度学习模型';
-
-  const progress = (pct, label, res) => {
-    if (barEl) barEl.style.width = Math.round(pct) + '%';
-    if (pctEl) pctEl.textContent = Math.round(pct) + '%';
-    if (label && labelEl) labelEl.textContent = label;
-    if (res !== undefined && resEl) resEl.textContent = res;
-  };
-  const closeOverlay = () => { if (overlay) overlay.classList.remove('show'); };
-
-  function refreshWallpaper(updated) {
-    if (S.wpCurrent && S.wpCurrent.id === id) { S.wpCurrent = updated; applyWallpaper(); }
-    const idx = S.wpList.findIndex(w => w.id === id);
-    if (idx >= 0) S.wpList[idx] = updated;
-    renderWallpapers();
-  }
-
-  try {
-    progress(30, '🤖 调用 AI 模型...', 'Bigjpg 深度神经网络超分');
-    const r = await fetch('/api/wallpaper/upscale/' + id, { method: 'POST' });
-    const data = await r.json();
-    progress(90);
-
-    if (data.ok) {
-      progress(100, '✅ 超清完成', data.resolution || '');
-      if (barEl) barEl.classList.add('done');
-      await new Promise(r => setTimeout(r, 600));
-      closeOverlay();
-      refreshWallpaper(data.wallpaper);
-      toast('✅ 超清完成' + (data.resolution.includes('Bigjpg') ? ' (AI)' : ''));
-    } else {
-      closeOverlay();
-      toast('❌ ' + (data.error || '处理失败'), 'error');
-    }
-  } catch (e) {
-    closeOverlay();
-    toast('❌ 超清失败: ' + (e.message || '').slice(0, 100), 'error');
-  }
+// ===== 恢复默认壁纸 =====
+async function clearWallpaper() {
+  if (!confirm('恢复默认壁纸？将清除当前壁纸设置')) return;
+  stopCarousel();
+  await fetch('/api/wallpaper/current', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: '__default__' }),
+  });
+  await loadWallpapers();
+  toast('🔄 已恢复默认');
 }
 
 // ===== 壁纸轮播 =====
