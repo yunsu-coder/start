@@ -8,7 +8,21 @@ font-map.json
 .env
 .trash/
 *.traineddata
-.env
 .claude/
 .playwright-mcp/
 CLAUDE.md
+
+# 个人数据 / 运行时产物
+wallpapers/
+screenshots/
+test-results/
+chat-snapshot.yml
+wp-modal.txt
+.npmrc
+
+# 大型二进制（AI 模型 / WASM）
+models/
+js/ort-wasm*
+js/ort.all.min.mjs
+js/upscalejs.es.js
+js/upscale-engine.js
