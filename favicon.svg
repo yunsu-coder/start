@@ -1,10 +1,61 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#5b8dee"/>
-      <stop offset="100%" stop-color="#a78bfa"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4a5568"/>
+      <stop offset="100%" stop-color="#2d3748"/>
+    </linearGradient>
+    <linearGradient id="hair" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a202c"/>
+      <stop offset="100%" stop-color="#2d3748"/>
     </linearGradient>
   </defs>
-  <circle cx="32" cy="32" r="30" fill="url(#g)"/>
-  <text x="32" y="42" text-anchor="middle" font-size="32" font-family="serif" fill="white">苇</text>
+
+  <!-- Background -->
+  <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
+
+  <!-- Hair -->
+  <ellipse cx="32" cy="18" rx="18" ry="14" fill="url(#hair)"/>
+  <rect x="14" y="12" width="36" height="14" rx="7" fill="url(#hair)"/>
+
+  <!-- Face -->
+  <ellipse cx="32" cy="36" rx="16" ry="18" fill="#fbd38d"/>
+
+  <!-- Hair above forehead -->
+  <path d="M16 24 Q20 10 32 8 Q44 10 48 24" fill="url(#hair)"/>
+
+  <!-- Glasses -->
+  <!-- Left lens -->
+  <rect x="17" y="28" width="12" height="9" rx="4" fill="none" stroke="#1a202c" stroke-width="2.5"/>
+  <!-- Right lens -->
+  <rect x="35" y="28" width="12" height="9" rx="4" fill="none" stroke="#1a202c" stroke-width="2.5"/>
+  <!-- Bridge -->
+  <line x1="29" y1="32" x2="35" y2="32" stroke="#1a202c" stroke-width="2.5"/>
+  <!-- Left temple -->
+  <line x1="17" y1="29" x2="12" y2="27" stroke="#1a202c" stroke-width="2" stroke-linecap="round"/>
+  <!-- Right temple -->
+  <line x1="47" y1="29" x2="52" y2="27" stroke="#1a202c" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Eyes behind glasses -->
+  <circle cx="23" cy="33" r="2" fill="#1a202c"/>
+  <circle cx="41" cy="33" r="2" fill="#1a202c"/>
+  <!-- Eye highlights -->
+  <circle cx="23.8" cy="32.2" r="0.7" fill="#fff"/>
+  <circle cx="41.8" cy="32.2" r="0.7" fill="#fff"/>
+
+  <!-- Eyebrows -->
+  <path d="M18 27 Q23 25 28 27" fill="none" stroke="#1a202c" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M36 27 Q41 25 46 27" fill="none" stroke="#1a202c" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Nose -->
+  <path d="M32 35 L31 41 Q32 43 33 41 Z" fill="#e2a85c" stroke="#d4943a" stroke-width="0.5"/>
+
+  <!-- Slight smile -->
+  <path d="M26 46 Q32 50 38 46" fill="none" stroke="#d4943a" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Ears -->
+  <ellipse cx="14" cy="36" rx="4" ry="6" fill="#fbd38d" stroke="#e2a85c" stroke-width="0.5"/>
+  <ellipse cx="50" cy="36" rx="4" ry="6" fill="#fbd38d" stroke="#e2a85c" stroke-width="0.5"/>
+
+  <!-- Collar/neck hint -->
+  <path d="M26 54 Q32 48 38 54" fill="#4a5568"/>
 </svg>
