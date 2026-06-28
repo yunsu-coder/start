@@ -11,3 +11,4 @@ font-map.json
 .env
 .claude/
 .playwright-mcp/
+CLAUDE.md
