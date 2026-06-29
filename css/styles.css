@@ -2296,6 +2296,8 @@ body[data-ui-style="filled"] .mi {
    ================================================================ */
 @media (min-width: 1195px) and (max-width: 1512px) {
   .reader-content-inner { max-width: 680px; }
+  .chat-container { max-width: 1100px; margin: 0 auto; }
+  .chat-msg-body { max-width: 80%; }
 }
 
 /* ================================================================
@@ -2305,7 +2307,8 @@ body[data-ui-style="filled"] .mi {
   .panel { max-width: 1100px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: .5rem; }
   .reader-content-inner { max-width: 760px; font-size: 1.05rem; padding: 2.5rem 3rem 7rem; }
-  .chat-container { max-width: 900px; margin: 0 auto; }
+  .chat-container { max-width: 1300px; margin: 0 auto; }
+  .chat-msg-body { max-width: 75%; }
   .tl-panes { height: calc(100vh - 260px); }
 }
 
