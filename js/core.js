@@ -251,17 +251,10 @@ Object.entries(LINKS).forEach(([cat, links]) => {
 S.lastStatus = null;
 
 async function loadStatus() {
-  const el = document.getElementById('status');
   try {
     S.lastStatus = await (await fetch('/api/status')).json();
-    el.innerHTML = [
-      `<span><span class="dot ${S.lastStatus.mem_pct < 80 ? 'green' : (S.lastStatus.mem_pct < 90 ? 'yellow' : 'red')}"></span>内存 ${S.lastStatus.mem_used}/${S.lastStatus.mem_total}</span>`,
-      `<span><span class="dot green"></span>CPU ${S.lastStatus.cpu}%</span>`,
-      `<span><span class="dot green"></span>磁盘 ${S.lastStatus.disk_free}</span>`,
-      `<span><span class="dot green"></span>运行 ${S.lastStatus.uptime}</span>`,
-    ].join(' · ');
     updateStorageBar(S.lastStatus);
-  } catch { el.innerHTML = '<span>⚙️ 状态暂不可用</span>'; }
+  } catch { /* 状态获取失败，静默 */ }
 }
 loadStatus();
 setInterval(loadStatus, 15000);

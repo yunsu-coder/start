@@ -1011,53 +1011,6 @@ function toggleImmersive() {
   if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// ---- 语音输入 (Web Speech API) ----
-let speechRecognition = null;
-let isListening = false;
-function toggleSpeechInput() {
-  const micBtn = document.getElementById('chatMicBtn');
-  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-    toast?.('浏览器不支持语音输入', 'error'); return;
-  }
-  if (isListening) {
-    speechRecognition?.stop();
-    return;
-  }
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  speechRecognition = new SR();
-  speechRecognition.lang = 'zh-CN';
-  speechRecognition.interimResults = true;
-  speechRecognition.continuous = true;
-  speechRecognition.maxAlternatives = 1;
-
-  speechRecognition.onstart = () => {
-    isListening = true;
-    if (micBtn) { micBtn.classList.add('listening'); micBtn.querySelector('.mi').textContent = 'mic_off'; }
-    toast?.('🎤 正在聆听...', 'success');
-  };
-  speechRecognition.onend = () => {
-    isListening = false;
-    if (micBtn) { micBtn.classList.remove('listening'); micBtn.querySelector('.mi').textContent = 'mic'; }
-  };
-  speechRecognition.onerror = (e) => {
-    isListening = false;
-    if (micBtn) { micBtn.classList.remove('listening'); micBtn.querySelector('.mi').textContent = 'mic'; }
-    if (e.error !== 'aborted') toast?.('语音识别失败: ' + e.error, 'error');
-  };
-  speechRecognition.onresult = (e) => {
-    let final = '', interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) final += t;
-      else interim += t;
-    }
-    if (final) { chatInput.value = (chatInput.value + ' ' + final).trim(); }
-    // 临时显示未确认文本（可选）
-    chatInput.focus();
-  };
-  speechRecognition.start();
-}
-
 // 粘贴事件也支持文档文件
 async function handleChatPaste(e) {
   const items = e.clipboardData?.items;

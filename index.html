@@ -51,7 +51,6 @@
       <button type="submit"><span class="mi">search</span> 搜索</button>
     </form>
   </div>
-  <div class="status-bar" id="status"></div>
   <div class="section"><div class="section-title"><span class="mi">smart_toy</span> AI</div><div class="grid" id="ai"></div></div>
   <div class="section"><div class="section-title"><span class="mi">language</span> 常用</div><div class="grid" id="common"></div></div>
   <div class="section"><div class="section-title"><span class="mi">code</span> 开发</div><div class="grid" id="dev"></div></div>
@@ -170,6 +169,7 @@
         <button class="btn-sm" onclick="insertMd('`','`')" title="行内代码">&lt;/&gt;</button>
         <button class="btn-sm" onclick="insertMd('> ','')" title="引用">❝</button>
         <span class="tl-sep"></span>
+        <button class="btn-sm btn-save-note" onclick="saveNote()" title="保存 Ctrl+S"><span class="mi">save</span></button>
         <button class="btn-sm" id="btnTogglePreview" onclick="togglePreview()" title="切换预览 Ctrl+\"><span class="mi">visibility</span></button>
         <button class="btn-sm" onclick="openNoteImport()" title="从文件导入"><span class="mi">file_open</span></button>
         <button class="btn-sm" onclick="exportNote('md')" title="导出 Markdown"><span class="mi">download</span></button>
@@ -377,8 +377,7 @@
             <button id="chatImageBtn" onclick="triggerImageUpload()" title="添加图片/文档（支持拖拽）"><span class="mi">image</span></button>
             <input type="file" id="chatImageInput" accept="image/*,.pdf,.docx,.txt,.md,.csv,.json" multiple style="display:none" onchange="handleChatImage(event)">
             <button id="chatDocBtn" onclick="triggerImageUpload()" title="上传文档（PDF/Word/TXT）"><span class="mi">upload_file</span></button>
-            <textarea id="chatInput" rows="1" placeholder="想说点什么？聊聊天、问问题、发图片让我看看...&#10;💡 支持拖拽图片/文档、粘贴截图、语音输入" onkeydown="handleChatKey(event)" onpaste="handleChatPaste(event)"></textarea>
-            <button id="chatMicBtn" onclick="toggleSpeechInput()" title="语音输入"><span class="mi">mic</span></button>
+            <textarea id="chatInput" rows="1" placeholder="想说点什么？聊聊天、问问题、发图片让我看看...&#10;💡 支持拖拽图片/文档、粘贴截图" onkeydown="handleChatKey(event)" onpaste="handleChatPaste(event)"></textarea>
             <button id="chatSendBtn" onclick="sendChat()"><span class="mi">send</span></button>
           </div>
         </div>
@@ -616,7 +615,7 @@
 <div class="toast" id="toast"></div>
 
 <!-- app.js → 分拆为 5 个模块 -->
-<script src="/js/core.js?v=1783160001"></script>
+<script src="/js/core.js?v=1783160002"></script>
 <script src="/js/files-panel.js?v=1780652200"></script>
 <script src="/js/notes-panel.js?v=1783050006"></script>
 <script src="/js/reader-panel.js?v=1783190000"></script>
@@ -636,6 +635,6 @@
 <script src="https://cdn.jsdelivr.net/npm/markdown-it-task-lists@2/dist/markdown-it-task-lists.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });</script>
-<script src="/js/chat.js?v=1782850001"></script>
+<script src="/js/chat.js?v=1782850002"></script>
 </body>
 </html>
