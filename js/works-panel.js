@@ -237,6 +237,7 @@ openNote = async function(id) {
     const note = await (await fetch('/api/notes/' + id)).json();
     currentNoteId = id;
     document.getElementById('noteEditor').style.display = 'flex';
+    localStorage.setItem('last_note_id', id);
     if (document.getElementById('noteEditor').style.flexDirection !== 'column')
       document.getElementById('noteEditor').style.flexDirection = 'column';
     document.getElementById('noteTitle').value = note.title;
@@ -260,6 +261,7 @@ openNote = async function(id) {
 newNote = async function() {
   if (noteDirty && !confirm('当前笔记未保存，是否放弃？')) return;
   currentNoteId = null; noteDirty = false;
+  localStorage.removeItem('last_note_id');
   document.getElementById('noteEditor').style.display = 'flex';
   if (document.getElementById('noteEditor').style.flexDirection !== 'column')
     document.getElementById('noteEditor').style.flexDirection = 'column';

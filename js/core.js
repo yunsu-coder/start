@@ -32,6 +32,9 @@ function switchPanel(name) {
   if (name === 'notes') {
     if (typeof loadNotesList === 'function') loadNotesList();
     if (typeof loadWorks === 'function') loadWorks();
+    // 自动恢复上次浏览的笔记
+    var lastId = localStorage.getItem('last_note_id');
+    if (lastId && typeof openNote === 'function') setTimeout(function() { openNote(lastId); }, 50);
   }
   if (name === 'scrape') loadScrapeSessions();
   if (name === 'read') loadReaderBooks();

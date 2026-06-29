@@ -103,8 +103,18 @@ function renderLive() {
           div.style.cssText = 'text-align:center;margin:.8em 0;padding:.8rem;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid var(--border);overflow-x:auto;';
           var pre = el.closest('pre');
           if (pre) pre.replaceWith(div);
-        }).catch(function(){});
-      } catch(e) {}
+        }).catch(function(err) {
+            var pre = el.closest('pre');
+            if (pre) {
+              pre.insertAdjacentHTML('afterend', '<div class="mermaid-error-msg" style="color:#e74c3c;font-size:.8rem;padding:.4rem .8rem;border-left:3px solid #e74c3c;margin:.4rem 0;background:rgba(231,76,60,.08);border-radius:4px;">⚠️ Mermaid: ' + err.message.replace(/</g,'&lt;') + '</div>');
+            }
+          });
+      } catch(e) {
+        var pre = el.closest('pre');
+        if (pre) {
+          pre.insertAdjacentHTML('afterend', '<div class="mermaid-error-msg" style="color:#e74c3c;font-size:.8rem;padding:.4rem .8rem;border-left:3px solid #e74c3c;margin:.4rem 0;background:rgba(231,76,60,.08);border-radius:4px;">⚠️ Mermaid: ' + e.message.replace(/</g,'&lt;') + '</div>');
+        }
+      }
     });
   }
   markDirty();
@@ -180,6 +190,7 @@ async function loadNotesList() {
 async function newNote() {
   if (noteDirty && !confirm('当前笔记未保存，是否放弃？')) return;
   currentNoteId = null; noteDirty = false;
+  localStorage.removeItem('last_note_id');
   document.getElementById('noteEditor').style.display = 'flex';
   document.getElementById('noteTitle').value = '';
   document.getElementById('noteContent').value = '';
@@ -194,6 +205,7 @@ async function openNote(id) {
   try {
     const note = await (await fetch('/api/notes/' + id)).json();
     currentNoteId = id;
+    localStorage.setItem('last_note_id', id);
     document.getElementById('noteEditor').style.display = 'flex';
     document.getElementById('noteTitle').value = note.title;
     document.getElementById('noteContent').value = note.content;
@@ -201,7 +213,7 @@ async function openNote(id) {
     document.querySelectorAll('.note-list-item').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.note-list-item').forEach(el => { if (el.getAttribute('onclick')?.includes(id)) el.classList.add('active'); });
     startAutoSave();
-  } catch(e) { console.error(e); }
+  } catch(e) { localStorage.removeItem('last_note_id'); console.error(e); }
 }
 
 document.addEventListener('DOMContentLoaded', () => { const t = document.getElementById('noteTitle'); if (t) t.addEventListener('input', markDirty); });
@@ -297,10 +309,122 @@ function initSidebarDock() {
   });
 
   // 初始状态：如果编辑器可见，自动隐藏侧栏
+  layout.classList.add('dock-anim');
   if (editor.style.display !== 'none') hideSidebar();
 }
 // 页面加载后初始化
-document.addEventListener('DOMContentLoaded', initSidebarDock);
+
+// ===== 可拖拽分隔条 =====
+function initResizeHandles() {
+  const layout = document.querySelector('.notes-layout');
+  const sidebar = document.querySelector('.notes-sidebar');
+  const splitPane = document.querySelector('.split-pane');
+  if (!layout) return;
+
+  // ---- 拖拽核心 ----
+  function drag(handle, opts) {
+    // opts: { getSize, setSize, min, max, onEnd, onReset }
+    let active = false, sx, ss;
+    function down(e) {
+      e.preventDefault();
+      if (opts.onStart) opts.onStart();
+      active = true;
+      sx = e.touches ? e.touches[0].clientX : e.clientX;
+      ss = opts.getSize();
+      handle.classList.add('resizing');
+      document.body.classList.add('resizing');
+      layout.classList.remove('dock-anim'); // 拖拽时禁用动画
+    }
+    function move(e) {
+      if (!active) return;
+      let x = e.touches ? e.touches[0].clientX : e.clientX;
+      let v = Math.max(opts.min, Math.min(opts.max, ss + (x - sx)));
+      opts.setSize(v);
+    }
+    function up() {
+      if (!active) return;
+      active = false;
+      handle.classList.remove('resizing');
+      document.body.classList.remove('resizing');
+      layout.classList.add('dock-anim'); // 恢复动画
+      if (opts.onEnd) opts.onEnd();
+    }
+    handle.addEventListener('mousedown', down);
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+    handle.addEventListener('touchstart', down, { passive: false });
+    document.addEventListener('touchmove', move, { passive: false });
+    document.addEventListener('touchend', up);
+    handle.addEventListener('dblclick', function() { if (opts.onReset) opts.onReset(); });
+  }
+
+  // ---- 侧栏分隔条 ----
+  const sh = document.getElementById('resizeSidebar');
+  if (sh && sidebar) {
+    let saved = localStorage.getItem('notes_sidebar_w');
+    if (saved) layout.style.setProperty('--sidebar-w', saved + 'px');
+    drag(sh, {
+      getSize: function() { return sidebar.getBoundingClientRect().width; },
+      onStart: function() {
+        layout.classList.remove('dock-hidden');
+        // 使用已保存的宽度作为起始值，而非 dock-hidden 的 8px
+        var saved = localStorage.getItem('notes_sidebar_w');
+        if (saved) layout.style.setProperty('--sidebar-w', saved + 'px');
+      },
+      setSize: function(w) { layout.style.setProperty('--sidebar-w', Math.round(w) + 'px'); },
+      min: 60, max: 400,
+      onEnd: function() {
+        localStorage.setItem('notes_sidebar_w', sidebar.getBoundingClientRect().width);
+      },
+      onReset: function() {
+        layout.style.setProperty('--sidebar-w', '180px');
+        localStorage.removeItem('notes_sidebar_w');
+      }
+    });
+  }
+
+  // ---- 编辑/预览分隔条 ----
+  const ph = document.getElementById('resizePane');
+  if (ph && splitPane) {
+    let saved = localStorage.getItem('notes_split_ratio');
+    let ratio = saved ? parseFloat(saved) : 0.5;
+    applyPaneRatio(splitPane, ratio);
+    drag(ph, {
+      getSize: function() {
+        let pw = splitPane.querySelector('.pane');
+        return pw ? pw.getBoundingClientRect().width : splitPane.getBoundingClientRect().width * 0.5;
+      },
+      setSize: function(w) {
+        let total = splitPane.getBoundingClientRect().width - 5; // 减去 handle 宽度
+        let r = Math.max(0.2, Math.min(0.8, w / (total || 1)));
+        applyPaneRatio(splitPane, r);
+      },
+      min: 0, max: Infinity,
+      onEnd: function() {
+        let pw = splitPane.querySelector('.pane');
+        if (!pw) return;
+        let total = splitPane.getBoundingClientRect().width - 5;
+        let r = pw.getBoundingClientRect().width / (total || 1);
+        localStorage.setItem('notes_split_ratio', Math.max(0.2, Math.min(0.8, r)));
+      },
+      onReset: function() {
+        applyPaneRatio(splitPane, 0.5);
+        localStorage.removeItem('notes_split_ratio');
+      }
+    });
+  }
+}
+
+function applyPaneRatio(sp, ratio) {
+  var panes = sp.querySelectorAll(':scope > .pane');
+  if (panes.length < 2) return;
+  panes[0].style.flex = '0 0 ' + (ratio * 100) + '%';
+  panes[1].style.flex = '0 0 ' + ((1 - ratio) * 100) + '%';
+}
+document.addEventListener('DOMContentLoaded', function() {
+  initSidebarDock();
+  initResizeHandles();
+});
 // 防止浏览器自动填充搜索框（Chrome 在面板激活/页面加载时异步填充，需多次清除）
 (function(){
   function clearNoteSearch() {

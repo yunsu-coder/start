@@ -421,13 +421,30 @@
   .notes-topbar { display:flex; gap:.5rem; align-items:center; margin-bottom:.8rem; flex-wrap:wrap; }
   .notes-topbar .auto-save { font-size:.72rem; color:var(--ok); margin-left:auto; }
   .notes-layout { display:flex; gap:0; height:calc(100vh - 155px); }
-  .notes-sidebar { width:180px; min-width:180px; border-right:1px solid var(--border); flex-shrink:0; overflow-y:auto; overflow-x:hidden; padding-right:.2rem;
+  .notes-sidebar { width:var(--sidebar-w, 180px); min-width:0; border-right:1px solid var(--border); flex-shrink:0; overflow-y:auto; overflow-x:hidden; padding-right:.2rem;
     backdrop-filter:blur(var(--glass-blur)); -webkit-backdrop-filter:blur(var(--glass-blur));
-    transition: width .35s cubic-bezier(.4,0,.2,1), min-width .35s cubic-bezier(.4,0,.2,1);
     position: relative; z-index: 5; }
+  /* dock 动画过渡独立，避免干扰拖拽 */
+  .notes-layout.dock-anim .notes-sidebar { transition: width .35s cubic-bezier(.4,0,.2,1), min-width .35s cubic-bezier(.4,0,.2,1); }
   .notes-sidebar > * { transition: opacity .2s; }
   .notes-layout.dock-hidden .notes-sidebar { width: 8px; min-width: 8px; padding-right: 0; }
   .notes-layout.dock-hidden .notes-sidebar > * { opacity: 0; pointer-events: none; }
+  /* ---- 可拖拽分隔条 ---- */
+  .resize-handle { flex-shrink:0; background:transparent; transition:background .2s; position:relative; z-index:10; }
+  .resize-handle::after { content:''; position:absolute; inset:0; opacity:0; transition:opacity .2s; }
+  .resize-handle:hover::after, .resize-handle.resizing::after { opacity:1; }
+  /* 侧栏分隔条 */
+  .resize-handle-sidebar { width:5px; cursor:col-resize; margin-left:-1px; }
+  .resize-handle-sidebar::after { background:var(--accent); width:2px; left:50%; transform:translateX(-50%); border-radius:1px; }
+  .notes-layout.dock-hidden .resize-handle-sidebar { /* dock-hidden 时微弱可见 */ }
+  .notes-layout.dock-hidden .resize-handle-sidebar::after { opacity:.35; }
+  /* 编辑/预览分隔条 */
+  .resize-handle-pane { width:5px; cursor:col-resize; }
+  .resize-handle-pane::after { background:var(--accent2); width:2px; left:50%; transform:translateX(-50%); border-radius:1px; }
+  .split-pane.no-preview .resize-handle-pane,
+  .split-pane.preview-only .resize-handle-pane { display:none; }
+  /* 拖拽中禁止选择 */
+  body.resizing { user-select:none; -webkit-user-select:none; }
   .notes-sidebar::after {
     content: ''; position: absolute; right: -1px; top: 0; bottom: 0;
     width: 8px;
@@ -436,7 +453,7 @@
     pointer-events: none;
   }
   .notes-layout.dock-hidden .notes-sidebar::after { opacity: .4; }
-  .notes-layout.dock-hidden .notes-sidebar:hover { width: 180px; min-width: 180px; }
+  .notes-layout.dock-hidden .notes-sidebar:hover { width: var(--sidebar-w, 180px); min-width: var(--sidebar-w, 180px); }
   .notes-layout.dock-hidden .notes-sidebar:hover > * { opacity: 1; pointer-events: auto; }
   .notes-layout.dock-hidden .notes-sidebar:hover::after { opacity: 0; }
   /* 笔记 vs 小说侧栏视觉隔离 */
@@ -573,7 +590,7 @@
   /* 纯预览模式：隐藏编辑区，只显示渲染结果 */
   .split-pane.preview-only .pane:first-child { display:none; }
   .split-pane.preview-only .pane:last-child { flex:1 1 100%; }
-  .split-pane.preview-only .preview { font-size:.92rem; line-height:1.9; max-width:860px; margin:0 auto; }
+  .split-pane.preview-only .preview { font-size:.92rem; line-height:1.9; }
   .btn { padding:.4rem 1rem; border:none; border-radius:7px; cursor:pointer; font-size:.8rem; transition:all .2s; }
   .btn:hover { opacity:.9; transform:translateY(-1px); }
   .btn.accent { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(91,141,238,0.25); }
@@ -828,6 +845,7 @@
     .note-editor .toolbar .tl-sep { height: 16px; margin: 0 .08rem; }
 
     .split-pane { flex-direction: column; min-height: 50vh; gap: .25rem; }
+    .resize-handle { display: none; }
     .split-pane .pane-header { font-size: .65rem; padding: .2rem .4rem; }
     .split-pane textarea { font-size: .76rem; padding: .35rem; line-height: 1.5; }
     .split-pane .preview { font-size: .78rem; padding: .6rem .5rem; line-height: 1.7; }
@@ -859,6 +877,7 @@
     .note-list-item .ndate { font-size: .58rem; }
 
     .split-pane { flex-direction: column; min-height: 420px; }
+    .resize-handle { display: none; }
     .split-pane .preview { padding: .8rem .8rem; font-size: .82rem; }
   }
 
@@ -881,7 +900,7 @@
     .notes-layout { height: calc(100vh - 160px); }
     .split-pane .preview {
       padding: 1.5rem 2.5rem; font-size: .9rem;
-      max-width: 860px; margin: 0 auto; width: 100%;
+      /* 预览撑满 pane */
     }
   }
 

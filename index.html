@@ -6,7 +6,7 @@
 <title>启动页</title>
 <link rel="icon" type="image/svg+xml" href="/favicon-v2.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
-<link rel="stylesheet" href="/css/styles.css?v=1783190005">
+<link rel="stylesheet" href="/css/styles.css?v=1783190008">
 <script src="/lib/jszip/dist/jszip.min.js"></script>
 </head>
 <body>
@@ -144,6 +144,7 @@
       </div>
       <div id="noteList"></div>
     </div>
+    <div class="resize-handle resize-handle-sidebar" id="resizeSidebar"></div>
     <div class="note-editor" id="noteEditor" style="display:none;flex-direction:column;">
       <input class="title" id="noteTitle" placeholder="标题...">
       <!-- 字数统计 + 作品关联 -->
@@ -172,6 +173,7 @@
       </div>
       <div class="split-pane">
         <div class="pane"><div class="pane-header">编辑</div><textarea id="noteContent" placeholder="开始写作…" oninput="renderLive();updateWordCount()"></textarea></div>
+        <div class="resize-handle resize-handle-pane" id="resizePane"></div>
         <div class="pane"><div class="pane-header">预览</div><div class="preview" id="notePreview"></div></div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:.5rem;padding:.4rem 0;font-size:.72rem;color:var(--sub);">
@@ -608,11 +610,11 @@
 <div class="toast" id="toast"></div>
 
 <!-- app.js → 分拆为 5 个模块 -->
-<script src="/js/core.js?v=1783160002"></script>
+<script src="/js/core.js?v=1783160003"></script>
 <script src="/js/files-panel.js?v=1780652200"></script>
-<script src="/js/notes-panel.js?v=1783050007"></script>
+<script src="/js/notes-panel.js?v=1783050009"></script>
 <script src="/js/reader-panel.js?v=1783190000"></script>
-<script src="/js/works-panel.js?v=1782655000"></script>
+<script src="/js/works-panel.js?v=1782655001"></script>
 <script src="/js/scrape.js?v=1777704498"></script>
 <script src="/js/wallpaper.js?v=1783050000"></script>
 <script src="/js/translate-panel.js?v=1780450482"></script>
