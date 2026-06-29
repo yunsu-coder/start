@@ -136,7 +136,7 @@
       </div>
       <!-- 搜索 + 新建（默认显示笔记模式） -->
       <div style="display:flex;gap:.3rem;margin-bottom:.3rem;">
-        <input type="search" id="noteSearch" placeholder="搜索标题..." oninput="loadNotesList()" autocomplete="off" style="flex:1;padding:.4rem .6rem;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
+        <input type="search" id="noteSearch" placeholder="搜索标题..." oninput="loadNotesList()" readonly onfocus="this.removeAttribute('readonly')" style="flex:1;padding:.4rem .6rem;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
         <button class="btn-sm" id="btnQuickNew" onclick="newNote()" style="white-space:nowrap;">＋</button>
         <button id="btnNewChapter" onclick="newNote()" style="display:none;border:none;border-radius:7px;background:var(--accent);color:#fff;font-size:.9rem;cursor:pointer;width:30px;height:30px;align-items:center;justify-content:center;flex-shrink:0;">
           <span class="mi" style="vertical-align:middle;font-size:1rem;">add</span>
