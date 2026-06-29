@@ -112,6 +112,9 @@ async function openFileBook(name) {
   const ext = name.split('.').pop().toLowerCase();
   currentBook = name;
   readerType = 'file';
+  readerOpenTime = Date.now();
+  if (readerStatsTimer) clearInterval(readerStatsTimer);
+  readerStatsTimer = setInterval(refreshReadingStats, 30000);
   showReaderView(name);
 
   const content = document.getElementById('readerContent');
@@ -148,6 +151,9 @@ async function openFileBook(name) {
 // ── 打开笔记/小说章节 ──
 async function openNoteBook(noteId) {
   currentBook = noteId;
+  readerOpenTime = Date.now();
+  if (readerStatsTimer) clearInterval(readerStatsTimer);
+  readerStatsTimer = setInterval(refreshReadingStats, 30000); // 每30秒刷新疲劳衰减
   readerType = 'note';
 
   try {
@@ -217,7 +223,7 @@ async function buildNoteTOC(note) {
         if (id !== currentBook) openNoteBook(id);
       });
     });
-    toc.classList.add('open');
+    // TOC 由用户手动打开
 
     // 注入上下章导航到内容底部
     injectNovelNav();
@@ -240,6 +246,7 @@ function showReaderView(title) {
   const view = document.getElementById('readerView');
   view.style.display = 'flex';
   view.classList.add('active');
+  document.body.classList.add('reader-mode');
   document.getElementById('readerTitle').textContent = title;
 
   // 恢复主题/字号/字体/宽度
@@ -291,14 +298,32 @@ function closeReader() {
   content.innerHTML = '';
   currentBook = null;
   readerType = null;
+  document.body.classList.remove('reader-mode');
+  if (readerStatsTimer) { clearInterval(readerStatsTimer); readerStatsTimer = null; }
   if (document.fullscreenElement) document.exitFullscreen();
   loadReaderBooks();
 }
 
+var readerOpenTime = Date.now();
+var readerStatsTimer = null;
 function updateReadingStats(text) {
-  const chars = text.replace(/\s/g, '').length;
-  const mins = Math.max(1, Math.ceil(chars / 250));
-  document.getElementById('readerStats').textContent = '📊 ' + chars.toLocaleString() + ' 字 · ⏱ ~' + mins + ' 分钟';
+  var chineseChars = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
+  var englishWords = text.replace(/[\u4e00-\u9fff\u3400-\u4dbf]/g, ' ').split(/\s+/).filter(function(w) { return /[a-zA-Z]/.test(w); }).length;
+  var totalUnits = chineseChars + englishWords;
+  var t = (Date.now() - readerOpenTime) / 60000;
+  var warmup = 0.9 + 0.1 * (1 - Math.exp(-t / 8));
+  var fatigue = t > 30 ? Math.exp(-(t - 30) / 90) : 1;
+  var speed = Math.max(400, Math.round(800 * warmup * fatigue));
+  var totalSec = Math.round(totalUnits / speed * 60);
+  var readMin = Math.floor(totalSec / 60);
+  var readSec = totalSec % 60;
+  var label = totalSec < 60 ? (totalSec + '秒') : (readMin < 5 ? (readMin + '分' + readSec + '秒') : (readMin + '分钟'));
+  document.getElementById('readerStats').textContent = '📊 ' + totalUnits.toLocaleString() + ' 字 · ⏱ ~' + label;
+}
+
+function refreshReadingStats() {
+  var el = document.getElementById('readerContent');
+  if (el) updateReadingStats(el.textContent || '');
 }
 
 function updateReaderSettings() {

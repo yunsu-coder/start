@@ -568,6 +568,7 @@ async function uploadNoteImage(blob, name) {
 }
 
 // ===== 字数统计 =====
+var editorOpenTime = Date.now();
 function updateWordCount() {
   const text = document.getElementById('noteContent')?.value || '';
   const el = document.getElementById('wordCount');
@@ -575,14 +576,21 @@ function updateWordCount() {
   if (!el) return;
 
   const chineseChars = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
-  const englishWords = text.replace(/[\u4e00-\u9fff\u3400-\u4dbf]/g, ' ')
-    .split(/\s+/).filter(w => w.length > 0).length;
-  const totalChars = text.length;
+  const englishWords = text.replace(/[\u4e00-\u9fff\u3400-\u4dbf]/g, ' ').split(/\s+/).filter(function(w) { return /[a-zA-Z]/.test(w); }).length;
   const totalWords = chineseChars + englishWords;
-  const readMin = Math.max(1, Math.round(totalWords / 300));
+  // 阅读速度：峰值800字/分，起步即90%峰值，轻微心流→缓慢疲劳
+  var t = (Date.now() - editorOpenTime) / 60000;
+  var warmup = 0.9 + 0.1 * (1 - Math.exp(-t / 8));
+  var fatigue = t > 30 ? Math.exp(-(t - 30) / 90) : 1;
+  var speed = Math.max(400, Math.round(800 * warmup * fatigue));
+  var totalSec = Math.round(totalWords / speed * 60);
+  var readMin = Math.floor(totalSec / 60);
+  var readSec = totalSec % 60;
 
-  el.textContent = `📊 ${totalWords} 字${chineseChars > 0 && englishWords > 0 ? `（中${chineseChars} / 英${englishWords}）` : ''}`;
-  rt.textContent = readMin <= 1 ? '〜1分钟' : `〜${readMin}分钟`;
+  el.textContent = '📊 ' + totalWords + ' 字' + (chineseChars > 0 && englishWords > 0 ? '（中' + chineseChars + ' / 英' + englishWords + '）' : '');
+  if (totalSec < 60) rt.textContent = '~' + totalSec + '秒';
+  else if (readMin < 5) rt.textContent = '~' + readMin + '分' + readSec + '秒';
+  else rt.textContent = '~' + readMin + '分钟';
 }
 
 // ===== 键盘快捷键 =====

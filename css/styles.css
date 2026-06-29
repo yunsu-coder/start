@@ -181,6 +181,7 @@
     transition: transform var(--dur-slow) var(--ease-out-expo);
   }
   .navbar.nav-hidden { transform: translateY(-100%); }
+  body.reader-mode .navbar { transform: translateY(-100%); }
   .nav-item {
     display:flex; flex-direction:column; align-items:center; gap:.1rem;
     cursor:pointer; padding:.35rem .6rem; border-radius:8px;
@@ -975,6 +976,7 @@
   /* === 阅读器布局 === */
   #readerView { flex-direction:column; height:calc(100vh - 56px); }
   #readerView.active { display:flex !important; }
+  body.reader-mode #readerView { height: 100vh; }
   #readerView > div:nth-child(2) { flex:1; overflow:hidden; min-height:0; }
   #readerContent { flex:1; overflow-y:auto; min-height:0; }
   #readerShelf .section { margin-bottom:1.5rem; }
