@@ -6,7 +6,7 @@
 <title>启动页</title>
 <link rel="icon" type="image/svg+xml" href="/favicon-v2.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
-<link rel="stylesheet" href="/css/styles.css?v=1783190004">
+<link rel="stylesheet" href="/css/styles.css?v=1783190005">
 <script src="/lib/jszip/dist/jszip.min.js"></script>
 </head>
 <body>
@@ -162,20 +162,13 @@
         </span>
       </div>
       <div class="toolbar">
-        <button class="btn-sm" onclick="insertMd('**','**')" title="粗体 Ctrl+B"><strong>B</strong></button>
-        <button class="btn-sm" onclick="insertMd('*','*')" title="斜体 Ctrl+I"><em>I</em></button>
-        <button class="btn-sm" onclick="insertMd('~~','~~')" title="删除线"><s>S</s></button>
-        <button class="btn-sm" onclick="insertMd('++','++')" title="插入标记">++</button>
-        <button class="btn-sm" onclick="insertMd('`','`')" title="行内代码">&lt;/&gt;</button>
-        <button class="btn-sm" onclick="insertMd('> ','')" title="引用">❝</button>
-        <span class="tl-sep"></span>
         <button class="btn-sm btn-save-note" onclick="saveNote()" title="保存 Ctrl+S"><span class="mi">save</span></button>
         <button class="btn-sm" id="btnTogglePreview" onclick="togglePreview()" title="切换预览 Ctrl+\"><span class="mi">visibility</span></button>
         <button class="btn-sm" onclick="openNoteImport()" title="从文件导入"><span class="mi">file_open</span></button>
         <button class="btn-sm" onclick="exportNote('md')" title="导出 Markdown"><span class="mi">download</span></button>
         <button class="btn-sm" onclick="exportNote('txt')" title="导出 TXT"><span class="mi">description</span></button>
-        <button class="btn-sm" onclick="exportNote('pdf')" title="导出 PDF">📕</button>
-        <button class="btn-sm" onclick="exportNote('docx')" title="导出 Word">📘</button>
+        <button class="btn-sm" onclick="exportNote('pdf')" title="导出 PDF"><span class="mi">picture_as_pdf</span></button>
+        <button class="btn-sm" onclick="exportNote('docx')" title="导出 Word"><span class="mi">article</span></button>
       </div>
       <div class="split-pane">
         <div class="pane"><div class="pane-header">编辑</div><textarea id="noteContent" placeholder="开始写作…" oninput="renderLive();updateWordCount()"></textarea></div>
@@ -617,7 +610,7 @@
 <!-- app.js → 分拆为 5 个模块 -->
 <script src="/js/core.js?v=1783160002"></script>
 <script src="/js/files-panel.js?v=1780652200"></script>
-<script src="/js/notes-panel.js?v=1783050006"></script>
+<script src="/js/notes-panel.js?v=1783050007"></script>
 <script src="/js/reader-panel.js?v=1783190000"></script>
 <script src="/js/works-panel.js?v=1782655000"></script>
 <script src="/js/scrape.js?v=1777704498"></script>
