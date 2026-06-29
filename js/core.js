@@ -693,73 +693,112 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// ===== API 设置（云雾 Grok 中转）=====
+// ===== API 设置（对话 + 翻译双 Tab）=====
 (function () {
-  const BASE_URL = 'https://api.yunwu.ai/v1/chat/completions';
-  const DEFAULT_MODEL = 'grok-4.3';
-  const STORAGE_KEY = 'yiwei_api_v2';
+  const CHAT_KEY = 'yiwei_api_v2';
+  const TRANS_KEY = 'yiwei_trans_api';
+  const CHAT_BASE = 'https://api.yunwu.ai/v1/chat/completions';
+  const CHAT_MODEL = 'grok-4.3';
+  const TRANS_BASE = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+  const TRANS_MODEL = 'glm-4-flash';
 
-  function load() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+  function load(key) {
+    try { return JSON.parse(localStorage.getItem(key)) || {}; }
     catch { return {}; }
   }
-  function save(cfg) { localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); }
+  function save(key, cfg) { localStorage.setItem(key, JSON.stringify(cfg)); }
 
+  // 对话 AI 配置（chat.js 使用）
   window.getChatApiConfig = function () {
-    const cfg = load();
-    return { apiKey: cfg.apiKey || '', baseUrl: BASE_URL, model: cfg.model || DEFAULT_MODEL };
+    const cfg = load(CHAT_KEY);
+    return { apiKey: cfg.apiKey || '', baseUrl: CHAT_BASE, model: cfg.model || CHAT_MODEL };
   };
 
+  // 翻译配置（translate-panel.js / server.js 使用）
   window.getApiConfig = function () {
-    const cfg = load();
-    return { apiKey: cfg.apiKey || '', baseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', model: 'glm-4-flash' };
+    const cfg = load(TRANS_KEY);
+    return { apiKey: cfg.apiKey || '', baseUrl: cfg.baseUrl || TRANS_BASE, model: cfg.model || TRANS_MODEL };
   };
 
+  // API 按钮绿点（任一 key 已配置即点亮）
   function updateDot() {
     const dot = document.getElementById('apiDot');
     if (!dot) return;
-    if (load().apiKey) dot.classList.add('set'); else dot.classList.remove('set');
+    const hasChat = !!load(CHAT_KEY).apiKey;
+    const hasTrans = !!load(TRANS_KEY).apiKey;
+    if (hasChat || hasTrans) dot.classList.add('set'); else dot.classList.remove('set');
   }
   updateDot();
 
+  // Tab 切换
+  window.switchApiTab = function (tab) {
+    document.querySelectorAll('.api-tab').forEach(function(b) { b.classList.remove('active'); });
+    var activeTab = document.querySelector('[data-api-tab="' + tab + '"]');
+    if (activeTab) activeTab.classList.add('active');
+    var chatPanel = document.getElementById('apiTabChat');
+    var transPanel = document.getElementById('apiTabTranslate');
+    if (chatPanel) chatPanel.style.display = tab === 'translate' ? 'none' : 'block';
+    if (transPanel) transPanel.style.display = tab === 'translate' ? 'block' : 'none';
+  };
+
+  // 填充 UI
   function fillUI() {
-    const cfg = load();
-    const keyEl = document.getElementById('apiKeyInput');
-    const modelEl = document.getElementById('apiModelInput');
-    if (keyEl) keyEl.value = cfg.apiKey || '';
-    if (modelEl) { modelEl.value = cfg.model || ''; modelEl.placeholder = DEFAULT_MODEL; }
+    var chat = load(CHAT_KEY);
+    var trans = load(TRANS_KEY);
+    var ck = document.getElementById('apiChatKey');
+    var cm = document.getElementById('apiChatModel');
+    var tk = document.getElementById('apiTransKey');
+    var tu = document.getElementById('apiTransUrl');
+    var tm = document.getElementById('apiTransModel');
+    if (ck) ck.value = chat.apiKey || '';
+    if (cm) { cm.value = chat.model || ''; cm.placeholder = CHAT_MODEL; }
+    if (tk) tk.value = trans.apiKey || '';
+    if (tu) { tu.value = trans.baseUrl || ''; tu.placeholder = TRANS_BASE; }
+    if (tm) { tm.value = trans.model || ''; tm.placeholder = TRANS_MODEL; }
+    // 默认显示对话 Tab
+    window.switchApiTab('chat');
   }
 
   window.openApiModal = function () {
     fillUI();
     document.getElementById('apiModal').classList.add('show');
   };
-  document.getElementById('apiBtn').addEventListener('click', () => window.openApiModal());
+  document.getElementById('apiBtn').addEventListener('click', function() { window.openApiModal(); });
 
   window.closeApiModal = function () {
     document.getElementById('apiModal').classList.remove('show');
   };
 
-  document.getElementById('apiSave').addEventListener('click', () => {
-    const apiKey = document.getElementById('apiKeyInput').value.trim();
-    const model = document.getElementById('apiModelInput').value.trim();
-    save({ apiKey, model });
+  // 保存
+  document.getElementById('apiSave').addEventListener('click', function() {
+    var chatKey = document.getElementById('apiChatKey').value.trim();
+    var chatModel = document.getElementById('apiChatModel').value.trim();
+    var transKey = document.getElementById('apiTransKey').value.trim();
+    var transUrl = document.getElementById('apiTransUrl').value.trim();
+    var transModel = document.getElementById('apiTransModel').value.trim();
+    save(CHAT_KEY, { apiKey: chatKey, model: chatModel });
+    save(TRANS_KEY, { apiKey: transKey, baseUrl: transUrl, model: transModel });
     updateDot();
     toast('✅ API 配置已保存');
     closeApiModal();
   });
 
-  document.getElementById('apiReset').addEventListener('click', () => {
-    document.getElementById('apiKeyInput').value = '';
-    document.getElementById('apiModelInput').value = '';
-    save({ apiKey: '', model: '' });
+  // 清除
+  document.getElementById('apiReset').addEventListener('click', function() {
+    document.getElementById('apiChatKey').value = '';
+    document.getElementById('apiChatModel').value = '';
+    document.getElementById('apiTransKey').value = '';
+    document.getElementById('apiTransUrl').value = '';
+    document.getElementById('apiTransModel').value = '';
+    save(CHAT_KEY, { apiKey: '', model: '' });
+    save(TRANS_KEY, { apiKey: '', baseUrl: '', model: '' });
     updateDot();
     toast('↩ 已清除');
   });
 
-  document.addEventListener('keydown', (e) => {
+  document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-      const modal = document.getElementById('apiModal');
+      var modal = document.getElementById('apiModal');
       if (modal && modal.classList.contains('show')) closeApiModal();
     }
   });

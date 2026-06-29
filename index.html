@@ -409,24 +409,45 @@
 
 <!-- API 设置弹窗 -->
 <div class="modal-overlay" id="apiModal" onclick="if(event.target===this)closeApiModal()">
-  <div class="modal" style="max-width:400px;">
+  <div class="modal" style="max-width:420px;">
     <div class="modal-header">
       <span class="m-title"><span class="mi">key</span> API 设置</span>
       <button class="m-close" onclick="closeApiModal()">✕</button>
     </div>
     <div class="modal-body">
-      <div class="api-field">
-        <label>API Key</label>
-        <input type="password" id="apiKeyInput" placeholder="云雾 API Key" autocomplete="off">
+      <!-- Tab 切换 -->
+      <div class="api-tabs">
+        <button class="api-tab active" data-api-tab="chat" onclick="switchApiTab('chat')"><span class="mi">smart_toy</span> 对话</button>
+        <button class="api-tab" data-api-tab="translate" onclick="switchApiTab('translate')"><span class="mi">translate</span> 翻译</button>
       </div>
-      <div class="api-field">
-        <label>模型（可选）</label>
-        <input type="text" id="apiModelInput" placeholder="grok-4.3">
-        <div style="margin-top:.25rem;font-size:.72rem;color:var(--sub);">默认 Grok-4.3，需要图片识别填 <code>claude-sonnet-4-20250514</code></div>
+      <!-- 对话 Tab -->
+      <div id="apiTabChat">
+        <div class="api-field">
+          <label>API Key</label>
+          <input type="password" id="apiChatKey" placeholder="云雾 API Key" autocomplete="off">
+        </div>
+        <div class="api-field">
+          <label>模型（可选）</label>
+          <input type="text" id="apiChatModel" placeholder="grok-4.3">
+          <div style="margin-top:.25rem;font-size:.72rem;color:var(--sub);">默认 Grok-4.3，需要图片识别填 <code>claude-sonnet-4-20250514</code></div>
+        </div>
+        <div class="api-hint"><span class="mi">info</span><span><a href="https://yunwu.ai" target="_blank">云雾 yunwu.ai →</a> 支付宝/微信 1 元起，Grok + Claude 中转</span></div>
       </div>
-      <div class="api-hint">
-        <span class="mi">info</span>
-        <span id="apiHintText"><a href="https://yunwu.ai" target="_blank">云雾 yunwu.ai →</a> 支付宝/微信 1 元起，Grok + Claude 中转</span>
+      <!-- 翻译 Tab -->
+      <div id="apiTabTranslate" style="display:none;">
+        <div class="api-field">
+          <label>API Key</label>
+          <input type="password" id="apiTransKey" placeholder="智谱 API Key" autocomplete="off">
+        </div>
+        <div class="api-field">
+          <label>接口地址（可选）</label>
+          <input type="text" id="apiTransUrl" placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions">
+        </div>
+        <div class="api-field">
+          <label>模型（可选）</label>
+          <input type="text" id="apiTransModel" placeholder="glm-4-flash">
+        </div>
+        <div class="api-hint"><span class="mi">info</span><span><a href="https://open.bigmodel.cn" target="_blank">智谱 open.bigmodel.cn →</a> 注册送额度，GLM-4-Flash 免费</span></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -595,7 +616,7 @@
 <div class="toast" id="toast"></div>
 
 <!-- app.js → 分拆为 5 个模块 -->
-<script src="/js/core.js?v=1783160000"></script>
+<script src="/js/core.js?v=1783160001"></script>
 <script src="/js/files-panel.js?v=1780652200"></script>
 <script src="/js/notes-panel.js?v=1783050006"></script>
 <script src="/js/reader-panel.js?v=1783190000"></script>
