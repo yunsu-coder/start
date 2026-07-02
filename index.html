@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>启动页</title>
-<link rel="icon" type="image/svg+xml" href="/favicon-v2.svg">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
-<link rel="stylesheet" href="/css/styles.css?v=1783190010">
+<link rel="stylesheet" href="/css/styles.css?v=1783190030">
 <script src="/lib/jszip/dist/jszip.min.js"></script>
 </head>
 <body>
@@ -32,6 +32,9 @@
   </button>
   <button class="nav-item" data-panel="chat">
     <span class="nav-icon mi">smart_toy</span><span>对话</span>
+  </button>
+  <button class="nav-item" data-panel="analytics">
+    <span class="nav-icon mi">monitoring</span><span>分析</span>
   </button>
   <button class="theme-btn mi" id="themeBtn" title="主题">dark_mode</button>
   <button class="api-btn" id="apiBtn" title="API 设置" onclick="openApiModal()">
@@ -119,6 +122,7 @@
   <div class="notes-topbar">
     <h2 style="margin:0;"><span id="writingModeTitle"><span class="mi">note</span> 笔记</span></h2>
     <button class="btn-sm" id="btnToggleGuide" onclick="toggleGuide()" style="font-size:.75rem;padding:.2rem .5rem;color:var(--sub);" title="写作语法指南">?</button>
+    <button class="btn-sm" id="btnToggleSidebar" onclick="toggleNotesSidebar()" style="font-size:.75rem;padding:.2rem .5rem;color:var(--sub);" title="折叠/展开笔记列表"><span class="mi">side_navigation</span></button>
     <span class="auto-save" id="saveIndicator"></span>
   </div>
   <div class="notes-layout">
@@ -348,9 +352,8 @@
       <div class="chat-conv-list" id="chatConvList"></div>
     </div>
     <div class="chat-main">
-      <div class="chat-container">
         <div class="chat-header-bar">
-          <button id="chatSidebarToggle" onclick="toggleChatSidebar()" title="切换侧栏"><span class="mi">menu</span></button>
+          <button id="chatSidebarToggle" title="对话列表"><span class="mi">menu</span></button>
           <span class="chat-header-title" id="chatHeaderTitle"><span class="mi">smart_toy</span> 小苇</span>
           <span class="chat-header-info">
             <span id="chatCount" style="font-size:.72rem;color:var(--sub);"></span>
@@ -381,22 +384,65 @@
   </div>
 </div>
 
-<!-- PIN 验证/设置弹窗 -->
-<div class="modal-overlay" id="pinModal" onclick="if(event.target===this)closePinModal()">
-  <div class="modal" style="max-width:360px;">
-    <div class="modal-header">
-      <span class="m-title"><span class="mi">lock</span> <span id="pinModalTitle">对话加密</span></span>
-      <button class="m-close" onclick="closePinModal()">✕</button>
+<!-- 数据分析 -->
+<div class="panel" id="panel-analytics">
+  <div class="analytics-topbar">
+    <h2 style="margin:0;"><span class="mi">monitoring</span> 数据分析</h2>
+    <div style="display:flex;gap:.5rem;align-items:center;">
+      <div class="analytics-range">
+        <button class="analytics-range-btn active" data-range="day">日</button>
+        <button class="analytics-range-btn" data-range="week">周</button>
+        <button class="analytics-range-btn" data-range="month">月</button>
+        <button class="analytics-range-btn" data-range="year">年</button>
+      </div>
     </div>
-    <div class="modal-body" style="text-align:center;">
-      <p id="pinPromptText" style="margin-bottom:1rem;color:var(--sub);">请输入 PIN</p>
-      <input type="password" id="pinInput" inputmode="numeric" pattern="[0-9]*" maxlength="6"
-             autocomplete="off" placeholder="······">
-      <div id="pinError" style="color:#e74c3c;font-size:.8rem;margin-top:.5rem;display:none;"></div>
+  </div>
+  <div class="analytics-grid">
+    <!-- 概览卡片 -->
+    <div class="analytics-card analytics-overview" id="cardOverview">
+      <div class="analytics-card-title"><span class="mi">dashboard</span> 概览</div>
+      <div class="analytics-overview-items">
+        <div class="analytics-ov-item"><span class="analytics-ov-val" id="ovOnline">--</span><span class="analytics-ov-label">在线时长(分)</span></div>
+        <div class="analytics-ov-item"><span class="analytics-ov-val" id="ovModules">--</span><span class="analytics-ov-label">活跃模块</span></div>
+        <div class="analytics-ov-item"><span class="analytics-ov-val" id="ovFiles">--</span><span class="analytics-ov-label">文件数</span></div>
+        <div class="analytics-ov-item"><span class="analytics-ov-val" id="ovNotes">--</span><span class="analytics-ov-label">笔记数</span></div>
+      </div>
     </div>
-    <div class="modal-footer" style="justify-content:center;gap:.5rem;">
-      <button class="btn outline" onclick="closePinModal()">取消</button>
-      <button class="btn accent" id="pinSubmitBtn" onclick="submitPin()">确认</button>
+    <!-- 在线时长卡片 -->
+    <div class="analytics-card" id="cardOnline">
+      <div class="analytics-card-title"><span class="mi">schedule</span> 在线时长</div>
+      <div class="analytics-chart-wrap"><canvas id="chartOnline"></canvas></div>
+      <div class="analytics-card-detail"></div>
+    </div>
+    <!-- 文件卡片 -->
+    <div class="analytics-card" id="cardFiles">
+      <div class="analytics-card-title"><span class="mi">folder</span> 文件分布</div>
+      <div class="analytics-chart-wrap"><canvas id="chartFiles"></canvas></div>
+      <div class="analytics-card-detail"></div>
+    </div>
+    <!-- 笔记卡片 -->
+    <div class="analytics-card" id="cardNotes">
+      <div class="analytics-card-title"><span class="mi">edit_note</span> 写作统计</div>
+      <div class="analytics-chart-wrap"><canvas id="chartNotes"></canvas></div>
+      <div class="analytics-card-detail"></div>
+    </div>
+    <!-- 翻译卡片 -->
+    <div class="analytics-card" id="cardTranslate">
+      <div class="analytics-card-title"><span class="mi">translate</span> 翻译统计</div>
+      <div class="analytics-chart-wrap"><canvas id="chartTranslate"></canvas></div>
+      <div class="analytics-card-detail"></div>
+    </div>
+    <!-- 对话卡片 -->
+    <div class="analytics-card" id="cardChat">
+      <div class="analytics-card-title"><span class="mi">smart_toy</span> 对话统计</div>
+      <div class="analytics-chart-wrap"><canvas id="chartChat"></canvas></div>
+      <div class="analytics-card-detail"></div>
+    </div>
+    <!-- 阅读卡片 -->
+    <div class="analytics-card">
+      <div class="analytics-card-title"><span class="mi">menu_book</span> 阅读统计</div>
+      <div class="analytics-chart-wrap"><canvas id="chartReading"></canvas></div>
+      <div class="analytics-card-detail"></div>
     </div>
   </div>
 </div>
@@ -576,6 +622,26 @@
           <option value="12h">12小时制</option>
         </select>
       </div>
+      <div class="cfg-divider"></div>
+      <div class="cfg-field">
+        <label class="cfg-check-label">
+          <input type="checkbox" id="cfg-pomodoro" checked>
+          <span><span class="mi">timer</span> 番茄钟</span>
+        </label>
+      </div>
+      <div class="cfg-field">
+        <label class="cfg-check-label">
+          <input type="checkbox" id="cfg-music" checked>
+          <span><span class="mi">music_note</span> 背景音乐</span>
+        </label>
+      </div>
+      <div class="cfg-field" id="cfg-pomodoOpacityField">
+        <label><span class="mi">opacity</span> 番茄钟透明度</label>
+        <div class="cfg-range-row">
+          <input type="range" id="cfg-pomodoOpacity" min="20" max="100" value="90">
+          <span class="cfg-range-val" id="cfgPomodoOpacityVal">90%</span>
+        </div>
+      </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -609,27 +675,104 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- Pomodoro 番茄钟 -->
+<div class="pomodo" id="pomodo">
+  <div class="pomodo-pill" id="pomodoPill">
+    <span class="pomodo-time" id="pomodoTime">25:00</span>
+    <span class="pomodo-label" id="pomodoLabel">🍅 专注</span>
+    <span class="pomodo-indicator" id="pomodoIndicator"></span>
+  </div>
+  <div class="pomodo-panel" id="pomodoPanel">
+    <div class="pomodo-panel-controls">
+      <button class="pomodo-btn pomodo-btn-primary" id="pomodoStartBtn"><span class="mi">play_arrow</span></button>
+      <button class="pomodo-btn" id="pomodoPauseBtn" style="display:none;"><span class="mi">pause</span></button>
+      <button class="pomodo-btn" id="pomodoResetBtn"><span class="mi">replay</span></button>
+    </div>
+    <div class="pomodo-panel-modes">
+      <button class="pomodo-mode-btn active" data-mode="pomodoro">专注 25分</button>
+      <button class="pomodo-mode-btn" data-mode="shortBreak">短休 5分</button>
+      <button class="pomodo-mode-btn" data-mode="longBreak">长休 15分</button>
+      <button class="pomodo-mode-btn" data-mode="stopwatch">正计时</button>
+    </div>
+    <div class="pomodo-panel-sessions">今日 <strong id="pomodoSessions">0</strong> 个番茄</div>
+  </div>
+</div>
+
 <!-- app.js → 分拆为 5 个模块 -->
-<script src="/js/core.js?v=1783160003"></script>
+<script src="/js/core.js?v=1783190030"></script>
+<script src="/js/pomodoro.js?v=1783190030"></script>
 <script src="/js/files-panel.js?v=1780652200"></script>
-<script src="/js/notes-panel.js?v=1783050012"></script>
-<script src="/js/reader-panel.js?v=1783190004"></script>
-<script src="/js/works-panel.js?v=1782655002"></script>
+<script src="/js/notes-panel.js?v=1783190026"></script>
+<script src="/js/reader-panel.js?v=1783190002"></script>
+<script src="/js/works-panel.js?v=1783190022"></script>
 <script src="/js/scrape.js?v=1777704498"></script>
 <script src="/js/wallpaper.js?v=1783050000"></script>
 <script src="/js/translate-panel.js?v=1780450482"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
-<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/markdown-it@14/dist/markdown-it.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/markdown-it-emoji@3/dist/markdown-it-emoji.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/markdown-it-sub@2/dist/markdown-it-sub.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/markdown-it-sup@2/dist/markdown-it-sup.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/markdown-it-footnote@4/dist/markdown-it-footnote.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/markdown-it-mark@4/dist/markdown-it-mark.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/markdown-it-ins@4/dist/markdown-it-ins.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/markdown-it-task-lists@2/dist/markdown-it-task-lists.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });</script>
-<script src="/js/chat.js?v=1782850002"></script>
+<link rel="stylesheet" href="/public/vendor/highlight.min.css">
+<script src="/public/vendor/highlight.min.js"></script>
+<script src="/public/vendor/markdown-it.min.js"></script>
+<script src="/public/vendor/markdown-it-emoji.min.js"></script>
+<script src="/public/vendor/markdown-it-sub.min.js"></script>
+<script src="/public/vendor/markdown-it-sup.min.js"></script>
+<script src="/public/vendor/markdown-it-footnote.min.js"></script>
+<script src="/public/vendor/markdown-it-mark.min.js"></script>
+<script src="/public/vendor/markdown-it-ins.min.js"></script>
+<script src="/public/vendor/markdown-it-task-lists.min.js"></script>
+<script>
+// Mermaid 按需懒加载（仅笔记/对话渲染图表时需要）
+window._mermaidReady = false;
+window._mermaidLoading = false;
+window.ensureMermaid = function(cb) {
+  if (window._mermaidReady) return cb();
+  if (window._mermaidLoading) { window._mermaidWait = window._mermaidWait || []; window._mermaidWait.push(cb); return; }
+  window._mermaidLoading = true;
+  var s = document.createElement('script');
+  s.src = '/public/vendor/mermaid.min.js';
+  s.onload = function() {
+    mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+    window._mermaidReady = true;
+    cb();
+    if (window._mermaidWait) { window._mermaidWait.forEach(function(f) { f(); }); window._mermaidWait = null; }
+  };
+  document.head.appendChild(s);
+};
+</script>
+<script src="/public/vendor/chart.min.js"></script>
+<script src="/js/analytics.js?v=1783190040"></script>
+<!-- 背景音乐播放器 -->
+<div class="ambient-widget" id="ambientWidget">
+  <button class="ambient-toggle" title="背景音乐"><span class="mi">music_note</span></button>
+  <div class="ambient-panel" id="ambientPanel">
+    <div class="ambient-panel-title" id="ambientTitle">未选择音乐</div>
+    <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.35rem;">
+      <span class="ambient-time" id="ambientTime">0:00 / 0:00</span>
+      <div class="ambient-progress-track" id="ambientProgressTrack"><div class="ambient-progress-fill" id="ambientProgressFill"></div></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:.3rem;margin-bottom:.4rem;">
+      <button class="ambient-ctrl-btn" id="ambientPrevBtn"><span class="mi">skip_previous</span></button>
+      <button class="ambient-ctrl-btn ambient-ctrl-play" id="ambientPlayBtn"><span class="mi">play_arrow</span></button>
+      <button class="ambient-ctrl-btn" id="ambientNextBtn"><span class="mi">skip_next</span></button>
+      <button class="ambient-ctrl-btn" id="ambientAddBtn" title="从文件添加"><span class="mi">add</span></button>
+    </div>
+    <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.35rem;">
+      <span class="mi" style="font-size:.8rem;color:var(--sub);">volume_up</span>
+      <input type="range" id="ambientVolume" min="10" max="100" value="80" style="flex:1;accent-color:var(--accent);height:4px;">
+    </div>
+    <div class="ambient-playlist" id="ambientPlaylist"></div>
+  </div>
+</div>
+<!-- 音频文件选择弹窗 -->
+<div class="modal-overlay" id="ambientFileModal" onclick="if(event.target===this)document.getElementById('ambientFileModal').classList.remove('show')">
+  <div class="modal" style="max-width:550px;">
+    <div class="modal-header"><span class="m-title"><span class="mi">music_note</span> 选择音频文件</span><button class="m-close" onclick="document.getElementById('ambientFileModal').classList.remove('show')">✕</button></div>
+    <div class="modal-body">
+      <div id="ambientFileCrumbs" style="margin-bottom:.5rem;font-size:.78rem;"></div>
+      <div id="ambientFileList" style="max-height:50vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/ambient.js?v=1783190050"></script>
+<script src="/js/chat.js?v=1783190026"></script>
 </body>
 </html>

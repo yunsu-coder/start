@@ -65,9 +65,6 @@ let chatStreaming = false;
 let currentMsgEl = null;
 let currentToolEls = {};
 let pendingImages = [];
-let pinPendingConvId = null;
-let pinMode = 'unlock'; // 'unlock' | 'delete' | 'set' | 'clear'
-let unlockVerified = null; // 刚验证通过的对话 ID，loadConv 使用后清除
 
 const chatMessages = document.getElementById('chatMessages');
 const chatInput = document.getElementById('chatInput');
@@ -89,7 +86,7 @@ async function saveConv() {
     const t = typeof firstUser.content === 'string' ? firstUser.content : '[图片]';
     return t.slice(0, 30) + (t.length > 30 ? '...' : '');
   })();
-  await ChatDB.put({ id: activeConvId, title, messages: chatHistory, updatedAt: Date.now() });
+  await ChatDB.put({ id: activeConvId, title: title, messages: chatHistory, updatedAt: Date.now() });
   updateChatCount();
   refreshConvList();
 }
@@ -99,24 +96,6 @@ async function loadConv(id) {
   if (!conv) return;
   activeConvId = id;
   chatHistory = conv.messages || [];
-
-  // 检查锁定状态：已锁且未验证通过，不渲染消息
-  if (conv.pinHash && unlockVerified !== id) {
-    chatMessages.innerHTML = `<div class="chat-welcome">
-      <div class="chat-welcome-icon mi">lock</div>
-      <h3>此对话已加密</h3>
-      <p>需要 PIN 才能查看</p>
-      <button class="btn accent" style="margin-top:.8rem;" onclick="pinPendingConvId='${id}';showPinModal('请输入 PIN 以查看此对话','unlock')"><span class="mi">lock_open</span> 解锁查看</button></div>`;
-    chatHistory = []; // 清空内存中的历史，直到解锁
-    chatMessages.scrollTop = 0;
-    if (chatHeaderTitle) chatHeaderTitle.innerHTML = '<span class="mi">smart_toy</span> <span class="mi" style="font-size:.7rem;color:var(--accent);">lock</span> ' + escapeHtml(conv.title || '小苇');
-    updateChatCount();
-    updatePinHeaderButton(activeConvId);
-    return;
-  }
-
-  // 已验证通过，清除标记
-  if (unlockVerified === id) unlockVerified = null;
 
   // 重建 UI
   chatMessages.innerHTML = '';
@@ -144,28 +123,23 @@ async function loadConv(id) {
   chatMessages.scrollTop = chatMessages.scrollHeight;
   if (chatHeaderTitle) chatHeaderTitle.innerHTML = '<span class="mi">smart_toy</span> ' + escapeHtml(conv.title || '小苇');
   updateChatCount();
-  updatePinHeaderButton(activeConvId);
 }
 
 async function newConversation() {
   if (chatStreaming) return;
-  if (activeConvId && chatHistory.length) await saveConv();
+  if (activeConvId && chatHistory.length) await saveConv().catch(function(){});
   activeConvId = convId();
   chatHistory = [];
-  chatMessages.innerHTML = `<div class="chat-welcome">
-    <div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你的 AI 伴侣</h3>
-    <p>你的专属男人——聊天、命令、疼爱，我在这里</p></div>`;
+  chatMessages.innerHTML = '<div class="chat-welcome"><div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你的 AI 伴侣</h3><p>你的专属男人——聊天、命令、疼爱，我在这里</p></div>';
   if (chatHeaderTitle) chatHeaderTitle.innerHTML = '<span class="mi">smart_toy</span> 小苇';
   updateChatCount();
   refreshConvList();
-  // 新对话隐藏锁按钮
-  const c = document.getElementById('chatLockBtnContainer');
-  if (c) c.style.display = 'none';
 }
 
+// 自动锁定当前对话（保存 + 清除解锁状态，不渲染 UI）
 async function switchConversation(id) {
   if (chatStreaming) return;
-  if (activeConvId && chatHistory.length) await saveConv();
+  if (activeConvId && chatHistory.length) await saveConv().catch(function(){});
   await loadConv(id);
   refreshConvList();
 }
@@ -175,115 +149,18 @@ async function deleteConversation(id) {
   if (activeConvId === id) {
     activeConvId = null;
     chatHistory = [];
-    chatMessages.innerHTML = `<div class="chat-welcome">
-      <div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你兄弟</h3>
-      <p>啥都能聊，别跟我见外</p></div>`;
-    // 隐藏锁按钮
-    const c = document.getElementById('chatLockBtnContainer');
-    if (c) c.style.display = 'none';
+    chatMessages.innerHTML = '<div class="chat-welcome"><div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你兄弟</h3><p>啥都能聊，别跟我见外</p></div>';
   }
   refreshConvList();
 }
 
-// ---- PIN 锁功能 ----
 async function handleConvClick(id) {
   if (chatStreaming) return;
-  const conv = await ChatDB.get(id);
-  if (conv?.pinHash) { pinPendingConvId = id; showPinModal('请输入 PIN 以查看此对话', 'unlock'); return; }
   switchConversation(id);
 }
 
-async function handleDeleteConv(id) {
-  const conv = await ChatDB.get(id);
-  if (conv?.pinHash) { pinPendingConvId = id; showPinModal('请输入 PIN 以删除此对话', 'delete'); return; }
+function handleDeleteConv(id) {
   deleteConversation(id);
-}
-
-async function lockConversation(id, pin) {
-  const conv = await ChatDB.get(id);
-  if (!conv) return;
-  conv.pinHash = await sha256(pin);
-  conv.updatedAt = Date.now();
-  await ChatDB.put(conv);
-  refreshConvList();
-  updatePinHeaderButton(id);
-}
-
-async function unlockConversation(id) {
-  const conv = await ChatDB.get(id);
-  if (!conv) return;
-  delete conv.pinHash;
-  conv.updatedAt = Date.now();
-  await ChatDB.put(conv);
-  refreshConvList();
-  updatePinHeaderButton(id);
-}
-
-async function verifyPin(id, pin) {
-  const conv = await ChatDB.get(id);
-  if (!conv || !conv.pinHash) return true;
-  return (await sha256(pin)) === conv.pinHash;
-}
-
-function showPinModal(msg, mode) {
-  pinMode = mode || 'unlock';
-  pinPendingConvId = pinPendingConvId || activeConvId;
-  const titleEl = document.getElementById('pinModalTitle');
-  if (titleEl) titleEl.textContent = mode === 'set' ? '设置加密' : mode === 'clear' ? '解除加密' : '对话加密';
-  const promptEl = document.getElementById('pinPromptText');
-  if (promptEl) promptEl.textContent = msg;
-  const inputEl = document.getElementById('pinInput');
-  if (inputEl) { inputEl.value = ''; }
-  const errEl = document.getElementById('pinError');
-  if (errEl) errEl.style.display = 'none';
-  document.getElementById('pinModal').classList.add('show');
-  setTimeout(() => { const inp = document.getElementById('pinInput'); if (inp) inp.focus(); }, 100);
-}
-
-function closePinModal() {
-  document.getElementById('pinModal').classList.remove('show');
-  pinPendingConvId = null;
-}
-
-async function submitPin() {
-  const input = document.getElementById('pinInput');
-  const pin = input.value.trim();
-  const errEl = document.getElementById('pinError');
-  if (!/^\d{1,6}$/.test(pin)) { errEl.textContent = '请输入 1-6 位数字'; errEl.style.display = 'block'; return; }
-  const id = pinPendingConvId || activeConvId;
-  if (!id) { closePinModal(); return; }
-
-  if (pinMode === 'set') {
-    await lockConversation(id, pin);
-    toast?.('对话已加密', 'success');
-    closePinModal();
-    return;
-  }
-  if (pinMode === 'clear') {
-    if (!await verifyPin(id, pin)) { errEl.textContent = 'PIN 错误，请重试'; errEl.style.display = 'block'; input.value = ''; return; }
-    await unlockConversation(id);
-    toast?.('对话已解锁', 'success');
-    closePinModal();
-    return;
-  }
-  if (!await verifyPin(id, pin)) { errEl.textContent = 'PIN 错误，请重试'; errEl.style.display = 'block'; input.value = ''; return; }
-  // 标记已验证，loadConv 凭此放行
-  unlockVerified = id;
-  closePinModal();
-  if (pinMode === 'delete') { unlockVerified = null; deleteConversation(id); }
-  else { switchConversation(id); }
-}
-
-function updatePinHeaderButton(id) {
-  const container = document.getElementById('chatLockBtnContainer');
-  if (!container) return;
-  ChatDB.get(id).then(conv => {
-    if (!conv || !id || id !== activeConvId) { container.style.display = 'none'; return; }
-    container.style.display = '';
-    container.innerHTML = conv.pinHash
-      ? '<button onclick="showPinModal(\'输入当前 PIN 以解锁\',\'clear\')" title="解锁对话" class="chat-lock-btn"><span class="mi">lock</span></button>'
-      : '<button onclick="pinPendingConvId=activeConvId;showPinModal(\'设置数字 PIN\',\'set\')" title="锁定对话" class="chat-lock-btn"><span class="mi">lock_open</span></button>';
-  });
 }
 
 async function refreshConvList() {
@@ -291,15 +168,9 @@ async function refreshConvList() {
   const convs = await ChatDB.getAll();
   convs.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   chatConvList.innerHTML = convs.map(c => {
-    const active = c.id === activeConvId ? ' active' : '';
-    const locked = c.pinHash ? '<span class="mi chat-conv-lock">lock</span>' : '';
-    const date = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '';
-    return `<div class="chat-conv-item${active}" data-id="${c.id}" onclick="handleConvClick('${c.id}')">
-      ${locked}
-      <span class="chat-conv-title">${escapeHtml(c.title || '新对话')}</span>
-      <span class="chat-conv-date">${date}</span>
-      <button class="chat-conv-del" onclick="event.stopPropagation();handleDeleteConv('${c.id}')" title="删除">✕</button>
-    </div>`;
+    var active = c.id === activeConvId ? ' active' : '';
+    var date = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '';
+    return '<div class="chat-conv-item' + active + '" data-id="' + c.id + '" onclick="handleConvClick(\'' + c.id + '\')"><span class="chat-conv-title">' + escapeHtml(c.title || '新对话') + '</span><span class="chat-conv-date">' + date + '</span><button class="chat-conv-del" onclick="event.stopPropagation();handleDeleteConv(\'' + c.id + '\')" title="删除">✕</button></div>';
   }).join('') || '<div class="chat-conv-empty">还没有对话，点击 + 新建</div>';
   if (activeConvId) {
     const active = chatConvList.querySelector(`[data-id="${activeConvId}"]`);
@@ -862,33 +733,34 @@ function enhanceCodeBlocks(container) {
   // 此处为后续扩展保留
 }
 
-// ---- Mermaid 图表渲染 ----
+// ---- Mermaid 图表渲染（按需懒加载）----
 function renderMermaidDiagrams(container) {
   const mermaidBlocks = container.querySelectorAll('.lang-mermaid');
   if (!mermaidBlocks.length) return;
-  if (typeof mermaid === 'undefined') {
-    // Mermaid 未加载，显示原始代码
+  if (typeof ensureMermaid === 'function') {
+    ensureMermaid(function() {
+      mermaidBlocks.forEach(async (block) => {
+        const wrap = block.closest('.code-block-wrap');
+        if (!wrap || wrap._mermaidRendered) return;
+        wrap._mermaidRendered = true;
+        const code = unescapeHtml(block.textContent || '');
+        try {
+          const { svg } = await mermaid.render('mermaid-' + Math.random().toString(36).slice(2,8), code);
+          const svgDiv = document.createElement('div');
+          svgDiv.className = 'mermaid-rendered';
+          svgDiv.innerHTML = svg;
+          wrap.insertAdjacentElement('afterend', svgDiv);
+          wrap.style.display = 'none';
+        } catch (e) {
+          block.classList.add('mermaid-error');
+          block.title = 'Mermaid 渲染失败: ' + e.message;
+        }
+      });
+    });
+  } else {
+    // 降级：显示原始代码
     mermaidBlocks.forEach(b => { b.classList.add('mermaid-fallback'); });
-    return;
   }
-  mermaidBlocks.forEach(async (block) => {
-    const wrap = block.closest('.code-block-wrap');
-    if (!wrap || wrap._mermaidRendered) return;
-    wrap._mermaidRendered = true;
-    const code = unescapeHtml(block.textContent || '');
-    try {
-      const { svg } = await mermaid.render('mermaid-' + Math.random().toString(36).slice(2,8), code);
-      const svgDiv = document.createElement('div');
-      svgDiv.className = 'mermaid-rendered';
-      svgDiv.innerHTML = svg;
-      wrap.insertAdjacentElement('afterend', svgDiv);
-      wrap.style.display = 'none'; // 隐藏原始代码块
-    } catch (e) {
-      // 渲染失败，保留原始代码
-      block.classList.add('mermaid-error');
-      block.title = 'Mermaid 渲染失败: ' + e.message;
-    }
-  });
 }
 
 // ---- 点击查看大图 ----
@@ -990,11 +862,41 @@ function renderToolImageInfo(r) {
   return out;
 }
 
-// 侧栏折叠
-function toggleChatSidebar() {
-  const sidebar = document.getElementById('chatSidebar');
-  if (sidebar) sidebar.classList.toggle('collapsed');
+// 侧栏 Dock 智能隐藏
+function initChatSidebarDock() {
+  var dockEnabled = window.matchMedia('(hover: hover)').matches;
+  if (!dockEnabled) return;
+  var layout = document.querySelector('.chat-layout');
+  var sidebar = document.getElementById('chatSidebar');
+  var main = document.querySelector('.chat-main');
+  if (!layout || !sidebar || !main) return;
+  var timer = null;
+  function hide() {
+    clearTimeout(timer);
+    timer = setTimeout(function() { layout.classList.add('dock-hidden'); }, 600);
+  }
+  function show() {
+    clearTimeout(timer);
+    layout.classList.remove('dock-hidden');
+  }
+  main.addEventListener('mouseenter', function() { hide(); });
+  main.addEventListener('mouseleave', function() { show(); });
+  sidebar.addEventListener('mouseenter', function() { show(); });
+  sidebar.addEventListener('mouseleave', function() {
+    if (main.matches(':hover')) hide();
+  });
 }
+
+// 手动切换侧栏
+function toggleChatSidebar() {
+  var layout = document.querySelector('.chat-layout');
+  if (layout) layout.classList.toggle('dock-hidden');
+}
+
+// 离开对话面板时保存当前对话
+window.leaveChatPanel = async function() {
+  if (activeConvId && chatHistory.length) await saveConv().catch(function(){});
+};
 
 // 沉浸模式切换
 function toggleImmersive() {
@@ -1043,29 +945,12 @@ chatInput.addEventListener('input', () => {
   chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
 });
 
-// PIN 输入框回车提交
-document.getElementById('pinInput')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { e.preventDefault(); submitPin(); }
-});
-
-// ESC 关闭 PIN 弹窗
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    const pm = document.getElementById('pinModal');
-    if (pm && pm.classList.contains('show')) { closePinModal(); e.stopPropagation(); }
-  }
-});
-
 // ---- 初始化 ----
 (async function init() {
   const convs = await ChatDB.getAll();
   convs.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   // 自动加载最近对话，但跳过已锁的
-  const firstUnlocked = convs.find(c => !c.pinHash);
-  if (firstUnlocked) {
-    await loadConv(firstUnlocked.id);
-  } else if (convs.length > 0) {
-    // 全部已锁或只有已锁对话，加载第一个（会显示解锁界面）
+  if (convs.length > 0) {
     await loadConv(convs[0].id);
   } else {
     activeConvId = convId();
@@ -1095,4 +980,5 @@ document.addEventListener('keydown', (e) => {
       if (btn) { btn.querySelector('.mi').textContent = 'fullscreen_exit'; btn.title = '退出沉浸模式'; }
     }
   }
+  initChatSidebarDock();
 })();

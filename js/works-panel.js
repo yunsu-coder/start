@@ -254,7 +254,7 @@ openNote = async function(id) {
     document.querySelectorAll('.note-list-item').forEach(el => { if (el.getAttribute('onclick')?.includes(id)) el.classList.add('active'); });
     startAutoSave();
     // Dock 自动隐藏侧栏
-    setTimeout(() => { if (typeof dockEnabled !== 'undefined' && dockEnabled) { const l = document.querySelector('.notes-layout'); if (l) l.classList.add('dock-hidden'); } }, 700);
+    setTimeout(() => { if (typeof dockEnabled !== 'undefined' && dockEnabled && !dockManualOff) { const l = document.querySelector('.notes-layout'); if (l) l.classList.add('dock-hidden'); } }, 700);
   } catch(e) { console.error(e); }
 };
 
@@ -287,7 +287,7 @@ newNote = async function() {
   document.querySelectorAll('.note-list-item').forEach(el => el.classList.remove('active'));
   markClean(); startAutoSave();
   // Dock 自动隐藏侧栏
-  setTimeout(() => { if (typeof dockEnabled !== 'undefined' && dockEnabled) { const l = document.querySelector('.notes-layout'); if (l) l.classList.add('dock-hidden'); } }, 700);
+  setTimeout(() => { if (typeof dockEnabled !== 'undefined' && dockEnabled && !dockManualOff) { const l = document.querySelector('.notes-layout'); if (l) l.classList.add('dock-hidden'); } }, 700);
 };
 
 // ===== 笔记侧栏标签切换 =====

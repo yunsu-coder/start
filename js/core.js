@@ -2,6 +2,25 @@
 window.Yiwei = window.Yiwei || { state: {}, config: {} };
 const S = Yiwei.state; // 状态读写快捷方式
 
+// ===== 活跃状态追踪（用于在线时长统计）=====
+S.lastActivity = Date.now();
+S.isIdle = false;
+(function initActivityTrack() {
+  var events = ['mousemove','keydown','scroll','click','touchstart'];
+  function mark() { S.lastActivity = Date.now(); S.isIdle = false; }
+  events.forEach(function(ev) { document.addEventListener(ev, mark, { passive: true }); });
+  // 检测系统休眠：页面恢复时如果时间跳跃 > 2 分钟，重置活动时间
+  document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+      if (Date.now() - S.lastActivity > 120000) S.lastActivity = Date.now();
+    }
+  });
+  // 每 30 秒检查闲置状态
+  setInterval(function() {
+    S.isIdle = (Date.now() - S.lastActivity) > 60000;
+  }, 30000);
+})();
+
 // ===== 导航 =====
 S.currentPanel = 'home';
 
@@ -13,6 +32,9 @@ function switchPanel(name) {
       return;
     }
     if (typeof stopAutoSave === 'function') stopAutoSave();
+  }
+  if (S.currentPanel === 'chat' && name !== 'chat') {
+    if (typeof leaveChatPanel === 'function') leaveChatPanel();
   }
   S.currentPanel = name;
   location.hash = name;
@@ -257,6 +279,15 @@ async function loadStatus() {
   try {
     S.lastStatus = await (await fetch('/api/status')).json();
     updateStorageBar(S.lastStatus);
+    // 分析心跳：仅当页面可见 + 用户活跃 + 无多签重复
+    if (!document.hidden && !S.isIdle) {
+      var now = Date.now();
+      var lastHb = parseInt(localStorage.getItem('analytics_last_hb') || '0', 10);
+      if (now - lastHb > 13000) { // 13s 窗口防止多签重复
+        localStorage.setItem('analytics_last_hb', now);
+        fetch('/api/analytics/heartbeat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ panel: S.currentPanel }) }).catch(function(){});
+      }
+    }
   } catch { /* 状态获取失败，静默 */ }
 }
 loadStatus();
@@ -424,6 +455,9 @@ document.addEventListener('DOMContentLoaded', function(){
     animIntensity: 'normal', // reduced | normal | playful
     greeting: true,
     clockFormat: '24h',    // 24h | 12h
+    pomodoro: true,
+    pomodoOpacity: 90,
+    music: true,
   };
   let _cfg = {};
   try { _cfg = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
@@ -515,6 +549,9 @@ document.addEventListener('DOMContentLoaded', function(){
     if (k === 'animIntensity') applyAnimIntensity(get('animIntensity'));
     if (k === 'greeting') applyGreeting(get('greeting'));
     if (k === 'clockFormat') applyClockFormat(get('clockFormat'));
+    if (k === 'pomodoro' && window.Yiwei.pomodoro) Yiwei.pomodoro.setEnabled(get('pomodoro'));
+    if (k === 'pomodoOpacity' && window.Yiwei.pomodoro) Yiwei.pomodoro.setOpacity(get('pomodoOpacity'));
+    if (k === 'music') { var w = document.getElementById('ambientWidget'); if (w) w.style.display = get('music') ? '' : 'none'; }
   }
 
   function applyAll() { Object.keys(DEFAULTS).forEach(k => apply(k)); }
@@ -624,6 +661,12 @@ window.openCustomizeModal = function() {
     });
     const greetingEl = document.getElementById('cfg-greeting');
     if (greetingEl) greetingEl.checked = cfg.get('greeting');
+    const pomodoroEl = document.getElementById('cfg-pomodoro');
+    if (pomodoroEl) pomodoroEl.checked = cfg.get('pomodoro');
+    const musicEl = document.getElementById('cfg-music');
+    if (musicEl) musicEl.checked = cfg.get('music');
+    const pomdoOpacityEl = document.getElementById('cfg-pomodoOpacity');
+    if (pomdoOpacityEl) { pomdoOpacityEl.value = cfg.get('pomodoOpacity'); document.getElementById('cfgPomodoOpacityVal').textContent = cfg.get('pomodoOpacity') + '%'; }
     const opacityEl = document.getElementById('cfg-wpOpacity');
     if (opacityEl) opacityEl.value = localStorage.getItem('wpOpacity') || 100;
     updateWpOpacityLabel();
@@ -641,10 +684,17 @@ document.addEventListener('change', e => {
   const key = e.target.id.replace('cfg-', '');
   if (key === 'greeting') {
     Yiwei.customize.set(key, e.target.checked);
+  } else if (key === 'pomodoro') {
+    Yiwei.customize.set(key, e.target.checked);
+  } else if (key === 'music') {
+    Yiwei.customize.set(key, e.target.checked);
   } else if (key === 'wpOpacity') {
     localStorage.setItem('wpOpacity', e.target.value);
     applyWallpaperOpacity(e.target.value);
     updateWpOpacityLabel();
+  } else if (key === 'pomodoOpacity') {
+    Yiwei.customize.set(key, e.target.value);
+    document.getElementById('cfgPomodoOpacityVal').textContent = e.target.value + '%';
   } else {
     // All select fields (font, particles, tilt, orbSpeed, density, cardRadius, glassBlur, animIntensity, clockFormat)
     Yiwei.customize.set(key, e.target.value);

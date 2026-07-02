@@ -118,18 +118,25 @@ async function startScrape() {
   const btn = document.querySelector('#panel-scrape .btn.accent');
   btn.disabled = true; btn.textContent = '⏳ 采集中...';
 
-  // 实时显示：逐个采集，结果即时追加
   const sessionsEl = document.getElementById('scrapeSessions');
   const empty = document.getElementById('scrapeEmpty');
   empty.style.display = 'none';
 
-  // 累计统计
   let totalImgs = 0, totalTxts = 0, totalErrs = 0, done = 0;
   const allSessionIds = [];
 
+  function updateProgress(current, total, url, status) {
+    const pct = Math.round(current / total * 100);
+    prog.innerHTML = `<div style="margin-bottom:.3rem;font-size:.8rem;">🔍 ${current}/${total} (${pct}%) · ${status || '采集中...'}</div>
+      <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;background:var(--accent);border-radius:3px;transition:width .3s;width:${pct}%;"></div>
+      </div>
+      <div style="font-size:.7rem;color:var(--sub);margin-top:.2rem;">${escHtml(url.slice(0, 80))}</div>`;
+  }
+
   for (let i = 0; i < urls.length; i++) {
     const url = urls[i];
-    prog.innerHTML = `🔍 采集中 ${i + 1}/${urls.length}...<br><small>${escHtml(url.slice(0, 60))}</small>`;
+    updateProgress(i, urls.length, url, '请求中...');
 
     try {
       const r = await fetch('/api/scrape', {
@@ -147,17 +154,25 @@ async function startScrape() {
         totalTxts += result.textCount || 0;
         totalErrs += result.errorCount || 0;
         allSessionIds.push(result.sessionId);
-        // 实时追加到列表顶部
         prependSessionCard(result);
+        updateProgress(i + 1, urls.length, url, '✅ 完成 (' + (result.imageCount || 0) + '图)');
       } else {
         totalErrs++;
+        updateProgress(i + 1, urls.length, url, '❌ 失败');
       }
     } catch(e) {
       totalErrs++;
+      updateProgress(i + 1, urls.length, url, '❌ 网络错误');
     }
   }
 
-  prog.innerHTML = '';
+  // 完成：显示总结
+  const finalPct = urls.length > 0 ? 100 : 0;
+  prog.innerHTML = `<div style="margin-bottom:.3rem;font-size:.8rem;">✅ 采集完成 · ${done}/${urls.length} 成功</div>
+    <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+      <div style="height:100%;background:var(--ok);border-radius:3px;width:${finalPct}%;"></div>
+    </div>
+    <div style="font-size:.7rem;color:var(--sub);margin-top:.2rem;">${totalImgs}图 · ${totalTxts}文本 · ${totalErrs}失败</div>`;
   btn.disabled = false; btn.textContent = '🚀 开始采集';
 
   if (done > 0) {

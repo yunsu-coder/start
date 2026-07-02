@@ -191,6 +191,7 @@ async function loadFiles() {
           <div class="actions" onclick="event.stopPropagation();">
             <button class="btn-sm" onclick="copyLink('${escAttr(f.relPath)}')">复制链接</button>
             <button class="btn-sm" onclick="downloadFile('${escAttr(f.relPath)}')">下载</button>
+            ${/\.(mp4|webm|mov|mkv|avi|flv|wmv|m4v)$/i.test(f.name) ? `<button class="btn-sm" style="color:var(--accent2);" onclick="extractAudio('${escAttr(f.relPath)}')">提取音频</button>` : ''}
             <button class="btn-sm danger" onclick="delFile('${escAttr(f.relPath)}')">删除</button>
           </div>
         </div>`;
@@ -220,7 +221,10 @@ async function loadFiles() {
         <div class="file-card-preview" draggable="true"
              ondragstart="handleDragStart(event, '${escAttr(f.relPath)}')" ondragend="handleDragEnd(event)">${preview}</div>
         <div class="file-card-name" title="点击预览">${escHtml(f.name)}</div>
-        <div class="file-card-size">${sz(f.size)}</div>
+        <div class="file-card-size" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>${sz(f.size)}</span>
+          ${/\.(mp4|webm|mov|mkv|avi|flv|wmv|m4v)$/i.test(f.name) ? `<button class="btn-sm" style="color:var(--accent2);font-size:.58rem;padding:.1rem .3rem;" onclick="event.stopPropagation();extractAudio('${escAttr(f.relPath)}')">提取音频</button>` : ''}
+        </div>
       </div>`;
     }).join('');
 
@@ -354,6 +358,15 @@ function copyLink(name) {
   navigator.clipboard.writeText(url).then(() => toast('📋 链接已复制')).catch(() => toast('❌ 复制失败', 'error'));
 }
 function downloadFile(name) { window.open('/api/dl/' + encodeURIComponent(name), '_blank'); }
+async function extractAudio(name) {
+  toast('⏳ 正在提取音频...', 'info');
+  try {
+    var r = await fetch('/api/extract-audio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }) });
+    var data = await r.json();
+    if (data.name) { toast('✅ 音频已提取: ' + data.name + (data.cached ? ' (已有)' : ''), 'success'); loadFiles(); }
+    else toast('❌ ' + (data.error || '提取失败'), 'error');
+  } catch(e) { toast('❌ 提取失败', 'error'); }
+}
 async function delFile(name) {
   if (!confirm(`确定删除「${name}」？`)) return;
   const r = await fetch('/api/files/' + encodeURIComponent(name), { method: 'DELETE' });

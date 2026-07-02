@@ -13,6 +13,7 @@ const { getStatus, listFiles, uploadFiles, deleteFile, getFilePath, getFilePrevi
         scanDir, breadcrumb, FILES_DIR,
         listWorks, saveWork, getWork, deleteWork, exportWork } = require('./lib/storage');
 const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache } = require('./lib/scraper');
+const analytics = require('./lib/analytics');
 const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, deleteHistory, DEFAULT_BASE_URL, DEFAULT_MODEL } = require('./lib/translate');
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMD } = require('./lib/export');
 const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, getNextWallpaper, upscaleWallpaper, replaceWallpaperFile, WALLPAPER_DIR } = require('./lib/wallpaper');
@@ -243,7 +244,7 @@ function parseJSON(raw) { try { return JSON.parse(raw.toString()); } catch { ret
 
 // ===== 静态文件 =====
 
-function serveStatic(urlPath, res) {
+function serveStatic(urlPath, res, req) {
   const filePath = urlPath === '/' ? '/index.html' : urlPath;
   const fullPath = path.join(ROOT, filePath);
   if (!fullPath.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
@@ -258,9 +259,20 @@ function serveStatic(urlPath, res) {
   };
   fs.readFile(fullPath, (err, data) => {
     if (err) { res.writeHead(404); return res.end('404'); }
-    const cacheable = ['.wasm','.ort','.mjs'].includes(ext) ? 'public, max-age=31536000, immutable' : 'no-cache';
-    res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain', 'Cache-Control': cacheable, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN' });
-    res.end(data);
+    const cacheable = (filePath.startsWith('/public/vendor/') || filePath.startsWith('/public/fonts/') || ['.wasm','.ort','.mjs'].includes(ext)) ? 'public, max-age=31536000, immutable' : 'no-cache';
+    const headers = { 'Content-Type': mime[ext] || 'text/plain', 'Cache-Control': cacheable, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'SAMEORIGIN' };
+    // 静态资源 gzip 压缩（vendor 大文件显著减小体积）
+    const compressible = /\.(js|css|html|svg|mjs|json|md|ttf|woff|woff2)$/i.test(ext);
+    const accept = req?.headers?.['accept-encoding'] || '';
+    if (compressible && accept.includes('gzip')) {
+      const zlib = require('zlib');
+      headers['Content-Encoding'] = 'gzip';
+      res.writeHead(200, headers);
+      zlib.gzip(data, (_, result) => res.end(result));
+    } else {
+      res.writeHead(200, headers);
+      res.end(data);
+    }
   });
 }
 
@@ -276,6 +288,17 @@ const server = http.createServer(async (req, res) => {
 
   // --- 状态 ---
   if (p === '/api/status') return sendJSON(res, 200, getStatus());
+
+  // --- 数据分析 ---
+  if (p === '/api/analytics/heartbeat' && m === 'POST') {
+    const body = parseJSON(await readBody(req));
+    analytics.recordHeartbeat(body?.panel || 'home');
+    return sendJSON(res, 200, { ok: true });
+  }
+  if (p === '/api/analytics/stats') {
+    const range = url.searchParams.get('range') || 'week';
+    return sendJSON(res, 200, analytics.getStats(range));
+  }
 
   // --- OCR 图片转文字 ---
   if (p === '/api/ocr' && m === 'POST') {
@@ -551,6 +574,32 @@ const server = http.createServer(async (req, res) => {
     if (preview.preview === false) return sendJSON(res, 200, preview);
     res.writeHead(200, { 'Content-Type': preview.type, 'Content-Length': preview.size });
     return res.end(preview.data);
+  }
+
+  // --- 提取视频音频 ---
+  if (p === '/api/extract-audio' && m === 'POST') {
+    const body = parseJSON(await readBody(req));
+    if (!body?.name) return sendJSON(res, 400, { error: '缺少文件名' });
+    const fp = getFilePath(body.name);
+    if (!fp) return sendJSON(res, 404, { error: '文件不存在' });
+    const ext = path.extname(fp).toLowerCase();
+    if (!['.mp4','.webm','.mov','.mkv','.avi','.flv','.wmv','.m4v'].includes(ext))
+      return sendJSON(res, 400, { error: '仅支持视频文件' });
+    const outName = body.name.replace(ext, '.m4a');
+    const outPath = path.join(FILES_DIR, outName);
+    // 已有则直接返回
+    if (fs.existsSync(outPath))
+      return sendJSON(res, 200, { name: outName, cached: true });
+    // ffmpeg 提取最高质量音频流
+    const { spawn } = require('child_process');
+    let stderr = '';
+    const ff = spawn('ffmpeg', ['-y','-i',fp,'-vn','-acodec','aac','-b:a','256k','-movflags','+faststart',outPath]);
+    ff.stderr.on('data', d => { stderr += d.toString().slice(0, 500); });
+    ff.on('close', (code) => {
+      if (code === 0) sendJSON(res, 200, { name: outName });
+      else { console.error('[ffmpeg] exit', code, stderr.slice(-300)); sendJSON(res, 500, { error: '提取失败: ' + (stderr.split('\n').pop() || 'exit=' + code) }); }
+    });
+    return; // 异步等待 ffmpeg 完成
   }
 
   // --- 文件夹操作 ---
@@ -1359,7 +1408,7 @@ const server = http.createServer(async (req, res) => {
     return fs.createReadStream(fp).pipe(res);
   }
 
-  serveStatic(p, res);
+  serveStatic(p, res, req);
 });
 
 server.listen(PORT, '127.0.0.1', () => console.log(`📌 导航页已启动: http://127.0.0.1:${PORT}`));

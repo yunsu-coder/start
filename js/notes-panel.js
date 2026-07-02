@@ -10,10 +10,15 @@ function getMdRenderer() {
   var md = markdownit({
     html: true, linkify: true, typographer: true, breaks: true,
     highlight: function(str, lang) {
-      if (lang && typeof hljs !== 'undefined' && hljs.getLanguage(lang)) {
-        try { return hljs.highlight(str, { language: lang, ignoreIllegals: true }).value; } catch(__) {}
+      if (typeof hljs !== 'undefined') {
+        // 已知语言 → 精确高亮
+        if (lang && hljs.getLanguage(lang)) {
+          try { return hljs.highlight(str, { language: lang, ignoreIllegals: true }).value; } catch(__) {}
+        }
+        // 未知语言或无标记 → 自动检测（覆盖 cpp/markdown/go/rust 等）
+        try { return hljs.highlightAuto(str).value; } catch(__) {}
       }
-      return ''; // 使用默认转义
+      return ''; // hljs 不可用时默认转义
     }
   });
 
@@ -92,29 +97,32 @@ function renderLive() {
   var preview = document.getElementById('notePreview');
   var md = document.getElementById('noteContent').value;
   preview.innerHTML = md2html(md);
-  // mermaid 图表渲染（markdown-it 已将代码块高亮，hljs 不认识 mermaid，故代码块为纯文本）
-  if (typeof mermaid !== 'undefined') {
-    preview.querySelectorAll('pre code.language-mermaid').forEach(function(el) {
-      var id = 'm-' + Math.random().toString(36).slice(2, 8);
-      try {
-        mermaid.render(id, el.textContent).then(function(result) {
-          var div = document.createElement('div');
-          div.className = 'mermaid-rendered'; div.innerHTML = result.svg;
-          div.style.cssText = 'text-align:center;margin:.8em 0;padding:.8rem;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid var(--border);overflow-x:auto;';
-          var pre = el.closest('pre');
-          if (pre) pre.replaceWith(div);
-        }).catch(function(err) {
+  // mermaid 图表渲染（按需懒加载）
+  var mermaidBlocks = preview.querySelectorAll('pre code.language-mermaid');
+  if (mermaidBlocks.length && typeof ensureMermaid === 'function') {
+    ensureMermaid(function() {
+      mermaidBlocks.forEach(function(el) {
+        var id = 'm-' + Math.random().toString(36).slice(2, 8);
+        try {
+          mermaid.render(id, el.textContent).then(function(result) {
+            var div = document.createElement('div');
+            div.className = 'mermaid-rendered'; div.innerHTML = result.svg;
+            div.style.cssText = 'text-align:center;margin:.8em 0;padding:.8rem;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid var(--border);overflow-x:auto;';
+            var pre = el.closest('pre');
+            if (pre) pre.replaceWith(div);
+          }).catch(function(err) {
             var pre = el.closest('pre');
             if (pre) {
               pre.insertAdjacentHTML('afterend', '<div class="mermaid-error-msg" style="color:#e74c3c;font-size:.8rem;padding:.4rem .8rem;border-left:3px solid #e74c3c;margin:.4rem 0;background:rgba(231,76,60,.08);border-radius:4px;">⚠️ Mermaid: ' + err.message.replace(/</g,'&lt;') + '</div>');
             }
           });
-      } catch(e) {
-        var pre = el.closest('pre');
-        if (pre) {
-          pre.insertAdjacentHTML('afterend', '<div class="mermaid-error-msg" style="color:#e74c3c;font-size:.8rem;padding:.4rem .8rem;border-left:3px solid #e74c3c;margin:.4rem 0;background:rgba(231,76,60,.08);border-radius:4px;">⚠️ Mermaid: ' + e.message.replace(/</g,'&lt;') + '</div>');
+        } catch(e) {
+          var pre = el.closest('pre');
+          if (pre) {
+            pre.insertAdjacentHTML('afterend', '<div class="mermaid-error-msg" style="color:#e74c3c;font-size:.8rem;padding:.4rem .8rem;border-left:3px solid #e74c3c;margin:.4rem 0;background:rgba(231,76,60,.08);border-radius:4px;">⚠️ Mermaid: ' + e.message.replace(/</g,'&lt;') + '</div>');
+          }
         }
-      }
+      });
     });
   }
   markDirty();
@@ -276,7 +284,7 @@ function updatePreviewHint() {
 }
 
 // ===== 侧栏 Dock 智能隐藏 =====
-let dockTimer = null, dockEnabled = !('ontouchstart' in window || navigator.maxTouchPoints > 0);
+let dockTimer = null, dockEnabled = window.matchMedia('(hover: hover)').matches;
 function initSidebarDock() {
   if (!dockEnabled) return;
   const layout = document.querySelector('.notes-layout');
@@ -285,6 +293,7 @@ function initSidebarDock() {
   if (!layout || !sidebar || !editor) return;
 
   function hideSidebar() {
+    if (dockManualOff) return;
     clearDockTimer();
     dockTimer = setTimeout(() => layout.classList.add('dock-hidden'), 600);
   }
@@ -311,6 +320,25 @@ function initSidebarDock() {
   // 初始状态：如果编辑器可见，自动隐藏侧栏
   layout.classList.add('dock-anim');
   if (editor.style.display !== 'none') hideSidebar();
+}
+// 手动切换侧栏折叠
+let dockManualOff = false;
+function toggleNotesSidebar() {
+  const layout = document.querySelector('.notes-layout');
+  if (!layout) return;
+  if (dockManualOff) {
+    // 恢复自动 dock
+    dockManualOff = false;
+    layout.classList.remove('dock-hidden');
+    const btn = document.getElementById('btnToggleSidebar');
+    if (btn) btn.style.color = 'var(--sub)';
+  } else {
+    // 手动固定侧栏状态
+    dockManualOff = true;
+    layout.classList.toggle('dock-hidden');
+    const btn = document.getElementById('btnToggleSidebar');
+    if (btn) btn.style.color = layout.classList.contains('dock-hidden') ? 'var(--accent)' : 'var(--sub)';
+  }
 }
 // 页面加载后初始化
 
@@ -611,7 +639,7 @@ document.addEventListener('keydown', e => {
     }
   }
   // Ctrl+. → 纯预览模式（只显示渲染结果）
-  if ((e.ctrlKey || e.metaKey) && e.key === '.') {
+  if ((e.ctrlKey || e.metaKey) && (e.key === '.' || e.code === 'Period')) {
     if (S.currentPanel === 'notes' || document.activeElement?.closest('#panel-notes')) {
       e.preventDefault();
       e.stopPropagation();
@@ -619,6 +647,52 @@ document.addEventListener('keydown', e => {
     }
   }
 });
+
+
+  // ===== 编辑器 Tab 缩进 + 代码块智能换行 =====
+  document.addEventListener('keydown', function(e) {
+    var ta = document.getElementById('noteContent');
+    if (!ta || document.activeElement !== ta) return;
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      var start = ta.selectionStart, end = ta.selectionEnd;
+      if (start !== end) {
+        var before = ta.value.substring(0, start), sel = ta.value.substring(start, end), after = ta.value.substring(end);
+        var lines = sel.split('\n');
+        if (lines.every(function(l) { return l.trim() === ''; })) {
+          ta.value = before + '  ' + after;
+          ta.selectionStart = ta.selectionEnd = start + 2;
+        } else {
+          var indented = lines.map(function(l) { return '  ' + l; }).join('\n');
+          ta.value = before + indented + after;
+          ta.selectionStart = start; ta.selectionEnd = start + indented.length;
+        }
+      } else {
+        ta.value = ta.value.substring(0, start) + '  ' + ta.value.substring(end);
+        ta.selectionStart = ta.selectionEnd = start + 2;
+      }
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      var pos = ta.selectionStart, text = ta.value, before = text.substring(0, pos);
+      var backtickCount = (before.match(/```/g) || []).length;
+      if (backtickCount % 2 === 1) {
+        var lineStart = before.lastIndexOf('\n') + 1;
+        var currentLine = before.substring(lineStart);
+        var indent = currentLine.match(/^(\s*)/)[1];
+        var extra = currentLine.trimEnd().endsWith('{') ? '  ' : '';
+        e.preventDefault();
+        var after = text.substring(pos);
+        ta.value = before + '\n' + indent + extra + after;
+        ta.selectionStart = ta.selectionEnd = pos + 1 + indent.length + extra.length;
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+    }
+  });
 
 // ===== 从文件中转站导入文本文件 =====
 let noteImportDir = '';

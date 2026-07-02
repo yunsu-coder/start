@@ -422,7 +422,7 @@
   .notes-topbar { display:flex; gap:.5rem; align-items:center; margin-bottom:.8rem; flex-wrap:wrap; }
   .notes-topbar .auto-save { font-size:.72rem; color:var(--ok); margin-left:auto; }
   .notes-layout { display:flex; gap:0; height:calc(100vh - 155px); }
-  .notes-sidebar { width:var(--sidebar-w, 180px); min-width:0; border-right:1px solid var(--border); flex-shrink:0; overflow-y:auto; overflow-x:hidden; padding-right:.2rem;
+  .notes-sidebar { width:var(--sidebar-w, 180px); min-width:0; border-right:1px solid var(--border); flex-shrink:0; overflow-y:auto; padding-right:.2rem;
     backdrop-filter:blur(var(--glass-blur)); -webkit-backdrop-filter:blur(var(--glass-blur));
     position: relative; z-index: 5; }
   /* dock 动画过渡独立，避免干扰拖拽 */
@@ -1337,19 +1337,34 @@ pre[data-lang]::before { content:attr(data-lang); position:absolute; top:0; left
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+@keyframes pomodoPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
 
 /* ===== 对话面板 ===== */
-.chat-layout { display: flex; height: calc(100vh - 60px); }
+.chat-layout { display: flex; height: calc(100vh - 60px); position: relative; }
 .chat-sidebar {
-  width: 220px; flex-shrink: 0;
+  width: 220px; min-width: 0; flex-shrink: 0;
   border-right: 1px solid var(--border);
   background: var(--card);
   backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
   display: flex; flex-direction: column;
-  overflow: hidden;
-  transition: width .2s, opacity .2s;
+  overflow: hidden; position: relative; z-index: 5;
+  transition: width .35s cubic-bezier(.4,0,.2,1), min-width .35s cubic-bezier(.4,0,.2,1);
 }
-.chat-sidebar.collapsed { width: 0; opacity: 0; border-right: none; }
+.chat-sidebar > * { transition: opacity .2s; }
+.chat-layout.dock-hidden .chat-sidebar { width: 8px; min-width: 8px; }
+.chat-layout.dock-hidden .chat-sidebar > * { opacity: 0; pointer-events: none; }
+.chat-sidebar::after {
+  content: ''; position: absolute; right: -1px; top: 0; bottom: 0;
+  width: 8px; background: linear-gradient(90deg, transparent, var(--accent2));
+  opacity: 0; transition: opacity .3s; pointer-events: none;
+}
+.chat-layout.dock-hidden .chat-sidebar::after { opacity: .4; }
+.chat-layout.dock-hidden .chat-sidebar:hover { width: 220px; min-width: 220px; }
+.chat-layout.dock-hidden .chat-sidebar:hover > * { opacity: 1; pointer-events: auto; }
+.chat-layout.dock-hidden .chat-sidebar:hover::after { opacity: 0; }
 .chat-sidebar-header {
   display: flex; align-items: center; gap: .3rem;
   padding: .5rem .6rem; font-size: .8rem; font-weight: 600;
@@ -1383,11 +1398,6 @@ pre[data-lang]::before { content:attr(data-lang); position:absolute; top:0; left
 #pinInput { font-size: 1.5rem; text-align: center; letter-spacing: .5rem; width: 100%; padding: .6rem; border-radius: 10px; border: 1px solid var(--border); background: var(--hover); color: var(--text); outline: none; box-sizing: border-box; }
 #pinInput:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(137,180,250,.2); }
 .chat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-#chatSidebarToggle {
-  background: none; border: none; color: var(--sub); cursor: pointer;
-  font-size: 1.1rem; padding: 0 .3rem; margin-right: .2rem;
-}
-#chatSidebarToggle:hover { color: var(--accent); }
 .chat-header-bar {
   display: flex; align-items: center; justify-content: space-between;
   padding: .5rem .8rem;
@@ -1818,8 +1828,8 @@ pre[data-lang]::before { content:attr(data-lang); position:absolute; top:0; left
 .chat-layout.immersive .chat-welcome { padding: 5rem 1rem; }
 .chat-layout.immersive .chat-welcome-icon { font-size: 4rem; }
 .chat-layout.immersive .chat-header-bar { padding: .6rem .8rem; }
-/* collapsed sidebar in immersive keeps the same collapse behavior */
-.chat-layout.immersive .chat-sidebar.collapsed { width: 0; }
+/* immersive 下 dock 展开宽度 */
+.chat-layout.immersive .chat-sidebar.dock-hidden .chat-sidebar:hover { width: 260px; min-width: 260px; }
 
 /* ---- 图片灯箱 ---- */
 .chat-img-overlay {
@@ -2014,6 +2024,189 @@ pre[data-lang]::before { content:attr(data-lang); position:absolute; top:0; left
   box-shadow: 0 4px 16px rgba(0,0,0,0.35);
 }
 
+/* ===== Pomodoro Widget ===== */
+.pomodo {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 98;
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: var(--pomodo-opacity, 0.9);
+  transition: opacity .3s;
+}
+.pomodo-pill {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .35rem .75rem;
+  background: var(--card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-md), inset 0 1px 0 var(--glass-highlight);
+  cursor: grab;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+.pomodo-pill:active { cursor: grabbing; }
+.pomodo-time {
+  font-size: .82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.pomodo-label {
+  font-size: .7rem;
+  color: var(--sub);
+}
+.pomodo-indicator {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  transition: background .3s;
+}
+.pomodo[data-mode="shortBreak"] .pomodo-indicator,
+.pomodo[data-mode="longBreak"] .pomodo-indicator { background: var(--accent2); }
+.pomodo[data-mode="stopwatch"] .pomodo-indicator { background: var(--ok); }
+
+/* 展开面板 */
+.pomodo-panel {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  width: 200px;
+  background: var(--card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 var(--glass-highlight);
+  padding: .7rem;
+  cursor: default;
+  animation: pomodoSlideIn var(--dur-normal) var(--ease-out-back);
+}
+.pomodo-panel.open { display: block; }
+@keyframes pomodoSlideIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+.pomodo-panel-controls {
+  display: flex; justify-content: center; gap: .4rem;
+  margin-bottom: .5rem;
+}
+.pomodo-btn {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--text); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .95rem;
+  transition: transform var(--dur-fast) var(--ease-interact), background var(--dur-normal);
+}
+.pomodo-btn:hover { background: var(--hover); transform: scale(1.1); }
+.pomodo-btn:active { transform: scale(.9); }
+.pomodo-btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pomodo-btn-primary:hover { opacity: .85; background: var(--accent); }
+.pomodo-panel-modes {
+  display: grid; grid-template-columns: 1fr 1fr; gap: .25rem;
+  margin-bottom: .4rem;
+}
+.pomodo-mode-btn {
+  padding: .22rem .3rem; border: 1px solid var(--border);
+  border-radius: 5px; background: transparent;
+  color: var(--sub); font-size: .65rem; cursor: pointer;
+  transition: all var(--dur-fast); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  font-family: inherit;
+}
+.pomodo-mode-btn:hover { border-color: var(--accent); color: var(--text); }
+.pomodo-mode-btn.active {
+  background: var(--accent); color: #fff;
+  border-color: var(--accent); font-weight: 500;
+}
+.pomodo-panel-sessions {
+  text-align: center; font-size: .65rem; color: var(--sub);
+}
+.pomodo-panel-sessions strong { color: var(--accent); }
+
+/* ===== 背景音乐播放器 ===== */
+.ambient-widget {
+  position: fixed; top: 66px; right: 96px; z-index: 98;
+  user-select: none; -webkit-user-select: none;
+}
+.ambient-toggle {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--sub); cursor: pointer;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; transition: all var(--dur-fast);
+}
+.ambient-toggle:hover { border-color: var(--accent); color: var(--accent); transform: scale(1.1); }
+.ambient-panel {
+  display: none; position: absolute; top: 38px; right: 0;
+  width: 210px; background: var(--card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 var(--glass-highlight);
+  padding: .55rem;
+  animation: pomodoSlideIn var(--dur-normal) var(--ease-out-back);
+}
+.ambient-panel.open { display: block; }
+.ambient-panel-title {
+  font-size: .68rem; font-weight: 600; color: var(--text);
+  margin-bottom: .4rem; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ambient-time { font-size: .6rem; color: var(--sub); flex-shrink: 0; font-variant-numeric: tabular-nums; min-width: 50px; }
+.ambient-progress-track {
+  flex: 1; height: 4px; background: var(--border); border-radius: 2px;
+  cursor: pointer; overflow: hidden;
+}
+.ambient-progress-fill { height: 100%; background: var(--accent); width: 0; transition: width .3s linear; }
+.ambient-ctrl-btn {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--card);
+  color: var(--text); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem; transition: all var(--dur-fast);
+}
+.ambient-ctrl-btn:hover { border-color: var(--accent); background: var(--hover); }
+.ambient-ctrl-play { background: var(--accent); color: #fff; border-color: var(--accent); width: 32px; height: 32px; }
+.ambient-playlist { max-height: 120px; overflow-y: auto; }
+.ambient-pl-item {
+  display: flex; align-items: center; gap: .3rem;
+  padding: .2rem .3rem; border-radius: 4px;
+  font-size: .65rem; cursor: pointer; color: var(--text);
+}
+.ambient-pl-item:hover { background: var(--hover); }
+.ambient-pl-item.active { color: var(--accent); font-weight: 600; }
+.ambient-pl-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ambient-pl-del {
+  border: none; background: none; color: var(--danger); cursor: pointer;
+  font-size: .65rem; padding: 0 .2rem; opacity: 0;
+}
+.ambient-pl-item:hover .ambient-pl-del { opacity: .7; }
+.ambient-pl-empty { font-size: .62rem; color: var(--sub); text-align: center; padding: .5rem; }
+
+/* ---- 响应式 ---- */
+@media (max-width: 420px) {
+  .pomodo { top: 48px; }
+  .pomodo-pill { padding: .25rem .55rem; }
+  .pomodo-time { font-size: .72rem; }
+  .pomodo-label { font-size: .62rem; display: none; }
+  .pomodo-panel { width: 170px; }
+}
+
 /* ===== 自定义设置弹窗 ===== */
 .cfg-field { margin-bottom: .8rem; }
 .cfg-field label {
@@ -2030,6 +2223,77 @@ pre[data-lang]::before { content:attr(data-lang); position:absolute; top:0; left
   -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 .cfg-field select:focus { border-color: var(--accent); }
+/* ===== 数据分析面板 ===== */
+#panel-analytics.panel { max-width: none; padding: .5rem 1rem .3rem; }
+.analytics-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: .4rem; flex-wrap: wrap; gap: .4rem;
+}
+.analytics-range { display: flex; gap: .2rem; }
+.analytics-range-btn {
+  padding: .15rem .4rem; border: 1px solid var(--border);
+  border-radius: 4px; background: transparent; color: var(--sub);
+  font-size: .68rem; cursor: pointer; font-family: inherit;
+  transition: all var(--dur-fast);
+}
+.analytics-range-btn:hover { border-color: var(--accent); color: var(--text); }
+.analytics-range-btn.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .35rem;
+}
+.analytics-topbar h2 { font-size: 1rem; }
+
+.analytics-card {
+  background: var(--card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--glass-highlight);
+  padding: .35rem .45rem;
+  display: flex; flex-direction: column;
+}
+.analytics-card-title {
+  font-size: .62rem; font-weight: 600; color: var(--sub);
+  margin-bottom: .1rem; display: flex; align-items: center; gap: .15rem;
+}
+.analytics-chart-wrap {
+  position: relative; width: 100%; height: 80px; flex: 1;
+}
+.analytics-chart-wrap canvas { width: 100% !important; height: 100% !important; }
+
+/* 概览横跨全宽 */
+.analytics-overview { grid-column: 1 / -1; padding: .35rem .55rem; }
+.analytics-overview .analytics-card-title { margin-bottom: .15rem; }
+.analytics-overview-items {
+  display: flex; gap: 1.2rem; flex-wrap: wrap; justify-content: center;
+}
+.analytics-ov-item { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.analytics-ov-val {
+  font-size: 1rem; font-weight: 700; color: var(--accent);
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.analytics-ov-label { font-size: .55rem; color: var(--sub); }
+
+/* 详情行 */
+.analytics-card-detail {
+  font-size: .52rem; color: var(--sub);
+  padding-top: .1rem; margin-top: .08rem;
+  border-top: 1px solid var(--border); line-height: 1.2;
+}
+
+@media (max-width: 900px) {
+  .analytics-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 550px) {
+  .analytics-grid { grid-template-columns: 1fr; }
+}
+
+.cfg-divider { height: 1px; background: var(--border); margin: .7rem 0; }
 .cfg-hint {
   font-size: .68rem; color: var(--sub); margin-top: .2rem; line-height: 1.3;
 }
