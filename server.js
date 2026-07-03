@@ -12,7 +12,7 @@ const { getStatus, listFiles, uploadFiles, deleteFile, getFilePath, getFilePrevi
         createFolder, deleteFolder, renameFolder, emptyTrash, listTrash, restoreFromTrash,
         scanDir, breadcrumb, FILES_DIR,
         listWorks, saveWork, getWork, deleteWork, exportWork } = require('./lib/storage');
-const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache } = require('./lib/scraper');
+const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache, fetchUrl } = require('./lib/scraper');
 const analytics = require('./lib/analytics');
 const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, deleteHistory, DEFAULT_BASE_URL, DEFAULT_MODEL } = require('./lib/translate');
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMD } = require('./lib/export');
@@ -288,6 +288,22 @@ const server = http.createServer(async (req, res) => {
 
   // --- 状态 ---
   if (p === '/api/status') return sendJSON(res, 200, getStatus());
+
+  // --- 天气代理 ---
+  if (p === '/api/weather') {
+    const city = url.searchParams.get('city') || '';
+    const wUrl = 'https://wttr.in/' + encodeURIComponent(city) + '?format=%c+%t';
+    https.get(wUrl, { timeout: 5000, headers: { 'User-Agent': 'curl/8.0' } }, wRes => {
+      let data = '';
+      wRes.on('data', c => data += c);
+      wRes.on('end', () => {
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
+        res.end(data.trim() || '--');
+      });
+    }).on('error', () => { res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('--'); })
+    .on('timeout', function() { this.destroy(); res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('--'); });
+    return;
+  }
 
   // --- 数据分析 ---
   if (p === '/api/analytics/heartbeat' && m === 'POST') {

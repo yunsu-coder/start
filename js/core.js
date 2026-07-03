@@ -223,6 +223,18 @@ function tick() {
 }
 tick(); setInterval(tick, 1000);
 
+// ===== 天气 (服务端代理 wttr.in) =====
+async function loadWeather() {
+  var el = document.getElementById('weather'); if (!el) return;
+  var city = localStorage.getItem('weather_city') || '';
+  try {
+    var r = await fetch('/api/weather?city=' + encodeURIComponent(city), { signal: AbortSignal.timeout(5000) });
+    var text = (await r.text()).trim();
+    if (text && !text.startsWith('Unknown')) el.textContent = text;
+  } catch { el.textContent = '--'; }
+}
+loadWeather(); setInterval(loadWeather, 900000); // 15 分钟刷新
+
 // ===== 搜索 =====
 document.getElementById('searchForm').addEventListener('submit', e => {
   e.preventDefault();
