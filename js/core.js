@@ -242,47 +242,268 @@ document.getElementById('searchForm').addEventListener('submit', e => {
   if (q) window.open('https://www.bing.com/search?q=' + encodeURIComponent(q), '_blank');
 });
 
-// ===== 书签 =====
-const LINKS = {
-  ai: [
-    { name:'DeepSeek', url:'https://chat.deepseek.com', icon:'🤖' },
-    { name:'豆包', url:'https://www.doubao.com', icon:'🫘' },
-    { name:'ChatGPT', url:'https://chat.openai.com', icon:'🧠' },
-    { name:'Kimi', url:'https://kimi.moonshot.cn', icon:'🌙' },
-    { name:'通义千问', url:'https://tongyi.aliyun.com', icon:'☁️' },
-    { name:'Claude', url:'https://claude.ai', icon:'🧪' },
+// ===== 书签 — localStorage 持久化 + 编辑 + 拖拽 =====
+const DEFAULT_BOOKMARKS = {
+  categories: [
+    { id: 'ai', name: 'AI', icon: 'smart_toy' },
+    { id: 'common', name: '常用', icon: 'language' },
+    { id: 'dev', name: '开发', icon: 'code' },
+    { id: 'tools', name: '工具', icon: 'build' },
   ],
-  common: [
-    { name:'哔哩哔哩', url:'https://www.bilibili.com', icon:'📺' },
-    { name:'知乎', url:'https://www.zhihu.com', icon:'🔷' },
-    { name:'YouTube', url:'https://www.youtube.com', icon:'▶️' },
-    { name:'GitHub', url:'https://github.com', icon:'🐙' },
-    { name:'小红书', url:'https://www.xiaohongshu.com', icon:'📕' },
-    { name:'CSDN', url:'https://www.csdn.net', icon:'📄' },
-  ],
-  dev: [
-    { name:'MDN 前端', url:'https://developer.mozilla.org/zh-CN/', icon:'📘' },
-    { name:'菜鸟教程', url:'https://www.runoob.com', icon:'🐤' },
-    { name:'W3School', url:'https://www.w3school.com.cn', icon:'🌐' },
-    { name:'Vue.js', url:'https://cn.vuejs.org', icon:'💚' },
-    { name:'Python教程', url:'https://www.liaoxuefeng.com', icon:'🐍' },
-    { name:'LeetCode', url:'https://leetcode.cn', icon:'⚡' },
-  ],
-  tools: [
-    { name:'Convertio', url:'https://convertio.co/zh/', icon:'🔄' },
-    { name:'Photopea', url:'https://www.photopea.com', icon:'🎨' },
-    { name:'TinyPNG', url:'https://tinypng.com', icon:'🗜️' },
-    { name:'工具集合', url:'https://tool.lu', icon:'🧰' },
-    { name:'草料二维码', url:'https://cli.im', icon:'📱' },
-    { name:'Excalidraw', url:'https://excalidraw.com', icon:'✏️' },
-  ],
+  links: [
+    { id: 'l1', catId: 'ai', name: 'DeepSeek', url: 'https://chat.deepseek.com', icon: '🤖' },
+    { id: 'l2', catId: 'ai', name: '豆包', url: 'https://www.doubao.com', icon: '🫘' },
+    { id: 'l3', catId: 'ai', name: 'ChatGPT', url: 'https://chat.openai.com', icon: '🧠' },
+    { id: 'l4', catId: 'ai', name: 'Kimi', url: 'https://kimi.moonshot.cn', icon: '🌙' },
+    { id: 'l5', catId: 'ai', name: '通义千问', url: 'https://tongyi.aliyun.com', icon: '☁️' },
+    { id: 'l6', catId: 'ai', name: 'Claude', url: 'https://claude.ai', icon: '🧪' },
+    { id: 'l7', catId: 'common', name: '哔哩哔哩', url: 'https://www.bilibili.com', icon: '📺' },
+    { id: 'l8', catId: 'common', name: '知乎', url: 'https://www.zhihu.com', icon: '🔷' },
+    { id: 'l9', catId: 'common', name: 'YouTube', url: 'https://www.youtube.com', icon: '▶️' },
+    { id: 'l10', catId: 'common', name: 'GitHub', url: 'https://github.com', icon: '🐙' },
+    { id: 'l11', catId: 'common', name: '小红书', url: 'https://www.xiaohongshu.com', icon: '📕' },
+    { id: 'l12', catId: 'common', name: 'CSDN', url: 'https://www.csdn.net', icon: '📄' },
+    { id: 'l13', catId: 'dev', name: 'MDN 前端', url: 'https://developer.mozilla.org/zh-CN/', icon: '📘' },
+    { id: 'l14', catId: 'dev', name: '菜鸟教程', url: 'https://www.runoob.com', icon: '🐤' },
+    { id: 'l15', catId: 'dev', name: 'W3School', url: 'https://www.w3school.com.cn', icon: '🌐' },
+    { id: 'l16', catId: 'dev', name: 'Vue.js', url: 'https://cn.vuejs.org', icon: '💚' },
+    { id: 'l17', catId: 'dev', name: 'Python教程', url: 'https://www.liaoxuefeng.com', icon: '🐍' },
+    { id: 'l18', catId: 'dev', name: 'LeetCode', url: 'https://leetcode.cn', icon: '⚡' },
+    { id: 'l19', catId: 'tools', name: 'Convertio', url: 'https://convertio.co/zh/', icon: '🔄' },
+    { id: 'l20', catId: 'tools', name: 'Photopea', url: 'https://www.photopea.com', icon: '🎨' },
+    { id: 'l21', catId: 'tools', name: 'TinyPNG', url: 'https://tinypng.com', icon: '🗜️' },
+    { id: 'l22', catId: 'tools', name: '工具集合', url: 'https://tool.lu', icon: '🧰' },
+    { id: 'l23', catId: 'tools', name: '草料二维码', url: 'https://cli.im', icon: '📱' },
+    { id: 'l24', catId: 'tools', name: 'Excalidraw', url: 'https://excalidraw.com', icon: '✏️' },
+  ]
 };
-Object.entries(LINKS).forEach(([cat, links]) => {
-  const el = document.getElementById(cat);
-  if (el) el.innerHTML = links.map(l =>
-    `<a class="link tilt-card" href="${l.url}" target="_blank" rel="noopener"><span class="icon">${l.icon}</span><span class="name">${l.name}</span></a>`
-  ).join('');
+var _linkCounter = 100;
+
+function loadBookmarks() {
+  try {
+    var raw = localStorage.getItem('yiwei_bookmarks');
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  // 首次使用，迁移默认数据
+  var data = JSON.parse(JSON.stringify(DEFAULT_BOOKMARKS));
+  saveBookmarks(data);
+  return data;
+}
+
+function saveBookmarks(data) {
+  localStorage.setItem('yiwei_bookmarks', JSON.stringify(data));
+}
+
+var BM = loadBookmarks();
+var editMode = false;
+
+function nextLinkId() { return 'l' + (++_linkCounter) + '_' + Date.now().toString(36); }
+
+function renderBookmarks() {
+  BM.categories.forEach(function(cat) {
+    var grid = document.getElementById(cat.id);
+    if (!grid) return;
+    // 更新 section title（保留 icon）
+    var section = grid.closest('.section');
+    if (section) {
+      var title = section.querySelector('.section-title');
+      if (title) title.innerHTML = '<span class="mi">' + escHtml(cat.icon) + '</span> ' + escHtml(cat.name) +
+        (editMode ? ' <button class="bm-add-link" data-cat="' + cat.id + '" title="添加链接" style="cursor:pointer;font-size:.75rem;margin-left:.3rem;opacity:.6;">+</button>' +
+        ' <button class="bm-edit-cat" data-cat="' + cat.id + '" title="编辑分类" style="cursor:pointer;font-size:.7rem;opacity:.6;">✎</button>' +
+        (BM.categories.length > 1 ? ' <button class="bm-del-cat" data-cat="' + cat.id + '" title="删除分类" style="cursor:pointer;font-size:.7rem;opacity:.6;">✕</button>' : '') : '');
+    }
+    var links = BM.links.filter(function(l) { return l.catId === cat.id; });
+    grid.innerHTML = links.map(function(l) {
+      var href = editMode ? 'javascript:void(0)' : ('href="' + escHtml(l.url) + '" target="_blank" rel="noopener"');
+      return '<a class="link' + (editMode ? ' bm-link-edit' : '') + '" ' + href + ' data-id="' + l.id + '" draggable="' + editMode + '"' +
+        (editMode ? ' onclick="event.preventDefault();"' : '') + '>' +
+        '<span class="icon">' + escHtml(l.icon) + '</span><span class="name">' + escHtml(l.name) + '</span>' +
+        (editMode ? '<span class="bm-link-actions"><button class="bm-edit-link" data-id="' + l.id + '" title="编辑">✎</button><button class="bm-del-link" data-id="' + l.id + '" title="删除">✕</button></span>' : '') +
+        '</a>';
+    }).join('');
+    if (editMode && links.length === 0) {
+      grid.innerHTML = '<div class="bm-empty-slot" data-cat="' + cat.id + '" style="min-height:40px;border:1px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:.75rem;">拖拽链接到这里</div>';
+    }
+  });
+  // 编辑模式下的添加分类按钮
+  var existing = document.getElementById('bmAddCat');
+  if (editMode && !existing) {
+    var panel = document.getElementById('panel-home');
+    var lastSection = panel.querySelector('.section:last-of-type');
+    var addCat = document.createElement('div');
+    addCat.id = 'bmAddCat';
+    addCat.style.cssText = 'text-align:center;margin-top:.8rem;';
+    addCat.innerHTML = '<button class="btn-sm" id="bmAddCatBtn">+ 添加分类</button>';
+    if (lastSection) lastSection.after(addCat);
+  }
+  if (!editMode && existing) existing.remove();
+}
+
+// 编辑模式切换
+function toggleEditMode() {
+  editMode = !editMode;
+  document.getElementById('bmEditBtn').textContent = editMode ? '✓ 完成' : '✎ 编辑';
+  renderBookmarks();
+  if (editMode) bindEditEvents();
+}
+
+// 绑定编辑事件（拖拽、按钮）
+function bindEditEvents() {
+  var links = document.querySelectorAll('.bm-link-edit');
+  links.forEach(function(el) {
+    el.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', el.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+      el.classList.add('dragging');
+    });
+    el.addEventListener('dragend', function(e) { el.classList.remove('dragging'); });
+  });
+
+  // Drop targets: grids and empty slots
+  var grids = document.querySelectorAll('#panel-home .grid');
+  grids.forEach(function(grid) {
+    grid.addEventListener('dragover', function(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+    grid.addEventListener('drop', function(e) {
+      e.preventDefault();
+      var linkId = e.dataTransfer.getData('text/plain');
+      var link = BM.links.find(function(l) { return l.id === linkId; });
+      if (!link) return;
+      // 确定目标分类
+      var targetCat = grid.id;
+      var dragEl = document.querySelector('.bm-link-edit[data-id="' + linkId + '"]');
+      // 如果拖到空槽
+      if (e.target.closest('.bm-empty-slot')) targetCat = e.target.closest('.bm-empty-slot').dataset.cat;
+      link.catId = targetCat;
+      saveBookmarks(BM);
+      renderBookmarks();
+      bindEditEvents();
+    });
+  });
+
+  // 添加链接按钮
+  document.querySelectorAll('.bm-add-link').forEach(function(btn) {
+    btn.onclick = function(e) { e.stopPropagation(); showLinkDialog(btn.dataset.cat); };
+  });
+  // 编辑分类
+  document.querySelectorAll('.bm-edit-cat').forEach(function(btn) {
+    btn.onclick = function(e) { e.stopPropagation(); showCatDialog(btn.dataset.cat); };
+  });
+  // 删除分类
+  document.querySelectorAll('.bm-del-cat').forEach(function(btn) {
+    btn.onclick = function(e) { e.stopPropagation();
+      if (!confirm('确定删除此分类及其所有链接？')) return;
+      var catId = btn.dataset.cat;
+      BM.links = BM.links.filter(function(l) { return l.catId !== catId; });
+      BM.categories = BM.categories.filter(function(c) { return c.id !== catId; });
+      saveBookmarks(BM); renderBookmarks(); bindEditEvents();
+    };
+  });
+  // 编辑链接
+  document.querySelectorAll('.bm-edit-link').forEach(function(btn) {
+    btn.onclick = function(e) { e.stopPropagation(); showLinkDialog(null, btn.dataset.id); };
+  });
+  // 删除链接
+  document.querySelectorAll('.bm-del-link').forEach(function(btn) {
+    btn.onclick = function(e) { e.stopPropagation();
+      if (!confirm('删除此链接？')) return;
+      BM.links = BM.links.filter(function(l) { return l.id !== btn.dataset.id; });
+      saveBookmarks(BM); renderBookmarks(); bindEditEvents();
+    };
+  });
+
+  // 添加分类按钮
+  var addCatBtn = document.getElementById('bmAddCatBtn');
+  if (addCatBtn) addCatBtn.onclick = function() { showCatDialog(); };
+}
+
+// 链接编辑弹窗（简易 prompt）
+function showLinkDialog(catId, linkId) {
+  var link = linkId ? BM.links.find(function(l) { return l.id === linkId; }) : null;
+  var name = prompt('名称', link ? link.name : '');
+  if (name === null) return;
+  var url = prompt('网址', link ? link.url : 'https://');
+  if (url === null) return;
+  var icon = prompt('图标（emoji 或 Material 图标名）', link ? link.icon : '🔗');
+  if (icon === null) return;
+
+  if (link) {
+    link.name = name; link.url = url; link.icon = icon;
+  } else {
+    BM.links.push({ id: nextLinkId(), catId: catId, name: name, url: url, icon: icon });
+  }
+  saveBookmarks(BM); renderBookmarks(); bindEditEvents();
+}
+
+// 分类编辑弹窗
+function showCatDialog(catId) {
+  var cat = catId ? BM.categories.find(function(c) { return c.id === catId; }) : null;
+  var name = prompt('分类名称', cat ? cat.name : '');
+  if (name === null) return;
+  var icon = prompt('Material 图标名（如 smart_toy, code, folder）', cat ? cat.icon : 'folder');
+  if (icon === null) return;
+
+  if (cat) {
+    cat.name = name; cat.icon = icon;
+  } else {
+    var id = 'cat_' + Date.now().toString(36);
+    BM.categories.push({ id: id, name: name, icon: icon });
+    // 确保 HTML 中有对应的 grid
+    var panel = document.getElementById('panel-home');
+    var section = document.createElement('div');
+    section.className = 'section';
+    section.innerHTML = '<div class="section-title"></div><div class="grid" id="' + id + '"></div>';
+    var addCatEl = document.getElementById('bmAddCat');
+    if (addCatEl) addCatEl.before(section); else panel.appendChild(section);
+  }
+  saveBookmarks(BM); renderBookmarks(); bindEditEvents();
+}
+
+// 右键菜单（编辑模式下也能用）
+document.addEventListener('contextmenu', function(e) {
+  var linkEl = e.target.closest('.link');
+  if (!linkEl || editMode) return;
+  e.preventDefault();
+  var id = linkEl.dataset.id;
+  if (!id) return;
+  var link = BM.links.find(function(l) { return l.id === id; });
+  if (!link) return;
+  var menu = document.createElement('div');
+  menu.className = 'bm-context-menu';
+  menu.style.cssText = 'position:fixed;left:' + e.clientX + 'px;top:' + e.clientY + 'px;z-index:9999;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.3rem 0;min-width:140px;box-shadow:0 8px 24px rgba(0,0,0,.2);backdrop-filter:blur(var(--glass-blur));';
+  menu.innerHTML = '<div class="bm-cm-item" data-action="open" style="padding:.4rem .8rem;cursor:pointer;font-size:.8rem;">🔗 打开</div>' +
+    '<div class="bm-cm-item" data-action="edit" style="padding:.4rem .8rem;cursor:pointer;font-size:.8rem;">✎ 编辑</div>' +
+    '<div class="bm-cm-item" data-action="delete" style="padding:.4rem .8rem;cursor:pointer;font-size:.8rem;color:var(--danger);">🗑 删除</div>';
+  document.body.appendChild(menu);
+  menu.querySelectorAll('.bm-cm-item').forEach(function(item) {
+    item.onmouseenter = function() { item.style.background = 'var(--bg)'; };
+    item.onmouseleave = function() { item.style.background = ''; };
+    item.onclick = function() {
+      var action = item.dataset.action;
+      if (action === 'open') window.open(link.url, '_blank');
+      else if (action === 'edit') showLinkDialog(null, id);
+      else if (action === 'delete') { if (confirm('删除此链接？')) { BM.links = BM.links.filter(function(l) { return l.id !== id; }); saveBookmarks(BM); renderBookmarks(); } }
+      menu.remove();
+    };
+  });
+  var closeMenu = function(ev) { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', closeMenu); } };
+  setTimeout(function() { document.addEventListener('click', closeMenu); }, 0);
 });
+
+// 初始化渲染
+renderBookmarks();
+
+// 编辑按钮（插在自定义按钮旁）
+(function() {
+  var custFab = document.getElementById('custFab');
+  if (custFab) {
+    var editBtn = document.createElement('button');
+    editBtn.id = 'bmEditBtn';
+    editBtn.textContent = '✎';
+    editBtn.title = '编辑书签';
+    editBtn.onclick = toggleEditMode;
+    custFab.parentElement.insertBefore(editBtn, custFab);
+  }
+})();
 
 // ===== 状态 =====
 S.lastStatus = null;

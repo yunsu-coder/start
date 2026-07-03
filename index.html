@@ -6,7 +6,7 @@
 <title>启动页</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
-<link rel="stylesheet" href="/css/styles.css?v=1783190030">
+<link rel="stylesheet" href="/css/styles.css?v=1783190035">
 <script src="/lib/jszip/dist/jszip.min.js"></script>
 </head>
 <body>
@@ -45,9 +45,11 @@
 
 <!-- 首页 -->
 <div class="panel active" id="panel-home">
-  <div class="time" id="clock">00:00</div>
-  <div class="date"><span id="date">--</span> · <span id="weather">--</span></div>
-  <div class="greeting" id="greeting"></div>
+  <div class="hero">
+    <div class="time" id="clock">00:00</div>
+    <div class="date"><span id="date">--</span> · <span id="weather">--</span></div>
+    <div class="greeting" id="greeting"></div>
+  </div>
   <div class="search">
     <form id="searchForm">
       <input type="text" id="q" placeholder="搜索..." autofocus>
@@ -439,7 +441,7 @@
       <div class="analytics-card-detail"></div>
     </div>
     <!-- 阅读卡片 -->
-    <div class="analytics-card">
+    <div class="analytics-card" id="cardReading">
       <div class="analytics-card-title"><span class="mi">menu_book</span> 阅读统计</div>
       <div class="analytics-chart-wrap"><canvas id="chartReading"></canvas></div>
       <div class="analytics-card-detail"></div>

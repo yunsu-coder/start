@@ -295,11 +295,12 @@
   #panel-notes.panel { max-width: none; padding: .8rem 1rem .5rem; }
   .panel.active { display:block; }
 
-  .time { font-size:3rem; font-weight:200; text-align:center; margin:.3rem 0; }
-  .date { color:var(--sub); font-size:.9rem; text-align:center; }
-#weather { color: var(--text); }
-  .greeting { color:var(--accent); font-size:.82rem; text-align:center; margin-top:.1rem; opacity:.8; }
-  .search { margin:1.2rem 0 1.5rem; }
+  .hero { padding-top: 2.5rem; text-align: center; }
+  .time { font-size: clamp(3.5rem, 8vw, 5.5rem); font-weight: 300; text-align: center; margin: 0 0 .35rem; letter-spacing: -.02em; }
+  .date { color: var(--text); font-size: 1rem; text-align: center; }
+  #weather { color: var(--text); }
+  .greeting { color: var(--accent); font-size: .95rem; text-align: center; margin-top: .2rem; }
+  .search { margin: 1.5rem 0 1.8rem; }
   .search form { display:flex; gap:.5rem; }
   .search input {
     flex:1; padding:.7rem 1rem; border:1px solid var(--border);
@@ -323,6 +324,7 @@
     transition: transform var(--dur-normal) var(--ease-spring), box-shadow var(--dur-normal) var(--ease-spring), background var(--dur-normal) var(--ease-smooth), border-color var(--dur-normal) var(--ease-smooth);
     box-shadow:var(--shadow),inset 0 1px 0 var(--glass-highlight); min-height:66px;
     backdrop-filter:blur(var(--glass-blur)); -webkit-backdrop-filter:blur(var(--glass-blur));
+    position: relative; overflow: visible;
   }
   .link:hover {
     box-shadow:var(--card-hover), var(--glow);
@@ -332,6 +334,17 @@
   .link .icon { font-size:1.5rem; margin-bottom:.15rem; transition:transform var(--dur-slow) var(--ease-bounce); }
   .link:hover .icon { transform:scale(1.25); }
   .link .name { font-size:.72rem; text-align:center; word-break:break-all; }
+  /* 书签编辑模式 */
+  .bm-link-edit { border-style: dashed !important; cursor: grab; }
+  .bm-link-edit.dragging { opacity: .4; transform: scale(.95); }
+  .bm-link-edit .bm-link-actions { position: absolute; top: -6px; right: -6px; display: flex; gap: 2px; }
+  .bm-link-edit .bm-link-actions button { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; }
+  .bm-link-edit .bm-link-actions button:hover { background: var(--hover); border-color: var(--accent); }
+  .bm-link-edit .bm-link-actions .bm-del-link { color: var(--danger); }
+  .bm-empty-slot { grid-column: 1 / -1; }
+  .bm-context-menu .bm-cm-item:hover { background: var(--bg); }
+  #bmEditBtn { position: fixed; right: 24px; bottom: 128px; z-index: 100; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: var(--card); color: var(--sub); cursor: pointer; font-size: .7rem; backdrop-filter: blur(var(--glass-blur)); box-shadow: var(--shadow); transition: transform var(--dur-fast), box-shadow var(--dur-fast); display: flex; align-items: center; justify-content: center; }
+  #bmEditBtn:hover { transform: scale(1.08); box-shadow: var(--card-hover), var(--glow); }
   .status-bar { display:flex; gap:1rem; justify-content:center; margin:1rem 0; font-size:.72rem; color:var(--sub); flex-wrap:wrap; }
   .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:.3rem; }
   .dot.green { background:var(--ok); box-shadow:0 0 6px rgba(74,222,128,0.5); }
@@ -2419,10 +2432,11 @@ body[data-ui-style="filled"] .mi {
   .theme-btn { padding: .2rem .35rem; font-size: 1rem; flex-shrink: 0; }
 
   /* --- 首页 --- */
-  .time { font-size: 2rem; margin: .2rem 0; }
-  .date { font-size: .75rem; }
-  .greeting { font-size: .7rem; }
-  .search { margin: .6rem 0 .8rem; }
+  .hero { padding-top: 1.2rem; }
+  .time { font-size: clamp(2.5rem, 10vw, 3.5rem); margin: 0 0 .25rem; }
+  .date { font-size: .85rem; }
+  .greeting { font-size: .8rem; }
+  .search { margin: .8rem 0 1rem; }
   .search form { gap: .3rem; }
   .search input { padding: .5rem .7rem; font-size: .85rem; border-radius: 10px; }
   .search button { padding: .5rem .9rem; font-size: .85rem; border-radius: 10px; }
@@ -2532,7 +2546,7 @@ body[data-ui-style="filled"] .mi {
   .nav-item .nav-icon.mi { font-size: 20px; }
 
   /* --- 首页 --- */
-  .time { font-size: 2.5rem; }
+  .time { font-size: clamp(2.8rem, 7vw, 4.5rem); }
   .grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: .3rem; }
   .link { padding: .6rem .25rem; min-height: 58px; }
   .link .icon { font-size: 1.35rem; }

@@ -12,7 +12,7 @@ const { getStatus, listFiles, uploadFiles, deleteFile, getFilePath, getFilePrevi
         createFolder, deleteFolder, renameFolder, emptyTrash, listTrash, restoreFromTrash,
         scanDir, breadcrumb, FILES_DIR,
         listWorks, saveWork, getWork, deleteWork, exportWork } = require('./lib/storage');
-const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache, fetchUrl } = require('./lib/scraper');
+const { doScrape, listSessions, getSession, deleteSession, transferSession, invalidateSessionCache } = require('./lib/scraper');
 const analytics = require('./lib/analytics');
 const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, deleteHistory, DEFAULT_BASE_URL, DEFAULT_MODEL } = require('./lib/translate');
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMD } = require('./lib/export');
@@ -805,6 +805,21 @@ const server = http.createServer(async (req, res) => {
     if (!body || !body.urls || !body.urls.length) return sendJSON(res, 400, { error: '请输入至少一个网址' });
     const type = body.type || 'both';
     if (!['text', 'images', 'both', 'video', 'music'].includes(type)) return sendJSON(res, 400, { error: 'type 只能是 text/images/both/video/music' });
+
+    // SSE 流式模式
+    if (body.stream) {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
+      const send = (event, data) => { res.write('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n'); };
+      try {
+        const result = await doScrape(body.urls, type, { minWidth: body.minWidth || 0, minHeight: body.minHeight || 0, followDetail: body.followDetail !== false, deepRender: body.deepRender !== false, skipDup: body.skipDup || false, onProgress: (p) => { send('progress', p); } });
+        send('result', result);
+      } catch (e) {
+        send('error', { error: e.message });
+      }
+      res.end();
+      return;
+    }
+
     try {
       const result = await doScrape(body.urls, type, { minWidth: body.minWidth || 0, minHeight: body.minHeight || 0, followDetail: body.followDetail !== false, deepRender: body.deepRender !== false, skipDup: body.skipDup || false });
       return sendJSON(res, 200, result);

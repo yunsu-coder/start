@@ -79,11 +79,37 @@ window.Yiwei = window.Yiwei || {};
     document.getElementById('ovNotes').textContent = stats.notes.total || 0;
   }
 
+  // 图表空数据回退：在 canvas 容器中显示提示文本
+  function emptyChart(canvasId, msg) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    canvas.style.display = 'none';
+    var parent = canvas.parentElement;
+    var placeholder = parent.querySelector('.chart-empty');
+    if (!placeholder) {
+      placeholder = document.createElement('div');
+      placeholder.className = 'chart-empty';
+      placeholder.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;min-height:120px;color:var(--sub);font-size:.8rem;';
+      parent.appendChild(placeholder);
+    }
+    placeholder.textContent = msg || '暂无数据';
+    placeholder.style.display = 'flex';
+  }
+  function showChart(canvasId) {
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    canvas.style.display = '';
+    var placeholder = canvas.parentElement.querySelector('.chart-empty');
+    if (placeholder) placeholder.style.display = 'none';
+  }
+
   // ---- 在线时长 ----
   function renderOnlineChart(stats) {
     var ctx = document.getElementById('chartOnline'); if (!ctx) return;
     var ts = stats.onlineTime.timeSeries || {};
     var entries = Object.entries(ts).sort(function(a, b) { return a[0] > b[0] ? 1 : -1; });
+    if (!entries.length) { emptyChart('chartOnline', '暂无在线数据'); return; }
+    showChart('chartOnline');
     charts.online = new Chart(ctx, {
       type: 'bar',
       data: { labels: entries.map(function(e) { return e[0]; }), datasets: [{ data: entries.map(function(e) { return e[1]; }), backgroundColor: C.accent, borderRadius: 6, maxBarThickness: 24 }] },
@@ -102,6 +128,8 @@ window.Yiwei = window.Yiwei || {};
     var ctx = document.getElementById('chartFiles'); if (!ctx) return;
     var types = stats.files.types || {};
     var entries = Object.entries(types).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 8);
+    if (!entries.length) { emptyChart('chartFiles', '暂无文件'); return; }
+    showChart('chartFiles');
     var colors = [C.accent, C.accent2, C.ok, C.warn, C.danger, C.sub, C.text, C.border];
     charts.files = new Chart(ctx, {
       type: 'doughnut',
@@ -123,6 +151,8 @@ window.Yiwei = window.Yiwei || {};
     var ctx = document.getElementById('chartNotes'); if (!ctx) return;
     var daily = stats.notes.dailyWords || {};
     var sorted = Object.entries(daily).sort(function(a, b) { return a[0] > b[0] ? 1 : -1; });
+    if (!sorted.length) { emptyChart('chartNotes', '暂无写作数据'); return; }
+    showChart('chartNotes');
     charts.notes = new Chart(ctx, {
       type: 'bar',
       data: { labels: sorted.map(function(e) { return e[0].slice(5); }), datasets: [{ data: sorted.map(function(e) { return e[1]; }), backgroundColor: C.accent, borderRadius: 6, maxBarThickness: 22 }] },
@@ -137,6 +167,8 @@ window.Yiwei = window.Yiwei || {};
     var ctx = document.getElementById('chartTranslate'); if (!ctx) return;
     var byDay = stats.translate.byDay || {};
     var sorted = Object.entries(byDay).sort(function(a, b) { return a[0] > b[0] ? 1 : -1; });
+    if (!sorted.length) { emptyChart('chartTranslate', '暂无翻译数据'); return; }
+    showChart('chartTranslate');
     charts.translate = new Chart(ctx, {
       type: 'bar',
       data: { labels: sorted.map(function(e) { return e[0].slice(5); }), datasets: [{ data: sorted.map(function(e) { return e[1]; }), backgroundColor: C.accent2, borderRadius: 6, maxBarThickness: 22 }] },
@@ -155,6 +187,8 @@ window.Yiwei = window.Yiwei || {};
     chat = chat || { conversations: 0, totalMessages: 0, avgLength: 0, byDay: {} };
     var ctx = document.getElementById('chartChat'); if (!ctx) return;
     var sorted = Object.entries(chat.byDay).sort(function(a, b) { return a[0] > b[0] ? 1 : -1; });
+    if (!sorted.length) { emptyChart('chartChat', '暂无对话数据'); return; }
+    showChart('chartChat');
     charts.chat = new Chart(ctx, {
       type: 'bar',
       data: { labels: sorted.map(function(e) { return e[0].slice(5); }), datasets: [{ data: sorted.map(function(e) { return e[1]; }), backgroundColor: C.ok, borderRadius: 6, maxBarThickness: 22 }] },
@@ -169,6 +203,8 @@ window.Yiwei = window.Yiwei || {};
     var ctx = document.getElementById('chartReading'); if (!ctx) return;
     var detail = getReadingDetail();
     var rf = detail.files.length, rn = detail.notes.length;
+    if (!rf && !rn) { emptyChart('chartReading', '暂无阅读记录'); return; }
+    showChart('chartReading');
     // 阅读时长 = 在线时长中 read 面板的时间
     var readMin = stats.onlineTime.byPanel.read || 0;
 
@@ -192,12 +228,41 @@ window.Yiwei = window.Yiwei || {};
     }
   }
 
+  // 检查是否完全无数据
+  function hasAnyData(stats, chat) {
+    var onlineOk = stats.onlineTime && stats.onlineTime.total > 0;
+    var filesOk = stats.files && stats.files.total > 0;
+    var notesOk = stats.notes && stats.notes.total > 0;
+    var translateOk = stats.translate && stats.translate.total > 0;
+    var chatOk = chat && chat.totalMessages > 0 && chat.totalMessages > 0;
+    return onlineOk || filesOk || notesOk || translateOk || chatOk;
+  }
+
+  function showEmptyState(show) {
+    var grid = document.querySelector('.analytics-grid');
+    var empty = document.getElementById('analyticsEmpty');
+    if (show) {
+      if (!empty) {
+        empty = document.createElement('div');
+        empty.id = 'analyticsEmpty';
+        empty.style.cssText = 'grid-column:1/-1;text-align:center;padding:3rem 1rem;color:var(--sub);';
+        empty.innerHTML = '<span class="mi" style="font-size:2.5rem;display:block;margin-bottom:.8rem;opacity:.5;">monitoring</span><p style="font-size:.9rem;margin:0;">暂无使用数据</p><p style="font-size:.75rem;margin:.3rem 0 0;opacity:.7;">开始使用各模块后，统计数据会自动出现在这里</p>';
+        grid.appendChild(empty);
+      }
+      empty.style.display = '';
+    } else {
+      if (empty) empty.style.display = 'none';
+    }
+  }
+
   async function renderAll(range) {
     refreshColors();
     destroyCharts();
     var stats = await loadStats(range);
-    if (!stats) return;
+    if (!stats) { showEmptyState(true); return; }
     var chat = await loadChatStats();
+    if (!hasAnyData(stats, chat)) { showEmptyState(true); return; }
+    showEmptyState(false);
     renderOverview(stats);
     renderOnlineChart(stats);
     renderFilesChart(stats);
