@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
 <link rel="stylesheet" href="/css/styles.css?v=1783190035">
-<script src="/lib/jszip/dist/jszip.min.js"></script>
+<script src="/lib/jszip/dist/jszip.min.js" defer></script>
 </head>
 <body>
 
@@ -106,7 +106,7 @@
   <div id="batchBar" style="display:none;align-items:center;gap:.5rem;margin-bottom:.5rem;padding:.4rem .6rem;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:.8rem;">
     <label style="display:flex;align-items:center;gap:.3rem;cursor:pointer;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> 全选</label>
     <span id="selectedCount" style="color:var(--accent);"></span>
-    <span style="color:var(--sub);font-size:.7rem;">· Ctrl+A 全选 · Shift+点击 范围 · Ctrl+点击 多选</span>
+    <span style="color:var(--sub);font-size:.7rem;">· <kbd>Ctrl</kbd>+A 全选 · Shift+点击 范围 · <kbd>Ctrl</kbd>+点击 多选</span>
     <div class="batch-actions">
       <button class="btn-sm" onclick="batchMove()"><span class="mi">drive_file_move</span> 移动</button>
       <button class="btn-sm" onclick="batchDownload()"><span class="mi">download</span> 下载</button>
@@ -701,25 +701,25 @@
 </div>
 
 <!-- app.js → 分拆为 5 个模块 -->
-<script src="/js/core.js?v=1783190030"></script>
-<script src="/js/pomodoro.js?v=1783190030"></script>
-<script src="/js/files-panel.js?v=1780652200"></script>
-<script src="/js/notes-panel.js?v=1783190026"></script>
-<script src="/js/reader-panel.js?v=1783190002"></script>
-<script src="/js/works-panel.js?v=1783190022"></script>
-<script src="/js/scrape.js?v=1777704498"></script>
-<script src="/js/wallpaper.js?v=1783050000"></script>
-<script src="/js/translate-panel.js?v=1780450482"></script>
+<script src="/js/core.js?v=1783190030" defer></script>
+<script src="/js/pomodoro.js?v=1783190030" defer></script>
+<script src="/js/files-panel.js?v=1780652200" defer></script>
+<script src="/js/notes-panel.js?v=1783190026" defer></script>
+<script src="/js/reader-panel.js?v=1783190002" defer></script>
+<script src="/js/works-panel.js?v=1783190022" defer></script>
+<script src="/js/scrape.js?v=1777704498" defer></script>
+<script src="/js/wallpaper.js?v=1783050000" defer></script>
+<script src="/js/translate-panel.js?v=1780450482" defer></script>
 <link rel="stylesheet" href="/public/vendor/highlight.min.css">
-<script src="/public/vendor/highlight.min.js"></script>
-<script src="/public/vendor/markdown-it.min.js"></script>
-<script src="/public/vendor/markdown-it-emoji.min.js"></script>
-<script src="/public/vendor/markdown-it-sub.min.js"></script>
-<script src="/public/vendor/markdown-it-sup.min.js"></script>
-<script src="/public/vendor/markdown-it-footnote.min.js"></script>
-<script src="/public/vendor/markdown-it-mark.min.js"></script>
-<script src="/public/vendor/markdown-it-ins.min.js"></script>
-<script src="/public/vendor/markdown-it-task-lists.min.js"></script>
+<script src="/public/vendor/highlight.min.js" defer></script>
+<script src="/public/vendor/markdown-it.min.js" defer></script>
+<script src="/public/vendor/markdown-it-emoji.min.js" defer></script>
+<script src="/public/vendor/markdown-it-sub.min.js" defer></script>
+<script src="/public/vendor/markdown-it-sup.min.js" defer></script>
+<script src="/public/vendor/markdown-it-footnote.min.js" defer></script>
+<script src="/public/vendor/markdown-it-mark.min.js" defer></script>
+<script src="/public/vendor/markdown-it-ins.min.js" defer></script>
+<script src="/public/vendor/markdown-it-task-lists.min.js" defer></script>
 <script>
 // Mermaid 按需懒加载（仅笔记/对话渲染图表时需要）
 window._mermaidReady = false;

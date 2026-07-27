@@ -2,6 +2,11 @@
 window.Yiwei = window.Yiwei || { state: {}, config: {} };
 const S = Yiwei.state; // 状态读写快捷方式
 
+// ===== 平台检测（快捷键标签适配）=====
+S.isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || (navigator.userAgentData && navigator.userAgentData.platform) || '');
+S.modKey = S.isMac ? '⌘' : 'Ctrl';
+S.delKey = S.isMac ? '⌘⌫' : 'Del';
+
 // ===== 活跃状态追踪（用于在线时长统计）=====
 S.lastActivity = Date.now();
 S.isIdle = false;
@@ -547,6 +552,50 @@ function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 function escAttr(s) { return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"'); }
 function fmtFileSize(b) { return b<1024?b+'B':b<1048576?(b/1024).toFixed(1)+'K':(b/1048576).toFixed(1)+'M'; }
 
+// ===== ⌘/Ctrl + 数字键切换面板 =====
+(function() {
+  var panels = ['home','files','notes','scrape','read','translate','chat','analytics'];
+  document.addEventListener('keydown', function(e) {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    if (e.shiftKey || e.altKey) return;
+    var tag = document.activeElement && document.activeElement.tagName;
+    var isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (document.activeElement && document.activeElement.isContentEditable);
+    var key = e.key;
+    // ⌘/Ctrl + 1-8 → 面板切换（输入框内不拦截）
+    if (key >= '1' && key <= '8' && !isInput) {
+      e.preventDefault();
+      var idx = parseInt(key, 10) - 1;
+      if (panels[idx]) switchPanel(panels[idx]);
+    }
+  });
+})();
+
+// ===== Mac ⌘⌫ 补充（Mac 键盘无独立 Delete 键）=====
+document.addEventListener('keydown', function(e) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Backspace') {
+    var tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (document.activeElement && document.activeElement.isContentEditable)) return;
+    e.preventDefault();
+    // 模拟 Delete 键行为
+    if (S.currentPanel === 'files') {
+      var drawer = document.getElementById('trashDrawer');
+      if (drawer && drawer.style.display === 'block') { if (typeof emptyTrash === 'function') emptyTrash(); return; }
+      var checked = document.querySelectorAll('.file-check:checked');
+      if (checked.length) { if (typeof batchDelete === 'function') batchDelete(); return; }
+    }
+    if (S.currentPanel === 'notes' && typeof currentNoteId !== 'undefined' && currentNoteId) {
+      if (typeof deleteNote === 'function') deleteNote(); return;
+    }
+    if (S.currentPanel === 'scrape') {
+      var scChecked = document.querySelectorAll('.scrape-check:checked');
+      if (scChecked.length) { if (typeof batchDelScrape === 'function') batchDelScrape(); return; }
+    }
+    if (S.currentPanel === 'read' && typeof currentBook !== 'undefined' && currentBook) {
+      if (typeof closeReader === 'function') closeReader(); return;
+    }
+  }
+});
+
 // ===== Del 键全局删除（跨面板）=====
 document.addEventListener('keydown', e => {
   if (e.key !== 'Delete') return;
@@ -636,6 +685,8 @@ document.addEventListener('DOMContentLoaded', function(){
   document.addEventListener('mousemove', e => {
     mouseX = e.clientX; mouseY = e.clientY;
     addParticle();
+    // 性能优化：有粒子时启动 RAF，空闲时自动停止
+    if (!animId) animId = requestAnimationFrame(draw);
   });
 
   function getMaxParticles() {
@@ -658,6 +709,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
   function draw() {
     ctx.clearRect(0, 0, w, h);
+    var hasParticles = particles.length > 0;
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
       p.x += p.vx;
@@ -669,12 +721,19 @@ document.addEventListener('DOMContentLoaded', function(){
       ctx.fillStyle = p.color + Math.floor(p.life * 255).toString(16).padStart(2,'0');
       ctx.fill();
     }
-    animId = requestAnimationFrame(draw);
+    // 性能优化：无活跃粒子时停止 RAF 循环，避免持续消耗 GPU
+    if (particles.length > 0) {
+      animId = requestAnimationFrame(draw);
+    } else {
+      animId = null;
+    }
   }
-  let animId = requestAnimationFrame(draw);
+  let animId = null;
+  // 首次不自动启动；由 mousemove 触发
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { cancelAnimationFrame(animId); animId = null; }
-    else if (!animId) animId = requestAnimationFrame(draw);
+    if (document.hidden) {
+      if (animId) { cancelAnimationFrame(animId); animId = null; }
+    }
   });
 })();
 
@@ -825,9 +884,11 @@ document.addEventListener('DOMContentLoaded', function(){
     // ripple always on
     const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#89b4fa';
     ripples.push({ x: e.clientX, y: e.clientY, radius: 0, maxRadius: 38, life: 1, color: accent });
+    // 性能优化：有涟漪时启动 RAF，空闲时自动停止
+    if (!rippleAnimId) rippleAnimId = requestAnimationFrame(drawRipple);
   });
 
-  function draw() {
+  function drawRipple() {
     ctx.clearRect(0, 0, w, h);
     for (let i = ripples.length - 1; i >= 0; i--) {
       const r = ripples[i];
@@ -840,9 +901,15 @@ document.addEventListener('DOMContentLoaded', function(){
       ctx.lineWidth = 2.2 * r.life;
       ctx.stroke();
     }
-    requestAnimationFrame(draw);
+    // 性能优化：无活跃涟漪时停止 RAF 循环
+    if (ripples.length > 0) {
+      rippleAnimId = requestAnimationFrame(drawRipple);
+    } else {
+      rippleAnimId = null;
+    }
   }
-  requestAnimationFrame(draw);
+  let rippleAnimId = null;
+  // 不自动启动，由 click 触发
 })();
 
 // ===== 全局错误捕获 =====
@@ -1081,4 +1148,40 @@ document.addEventListener('keydown', e => {
       if (modal && modal.classList.contains('show')) closeApiModal();
     }
   });
+})();
+
+// ===== 快捷键标签 Mac 适配 =====
+(function adaptShortcutLabels() {
+  if (!S.isMac) return;
+  function adapt(el) {
+    if (!el) return;
+    // 文本节点替换
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+    var textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    textNodes.forEach(function(node) {
+      if (node.textContent.indexOf('Ctrl') !== -1 || node.textContent.indexOf('Del') !== -1) {
+        node.textContent = node.textContent.replace(/Ctrl/g, '⌘').replace(/\bDel\b/g, '⌘⌫');
+      }
+    });
+    // title 属性替换
+    if (el.title && (el.title.indexOf('Ctrl') !== -1 || el.title.indexOf('Del') !== -1)) {
+      el.title = el.title.replace(/Ctrl/g, '⌘').replace(/\bDel\b/g, '⌘⌫');
+    }
+  }
+  // 适配所有 kbd 元素和有 title 的元素
+  document.querySelectorAll('kbd,[title]').forEach(adapt);
+  // 适配后续动态插入的节点（MutationObserver）
+  new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      m.addedNodes.forEach(function(node) {
+        if (node.nodeType === 1) {
+          if (node.matches && (node.matches('kbd') || node.hasAttribute && node.hasAttribute('title'))) adapt(node);
+          if (node.querySelectorAll) {
+            node.querySelectorAll('kbd,[title]').forEach(adapt);
+          }
+        }
+      });
+    });
+  }).observe(document.body, { childList: true, subtree: true });
 })();

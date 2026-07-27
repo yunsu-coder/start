@@ -496,6 +496,24 @@ function handleEvent(event, data) {
         chatMessages.appendChild(note);
       }
       break;
+    case 'search_results': {
+      // RAG 本地知识库检索来源
+      if (data.results && data.results.length) {
+        const note = document.createElement('div');
+        note.className = 'chat-search-results';
+        const icons = { note: 'edit_note', file: 'description', scrape: 'travel_explore' };
+        const labels = { note: '笔记', file: '文件', scrape: '采集' };
+        const items = data.results.map(r =>
+          '<span class="chat-search-item">' +
+          '<span class="mi">' + (icons[r.type] || 'search') + '</span>' +
+          escapeHtml((labels[r.type] || r.type) + ': ' + (r.title || '').slice(0, 40)) +
+          '</span>'
+        ).join('');
+        note.innerHTML = '<span class="mi chat-search-icon">psychology</span> 参考了 ' + data.results.length + ' 个来源：' + items;
+        chatMessages.appendChild(note);
+      }
+      break;
+    }
     case 'thinking': {
       clearTyping();
       const body = currentBody(); if (!body) return;

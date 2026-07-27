@@ -17,6 +17,7 @@ const analytics = require('./lib/analytics');
 const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, deleteHistory, DEFAULT_BASE_URL, DEFAULT_MODEL } = require('./lib/translate');
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMD } = require('./lib/export');
 const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, getNextWallpaper, upscaleWallpaper, replaceWallpaperFile, WALLPAPER_DIR } = require('./lib/wallpaper');
+const rag = require('./lib/rag');
 
 // ===== 加载环境变量 =====
 const envPath = path.join(__dirname, '.env');
@@ -355,6 +356,25 @@ const server = http.createServer(async (req, res) => {
     const subDir = url.searchParams.get('dir') || '';
     const result = uploadFiles(parts, MAX_STORAGE, subDir);
     if (result.error) return sendJSON(res, result.error === 'no file' ? 400 : 413, result);
+    // 文本文件加入 RAG 索引
+    if (result.uploaded) {
+      try {
+        const textExts = ['.txt', '.md', '.json', '.csv', '.log', '.html', '.css',
+                          '.js', '.xml', '.yml', '.yaml', '.env', '.py', '.sh', '.conf'];
+        for (const f of result.uploaded) {
+          const ext = path.extname(f.name).toLowerCase();
+          if (textExts.includes(ext)) {
+            const relPath = subDir ? subDir + '/' + f.name : f.name;
+            const fp = path.join(FILES_DIR, relPath);
+            if (fs.existsSync(fp)) {
+              const content = fs.readFileSync(fp, 'utf8').slice(0, 20000);
+              const docId = 'file_' + relPath.replace(/[^a-zA-Z0-9_-]/g, '_');
+              rag.indexDoc(docId, 'file', relPath, f.name, content, relPath, new Date().toISOString());
+            }
+          }
+        }
+      } catch (e) { console.error('[rag] 文件索引更新失败:', e.message); }
+    }
     return sendJSON(res, 200, result);
   }
   if (p.startsWith('/api/files/') && m === 'DELETE') {
@@ -688,7 +708,12 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/notes' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body || body.title === undefined) return sendJSON(res, 400, { error: 'bad request' });
-    return sendJSON(res, 200, saveNote(body));
+    const result = saveNote(body);
+    // 更新 RAG 索引
+    try {
+      rag.indexDoc('note_' + result.id, 'note', result.id, body.title || '', body.content || '', '', result.updated || '');
+    } catch (e) { console.error('[rag] 笔记索引更新失败:', e.message); }
+    return sendJSON(res, 200, result);
   }
   if (p.startsWith('/api/notes/') && m === 'GET') {
     const id = p.slice('/api/notes/'.length).replace(/\.json$/, '');
@@ -700,6 +725,8 @@ const server = http.createServer(async (req, res) => {
     const id = p.slice('/api/notes/'.length).replace(/\.json$/, '');
     const result = deleteNote(id);
     if (result.error) return sendJSON(res, 404, result);
+    // 从 RAG 索引移除
+    try { rag.removeDocFromIndex('note_' + id); } catch (e) { console.error('[rag] 笔记索引移除失败:', e.message); }
     return sendJSON(res, 200, result);
   }
 
@@ -1054,6 +1081,14 @@ const server = http.createServer(async (req, res) => {
         truncated,
         charCount: text.length,
       });
+
+      // 上传的文档加入 RAG 索引
+      if (text && text.trim().length >= 20) {
+        try {
+          const docId = 'doc_' + filePart.filename.replace(/[^a-zA-Z0-9\u4e00-\u9fff_-]/g, '_') + '_' + Date.now();
+          rag.indexDoc(docId, 'file', docId, filePart.filename, text, '', new Date().toISOString());
+        } catch (e) { console.error('[rag] 文档索引更新失败:', e.message); }
+      }
     } catch (e) {
       sendJSON(res, 500, { error: '文档处理失败: ' + e.message });
     }
@@ -1087,8 +1122,44 @@ const server = http.createServer(async (req, res) => {
     const messages = body.messages;
     sendSSE(res, 'start', {});
 
-    // 注入系统 Prompt
-    messages.unshift({ role: 'system', content: SYSTEM_PROMPT });
+    // ===== RAG 本地知识库检索 =====
+    // 获取最后一条用户消息文本
+    let userQuery = '';
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+    if (lastUserMsg) {
+      if (typeof lastUserMsg.content === 'string') userQuery = lastUserMsg.content;
+      else if (Array.isArray(lastUserMsg.content)) {
+        userQuery = lastUserMsg.content
+          .filter(p => p.type === 'text')
+          .map(p => p.text).join(' ');
+      }
+    }
+
+    if (userQuery && rag.shouldSearch(userQuery)) {
+      try {
+        const searchResults = rag.search(userQuery, 3);
+        if (searchResults.length > 0) {
+          const ragContext = rag.formatContext(searchResults);
+          // 将检索结果注入系统提示词
+          const enhancedPrompt = SYSTEM_PROMPT + ragContext;
+          messages.unshift({ role: 'system', content: enhancedPrompt });
+          // 通知前端检索结果
+          sendSSE(res, 'search_results', {
+            query: userQuery.slice(0, 100),
+            results: searchResults.map(r => ({
+              type: r.type, title: r.title, snippet: r.snippet, score: r.score,
+            })),
+          });
+        } else {
+          messages.unshift({ role: 'system', content: SYSTEM_PROMPT });
+        }
+      } catch (e) {
+        console.error('[rag] 检索失败:', e.message);
+        messages.unshift({ role: 'system', content: SYSTEM_PROMPT });
+      }
+    } else {
+      messages.unshift({ role: 'system', content: SYSTEM_PROMPT });
+    }
 
     // 上下文压缩：早期消息太多时自动浓缩摘要（借鉴 LobeChat/Open WebUI 最佳实践）
     const keepRecent = body.keepRecent || 20;
@@ -1441,5 +1512,8 @@ const server = http.createServer(async (req, res) => {
 
   serveStatic(p, res, req);
 });
+
+// 启动时重建本地知识库索引
+rag.rebuildIndex().catch(e => console.error('[rag] 启动索引失败:', e.message));
 
 server.listen(PORT, '127.0.0.1', () => console.log(`📌 导航页已启动: http://127.0.0.1:${PORT}`));

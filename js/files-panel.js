@@ -351,6 +351,28 @@ document.addEventListener('keydown', e => {
       batchDelete();
     }
   }
+  // Space: 预览第一个选中的文件
+  if (e.key === ' ' && S && S.currentPanel === 'files') {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
+    e.preventDefault();
+    const checked = document.querySelectorAll('.file-check:checked, .file-card-check:checked');
+    if (checked.length) {
+      var name = checked[0].value || checked[0].closest('[data-name]')?.dataset?.name;
+      if (name) { if (typeof previewFile === 'function') previewFile(name); }
+    }
+  }
+  // Enter: 下载第一个选中的文件
+  if (e.key === 'Enter' && S && S.currentPanel === 'files') {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
+    const checked = document.querySelectorAll('.file-check:checked, .file-card-check:checked');
+    if (checked.length) {
+      e.preventDefault();
+      var name = checked[0].value || checked[0].closest('[data-name]')?.dataset?.name;
+      if (name) downloadFile(name);
+    }
+  }
 });
 
 function copyLink(name) {

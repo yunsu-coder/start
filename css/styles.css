@@ -1428,6 +1428,22 @@ pre[data-lang]::before { content:attr(data-lang); position:absolute; top:0; left
   border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center; gap: .3rem;
 }
+/* RAG 本地知识库检索来源标签 */
+.chat-search-results {
+  text-align: center; padding: .4rem .6rem;
+  font-size: .7rem; color: var(--sub);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; gap: .4rem;
+  flex-wrap: wrap; background: var(--hover);
+}
+.chat-search-icon { color: var(--accent); font-size: .85rem; }
+.chat-search-item {
+  display: inline-flex; align-items: center; gap: .15rem;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px; padding: .1rem .4rem;
+  font-size: .65rem; white-space: nowrap;
+}
+.chat-search-item .mi { font-size: .7rem; color: var(--accent); }
 .chat-container {
   display: flex;
   flex-direction: column;
@@ -2646,4 +2662,60 @@ body[data-ui-style="filled"] .mi {
   .ambient-toggle { min-height: 40px; min-width: 40px; }
   .ambient-ctrl-btn { min-height: 36px; min-width: 36px; }
   .analytics-range-btn { min-height: 36px; }
+}
+
+/* ================================================================
+   性能优化：减少 backdrop-filter 合成层
+   仅保留 navbar / modal / toast / 浮动组件等关键玻璃表面，
+   卡片级元素（书签、文件行、笔记项等）移除 backdrop-filter
+   以避免 Mac Chrome 的 GPU 合成层爆炸
+   ================================================================ */
+.link,
+.search input,
+.drop-zone,
+.file-row, .file-card,
+.btn-sm,
+.notes-sidebar, .note-list-item, .btn-new,
+.note-editor input.title,
+.split-pane .pane,
+.scrape-form textarea, .scrape-card,
+.tl-lang-row select, .tl-swap, .tl-pane, .tl-grammar, .tl-hist-item,
+.book-card, .work-card, .work-reader-card,
+.chat-sidebar, .chat-header-bar, .chat-input-area,
+.chat-msg.assistant .chat-msg-body,
+.analytics-card,
+.cfg-field select,
+.api-field input, .api-presets button,
+.modal-footer,
+#batchBar {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ================================================================
+   性能优化：环境光晕用 radial-gradient 替代 filter:blur(80px)
+   filter:blur(80px) 在大尺寸元素上对 Mac Chrome GPU 极其昂贵
+   ================================================================ */
+.ambient-orb {
+  filter: none !important;
+  opacity: 0.08 !important;
+}
+.ambient-orb:nth-child(1) {
+  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+}
+.ambient-orb:nth-child(2) {
+  background: radial-gradient(circle, var(--accent2) 0%, transparent 70%);
+}
+.ambient-orb:nth-child(3) {
+  background: radial-gradient(circle, var(--warn) 0%, transparent 70%);
+  opacity: 0.04 !important;
+}
+
+/* ================================================================
+   性能优化：隐藏面板跳过渲染（content-visibility: auto）
+   非活跃面板的内容不需要被绘制，大幅减少初始布局开销
+   ================================================================ */
+.panel:not(.active) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
 }

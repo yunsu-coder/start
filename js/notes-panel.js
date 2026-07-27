@@ -646,6 +646,21 @@ document.addEventListener('keydown', e => {
       togglePreviewOnly();
     }
   }
+  // ⌘B 加粗 / ⌘I 斜体（仅笔记编辑器）
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B' || e.key === 'i' || e.key === 'I')) {
+    if (S.currentPanel === 'notes' || document.activeElement?.closest('#panel-notes')) {
+      var ta = document.getElementById('noteContent');
+      if (!ta || document.activeElement !== ta) return;
+      e.preventDefault();
+      var start = ta.selectionStart, end = ta.selectionEnd;
+      var sel = ta.value.substring(start, end);
+      var wrap = e.key === 'b' || e.key === 'B' ? '**' : '*';
+      ta.value = ta.value.substring(0, start) + wrap + sel + wrap + ta.value.substring(end);
+      ta.selectionStart = start + wrap.length;
+      ta.selectionEnd = end + wrap.length;
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
 });
 
 
