@@ -18,6 +18,7 @@ const { getLangs, translateStream, detectLanguage, saveHistory, listHistory, del
 const { exportToPDF, exportToDOCX, exportToTXT, exportToMD } = require('./lib/export');
 const { listWallpapers, getCurrentWallpaper, setCurrentWallpaper, deleteWallpaper, saveWallpaperFromUrl, setRandomWallpaper, getNextWallpaper, upscaleWallpaper, replaceWallpaperFile, WALLPAPER_DIR } = require('./lib/wallpaper');
 const rag = require('./lib/rag');
+const { listTasks, createTask, updateTask, deleteTask } = require('./lib/tasks');
 
 // ===== 加载环境变量 =====
 const envPath = path.join(__dirname, '.env');
@@ -783,6 +784,30 @@ const server = http.createServer(async (req, res) => {
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent((work?.title || '作品') + '.' + ext)}`,
     });
     return res.end(content);
+  }
+
+  // ===== 待办任务 =====
+  if (p === '/api/tasks' && m === 'GET') {
+    const status = url.searchParams.get('status') || 'all';
+    return sendJSON(res, 200, listTasks(status));
+  }
+  if (p === '/api/tasks' && m === 'POST') {
+    const body = parseJSON(await readBody(req));
+    if (!body || !body.description) return sendJSON(res, 400, { error: '请输入任务描述' });
+    return sendJSON(res, 200, createTask(body));
+  }
+  if (p.startsWith('/api/tasks/') && m === 'POST') {
+    const id = p.slice('/api/tasks/'.length);
+    const body = parseJSON(await readBody(req));
+    const result = updateTask(id, body);
+    if (result.error) return sendJSON(res, 404, result);
+    return sendJSON(res, 200, result);
+  }
+  if (p.startsWith('/api/tasks/') && m === 'DELETE') {
+    const id = p.slice('/api/tasks/'.length);
+    const result = deleteTask(id);
+    if (result.error) return sendJSON(res, 404, result);
+    return sendJSON(res, 200, result);
   }
 
   // ===== 文档导出（单篇笔记）=====

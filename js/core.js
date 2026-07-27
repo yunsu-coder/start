@@ -554,15 +554,15 @@ function fmtFileSize(b) { return b<1024?b+'B':b<1048576?(b/1024).toFixed(1)+'K':
 
 // ===== ⌘/Ctrl + 数字键切换面板 =====
 (function() {
-  var panels = ['home','files','notes','scrape','read','translate','chat','analytics'];
+  var panels = ['home','files','notes','scrape','read','translate','chat','tasks','analytics'];
   document.addEventListener('keydown', function(e) {
     if (!(e.metaKey || e.ctrlKey)) return;
     if (e.shiftKey || e.altKey) return;
     var tag = document.activeElement && document.activeElement.tagName;
     var isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (document.activeElement && document.activeElement.isContentEditable);
     var key = e.key;
-    // ⌘/Ctrl + 1-8 → 面板切换（输入框内不拦截）
-    if (key >= '1' && key <= '8' && !isInput) {
+    // ⌘/Ctrl + 1-9 → 面板切换（输入框内不拦截）
+    if (key >= '1' && key <= '9' && !isInput) {
       e.preventDefault();
       var idx = parseInt(key, 10) - 1;
       if (panels[idx]) switchPanel(panels[idx]);
@@ -621,7 +621,7 @@ document.addEventListener('keydown', e => {
 // ===== 刷新恢复面板（延迟到所有脚本加载完成后执行）=====
 document.addEventListener('DOMContentLoaded', function(){
   const hash = location.hash.slice(1);
-  const valid = ['home','files','notes','scrape','read','translate','chat'];
+  const valid = ['home','files','notes','scrape','read','translate','chat','tasks'];
   if (hash && valid.includes(hash)) switchPanel(hash);
 });
 

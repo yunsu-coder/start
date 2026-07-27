@@ -6,7 +6,7 @@
 <title>启动页</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
-<link rel="stylesheet" href="/css/styles.css?v=1783190035">
+<link rel="stylesheet" href="/css/styles.css?v=1783190100">
 <script src="/lib/jszip/dist/jszip.min.js" defer></script>
 </head>
 <body>
@@ -32,6 +32,9 @@
   </button>
   <button class="nav-item" data-panel="chat">
     <span class="nav-icon mi">smart_toy</span><span>对话</span>
+  </button>
+  <button class="nav-item" data-panel="tasks">
+    <span class="nav-icon mi">checklist</span><span>任务</span>
   </button>
   <button class="nav-item" data-panel="analytics">
     <span class="nav-icon mi">monitoring</span><span>分析</span>
@@ -386,6 +389,90 @@
   </div>
 </div>
 
+<!-- 任务管理 -->
+<div class="panel" id="panel-tasks">
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.8rem;">
+    <h2 style="margin:0;"><span class="mi">checklist</span> 待办任务</h2>
+    <button class="btn-sm" id="taskViewToggle" onclick="toggleTaskView()" title="切换看板/列表"><span class="mi">view_kanban</span> 看板</button>
+    <span style="margin-left:auto;font-size:.75rem;color:var(--sub);" id="taskCount">--</span>
+  </div>
+  <!-- 快捷添加 -->
+  <div class="task-add-bar">
+    <input type="text" id="taskDescInput" placeholder="输入任务描述，回车添加..." autofocus>
+    <input type="text" id="taskCatInput" placeholder="分类（可选）" style="max-width:120px;">
+    <input type="date" id="taskDeadlineInput" title="截止日期" style="max-width:140px;">
+    <select id="taskStatusInput" style="max-width:100px;">
+      <option value="todo">待开始</option>
+      <option value="doing">进行中</option>
+      <option value="done">已完成</option>
+    </select>
+    <button class="btn accent" onclick="addTask()"><span class="mi">add</span></button>
+  </div>
+  <!-- 筛选 -->
+  <div class="task-filters">
+    <button class="task-filter-btn active" data-status="all" onclick="setTaskFilter('all',this)">全部</button>
+    <button class="task-filter-btn" data-status="todo" onclick="setTaskFilter('todo',this)"><span class="mi" style="font-size:.7rem;vertical-align:middle;">radio_button_unchecked</span> 待开始</button>
+    <button class="task-filter-btn" data-status="doing" onclick="setTaskFilter('doing',this)"><span class="mi" style="font-size:.7rem;vertical-align:middle;">pending</span> 进行中</button>
+    <button class="task-filter-btn" data-status="done" onclick="setTaskFilter('done',this)"><span class="mi" style="font-size:.7rem;vertical-align:middle;">check_circle</span> 已完成</button>
+  </div>
+  <!-- 列表视图 -->
+  <div class="task-list" id="taskList"></div>
+  <!-- 看板视图 -->
+  <div class="task-kanban" id="taskKanban" style="display:none;">
+    <div class="kanban-col" data-status="todo">
+      <div class="kanban-col-header"><span class="mi">radio_button_unchecked</span> 待开始 <span class="kanban-count" id="kanbanCountTodo">0</span></div>
+      <div class="kanban-col-body" id="kanbanColTodo"></div>
+    </div>
+    <div class="kanban-col" data-status="doing">
+      <div class="kanban-col-header"><span class="mi">pending</span> 进行中 <span class="kanban-count" id="kanbanCountDoing">0</span></div>
+      <div class="kanban-col-body" id="kanbanColDoing"></div>
+    </div>
+    <div class="kanban-col" data-status="done">
+      <div class="kanban-col-header"><span class="mi">check_circle</span> 已完成 <span class="kanban-count" id="kanbanCountDone">0</span></div>
+      <div class="kanban-col-body" id="kanbanColDone"></div>
+    </div>
+  </div>
+  <!-- 编辑弹窗 -->
+  <div class="modal-overlay" id="taskEditModal" onclick="if(event.target===this)closeTaskEdit()">
+    <div class="modal" style="max-width:460px;">
+      <div class="modal-header"><span id="taskEditTitle">编辑任务</span><button class="modal-close" onclick="closeTaskEdit()">✕</button></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:.6rem;">
+        <div>
+          <label class="cfg-label">任务描述</label>
+          <textarea id="taskEditDesc" rows="2" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.85rem;outline:none;resize:vertical;"></textarea>
+        </div>
+        <div style="display:flex;gap:.5rem;">
+          <div style="flex:1;">
+            <label class="cfg-label">模块分类</label>
+            <input type="text" id="taskEditCat" placeholder="如：开发、生活、学习" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
+          </div>
+          <div style="flex:1;">
+            <label class="cfg-label">截止时间</label>
+            <input type="datetime-local" id="taskEditDeadline" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
+          </div>
+        </div>
+        <div>
+          <label class="cfg-label">状态</label>
+          <select id="taskEditStatus" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;">
+            <option value="todo">待开始</option>
+            <option value="doing">进行中</option>
+            <option value="done">已完成</option>
+          </select>
+        </div>
+        <div>
+          <label class="cfg-label">备注</label>
+          <textarea id="taskEditNotes" rows="3" placeholder="备注（可选）" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;resize:vertical;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn danger" id="taskDeleteBtn" style="display:none;margin-right:auto;" onclick="deleteCurrentTask()"><span class="mi">delete</span></button>
+        <button class="btn outline" onclick="closeTaskEdit()">取消</button>
+        <button class="btn accent" onclick="saveTaskEdit()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 数据分析 -->
 <div class="panel" id="panel-analytics">
   <div class="analytics-topbar">
@@ -710,6 +797,7 @@
 <script src="/js/scrape.js?v=1777704498" defer></script>
 <script src="/js/wallpaper.js?v=1783050000" defer></script>
 <script src="/js/translate-panel.js?v=1780450482" defer></script>
+<script src="/js/tasks-panel.js?v=1783190060" defer></script>
 <link rel="stylesheet" href="/public/vendor/highlight.min.css">
 <script src="/public/vendor/highlight.min.js" defer></script>
 <script src="/public/vendor/markdown-it.min.js" defer></script>

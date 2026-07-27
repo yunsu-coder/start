@@ -2719,3 +2719,213 @@ body[data-ui-style="filled"] .mi {
   content-visibility: auto;
   contain-intrinsic-size: auto 500px;
 }
+
+/* ================================================================
+   待办任务管理
+   ================================================================ */
+
+/* 快捷添加栏 */
+.task-add-bar {
+  display: flex; gap: .4rem; margin-bottom: .7rem; align-items: center; flex-wrap: wrap;
+}
+.task-add-bar input,
+.task-add-bar select {
+  padding: .45rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  font-size: .82rem;
+  outline: none;
+  flex: 1;
+  min-width: 80px;
+}
+.task-add-bar input:focus,
+.task-add-bar select:focus {
+  border-color: var(--accent);
+}
+
+/* 筛选按钮 */
+.task-filters {
+  display: flex; gap: .3rem; margin-bottom: .7rem; flex-wrap: wrap;
+}
+.task-filter-btn {
+  padding: .3rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--sub);
+  font-size: .75rem;
+  cursor: pointer;
+  transition: all .15s;
+}
+.task-filter-btn:hover { color: var(--text); border-color: var(--accent); }
+.task-filter-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* 任务列表项 */
+.task-item {
+  display: flex; align-items: flex-start; gap: .5rem;
+  padding: .6rem .7rem;
+  margin-bottom: .25rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.task-item:hover { border-color: var(--accent); transform: translateX(2px); }
+
+.task-check {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  border: none; background: none;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+  color: var(--sub);
+  margin-top: 1px;
+}
+.task-check:hover { background: var(--hover); }
+.task-check.task-status-doing { color: var(--warn); }
+.task-check.task-status-done { color: var(--accent); }
+
+.task-body { flex: 1; min-width: 0; }
+.task-desc { font-size: .88rem; color: var(--text); display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.task-meta {
+  display: flex; gap: .5rem; margin-top: .2rem; font-size: .72rem; color: var(--sub); align-items: center;
+}
+.task-deadline { display: flex; align-items: center; gap: .15rem; }
+.task-deadline .mi { font-size: .75rem; }
+.task-status-tag {
+  padding: .1rem .4rem;
+  border-radius: 8px;
+  font-size: .65rem;
+  font-weight: 500;
+}
+.task-status-tag.task-status-todo { background: var(--hover); color: var(--sub); }
+.task-status-tag.task-status-doing { background: var(--hover); color: var(--warn); }
+.task-status-tag.task-status-done { background: var(--hover); color: var(--accent); }
+
+.task-notes-preview {
+  margin-top: .25rem; font-size: .7rem; color: var(--sub); line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 400px;
+}
+
+.task-cat-badge {
+  display: inline-flex; align-items: center;
+  padding: .05rem .35rem;
+  border-radius: 6px;
+  font-size: .65rem;
+  background: var(--hover);
+  color: var(--sub);
+  white-space: nowrap;
+}
+
+.task-del {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  border: none; background: none;
+  color: var(--sub);
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: all .15s;
+  margin-top: 2px;
+}
+.task-item:hover .task-del { opacity: 1; }
+.task-del:hover { background: rgba(255,100,100,.15); color: #f87171; }
+
+/* 逾期标记 */
+.task-overdue { border-left: 3px solid #f87171; }
+.task-overdue .task-deadline { color: #f87171; }
+
+/* 看板 */
+.task-kanban {
+  display: flex; gap: .7rem;
+  height: calc(100vh - 280px);
+  overflow-x: auto;
+  padding-bottom: .5rem;
+}
+.kanban-col {
+  flex: 1; min-width: 240px; max-width: 420px;
+  display: flex; flex-direction: column;
+}
+.kanban-col-header {
+  padding: .5rem .7rem;
+  font-size: .8rem; font-weight: 600;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px 10px 0 0;
+  display: flex; align-items: center; gap: .3rem;
+}
+.kanban-count {
+  margin-left: auto;
+  font-size: .7rem;
+  color: var(--sub);
+  background: var(--hover);
+  padding: .1rem .4rem;
+  border-radius: 8px;
+}
+.kanban-col-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: .4rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  min-height: 120px;
+}
+.kanban-empty {
+  text-align: center;
+  font-size: .75rem;
+  color: var(--sub);
+  padding: 2rem .5rem;
+}
+.kanban-card {
+  padding: .55rem .6rem;
+  margin-bottom: .3rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: grab;
+  transition: all .12s;
+}
+.kanban-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.kanban-card.dragging { opacity: .5; transform: rotate(2deg); }
+
+.kanban-card-desc {
+  font-size: .82rem; color: var(--text);
+  display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
+}
+.kanban-card-meta {
+  margin-top: .2rem; font-size: .68rem; color: var(--sub);
+  display: flex; align-items: center; gap: .15rem;
+}
+.kanban-card-meta .mi { font-size: .7rem; }
+.kanban-card-notes {
+  margin-top: .2rem; font-size: .68rem; color: var(--sub);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* 移动端看板适配 */
+@media (max-width: 768px) {
+  .task-kanban {
+    flex-direction: column;
+    height: auto;
+  }
+  .kanban-col { max-width: none; }
+  .task-add-bar { flex-direction: column; }
+  .task-add-bar input,
+  .task-add-bar select { max-width: none !important; width: 100%; }
+  .task-notes-preview { max-width: 200px; }
+}
