@@ -257,12 +257,27 @@ function startAutoSave() { stopAutoSave(); autoSaveTimer = setInterval(() => { i
 function stopAutoSave() { if (autoSaveTimer) { clearInterval(autoSaveTimer); autoSaveTimer = null; } }
 
 let previewVisible = true, previewOnly = false;
+function clearPaneInlineFlex() {
+  const panes = document.querySelectorAll('#noteEditor .split-pane > .pane');
+  panes.forEach(function(p) { p.style.flex = ''; });
+}
+function restorePaneRatio() {
+  const saved = localStorage.getItem('notes_split_ratio');
+  const sp = document.querySelector('#noteEditor .split-pane');
+  if (sp && saved) applyPaneRatio(sp, parseFloat(saved));
+}
 function togglePreview() {
   previewVisible = !previewVisible;
   if (previewVisible) previewOnly = false;
   const sp = document.querySelector('#noteEditor .split-pane');
   const btn = document.getElementById('btnTogglePreview');
-  if (sp) { sp.classList.toggle('no-preview', !previewVisible); sp.classList.toggle('preview-only', previewOnly); }
+  if (sp) {
+    sp.classList.toggle('no-preview', !previewVisible);
+    sp.classList.toggle('preview-only', false);
+    // 最大化编辑时清除内联 flex，让 CSS class 规则生效（避免分隔条拖拽比例覆盖）
+    if (!previewVisible) { clearPaneInlineFlex(); }
+    else { restorePaneRatio(); }
+  }
   if (btn) btn.innerHTML = previewOnly ? '<span class="mi">edit_off</span>' : (previewVisible ? '<span class="mi">visibility</span>' : '<span class="mi">visibility_off</span>');
   updatePreviewHint();
 }
@@ -271,7 +286,13 @@ function togglePreviewOnly() {
   if (previewOnly) previewVisible = true;
   const sp = document.querySelector('#noteEditor .split-pane');
   const btn = document.getElementById('btnTogglePreview');
-  if (sp) { sp.classList.toggle('preview-only', previewOnly); sp.classList.toggle('no-preview', false); }
+  if (sp) {
+    sp.classList.toggle('preview-only', previewOnly);
+    sp.classList.toggle('no-preview', false);
+    // 纯预览时清除内联 flex，让 CSS class 规则生效
+    if (previewOnly) { clearPaneInlineFlex(); }
+    else { restorePaneRatio(); }
+  }
   if (btn) btn.innerHTML = previewOnly ? '<span class="mi">edit_off</span>' : '<span class="mi">visibility</span>';
   updatePreviewHint();
 }
@@ -631,8 +652,8 @@ document.addEventListener('keydown', e => {
       if (typeof saveNote === 'function') saveNote();
     }
   }
-  // Ctrl+\ → 切换预览面板（隐藏/显示预览）
-  if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
+  // Ctrl+\ → 切换预览面板（隐藏/显示预览），同时匹配 e.code 兼容中文键盘（该键输出 、）
+  if ((e.ctrlKey || e.metaKey) && (e.key === '\\' || e.code === 'Backslash')) {
     if (S.currentPanel === 'notes' || document.activeElement?.closest('#panel-notes')) {
       e.preventDefault();
       togglePreview();

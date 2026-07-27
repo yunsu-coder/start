@@ -23,7 +23,7 @@ async function loadWallpapers() {
   div.id = 'wpOverlay';
   div.style.cssText = `
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    z-index: 0; pointer-events: none;
+    z-index: 1; pointer-events: none;
     background-size: cover; background-position: center; background-repeat: no-repeat;
     opacity: 0; transition: opacity .6s ease;
   `;

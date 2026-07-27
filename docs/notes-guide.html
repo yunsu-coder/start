@@ -58,66 +58,83 @@
 .tilt-card:hover {
   transition: transform .05s ease-out;
 }
-  /* ── ① Catppuccin Mocha（默认）── 暖柔暗色，最低眼疲劳 */
-  :root, body[data-theme="catppuccin"] {
-    --bg: rgba(17,17,27,0.88); --card: rgba(24,24,37,0.68); --text: #cdd6f4; --sub: #a6adc8;
-    --border: rgba(255,255,255,0.06); --accent: #89b4fa; --accent2: #cba6f7;
-    --hover: rgba(255,255,255,0.04); --shadow: 0 1px 4px rgba(0,0,0,0.4);
-    --danger: #f38ba8; --ok: #a6e3a1; --warn: #f9e2af;
-    --editor-bg: rgba(17,17,27,0.8); --preview-bg: rgba(24,24,37,0.6);
-    --nav-bg: rgba(24,24,37,0.78); --glow: 0 0 20px rgba(137,180,250,0.15);
-    --glass-highlight: rgba(255,255,255,0.04); --glass-blur: 18px;
+  /* ── ① Aurora · 极光梦晚（默认）── */
+  :root, body[data-theme="aurora"] {
+    --bg: #15132b;
+    --bg-gradient: linear-gradient(170deg, #0f0c29 0%, #1a1038 12%, #2d1b55 28%, #5c2e5e 48%, #a04e5e 65%, #d4786a 80%, #e8a87c 92%, #f0c878 100%);
+    --bg-image: linear-gradient(rgba(0,0,0,0.12), rgba(0,0,0,0.08)), url('/%E3%80%90%E5%93%B2%E9%A3%8E%E5%A3%81%E7%BA%B8%E3%80%91%E4%BA%91%E6%9C%B5-%E5%88%9B%E6%84%8F-%E5%A4%AA%E9%98%B3.png');
+    --card: rgba(22,18,38,0.82); --text: #f0e8db; --sub: #b0a598;
+    --border: rgba(255,255,255,0.09); --accent: #f0c878; --accent2: #d4786a;
+    --hover: rgba(255,255,255,0.05); --shadow: 0 2px 16px rgba(0,0,0,0.5);
+    --danger: #f87171; --ok: #4ade80; --warn: #f0c878;
+    --editor-bg: rgba(18,14,30,0.9); --preview-bg: rgba(22,18,38,0.72);
+    --nav-bg: rgba(15,12,26,0.78); --glow: 0 0 30px rgba(240,200,120,0.14);
+    --glass-highlight: rgba(255,255,255,0.04); --glass-blur: 20px;
   }
-  /* ── ② Tokyo Night — 深邃科技霓虹 */
-  body[data-theme="tokyo"] {
-    --bg: rgba(13,14,25,0.88); --card: rgba(21,22,40,0.68); --text: #c0caf5; --sub: #9aa5ce;
-    --border: rgba(255,255,255,0.06); --accent: #7aa2f7; --accent2: #bb9af7;
-    --hover: rgba(255,255,255,0.04); --shadow: 0 1px 4px rgba(0,0,0,0.4);
-    --danger: #f7768e; --ok: #9ece6a; --warn: #e0af68;
-    --editor-bg: rgba(13,14,25,0.8); --preview-bg: rgba(21,22,40,0.6);
-    --nav-bg: rgba(21,22,40,0.78); --glow: 0 0 20px rgba(122,162,247,0.18);
-    --glass-highlight: rgba(255,255,255,0.04); --glass-blur: 18px;
+  /* ── ② Meadow · 草原晴空 ── */
+  body[data-theme="meadow"] {
+    --bg: #1a2e28;
+    --bg-gradient: linear-gradient(170deg, #3d6b8c 0%, #5b8cbf 10%, #87aed0 25%, #b0cfe0 42%, #b8d8c8 56%, #8cc49a 72%, #5ea86b 86%, #3d7a48 100%);
+    --bg-image: linear-gradient(rgba(0,0,0,0.12), rgba(0,0,0,0.06)), url('/%E3%80%90%E5%93%B2%E9%A3%8E%E5%A3%81%E7%BA%B8%E3%80%91%E5%A4%A7%E8%8D%89%E5%8E%9F-%E5%A4%A9%E7%A9%BA-%E5%AE%81%E9%9D%99.png');
+    --card: rgba(18,32,30,0.82); --text: #eaf2ed; --sub: #9ab8aa;
+    --border: rgba(255,255,255,0.09); --accent: #7dd8a0; --accent2: #87aed0;
+    --hover: rgba(255,255,255,0.05); --shadow: 0 2px 16px rgba(0,0,0,0.45);
+    --danger: #f87171; --ok: #4ade80; --warn: #f0c060;
+    --editor-bg: rgba(14,26,22,0.9); --preview-bg: rgba(18,32,30,0.72);
+    --nav-bg: rgba(14,26,22,0.78); --glow: 0 0 30px rgba(125,216,160,0.14);
+    --glass-highlight: rgba(255,255,255,0.04); --glass-blur: 20px;
   }
-  /* ── ③ Dracula — 高对比经典紫 */
-  body[data-theme="dracula"] {
-    --bg: rgba(21,22,27,0.88); --card: rgba(31,32,41,0.68); --text: #f8f8f2; --sub: #6272a4;
-    --border: rgba(255,255,255,0.06); --accent: #bd93f9; --accent2: #ff79c6;
-    --hover: rgba(255,255,255,0.04); --shadow: 0 1px 4px rgba(0,0,0,0.4);
-    --danger: #ff5555; --ok: #50fa7b; --warn: #f1fa8c;
-    --editor-bg: rgba(21,22,27,0.8); --preview-bg: rgba(31,32,41,0.6);
-    --nav-bg: rgba(31,32,41,0.78); --glow: 0 0 20px rgba(189,147,249,0.2);
-    --glass-highlight: rgba(255,255,255,0.04); --glass-blur: 18px;
+  /* ── ③ Cozy · 暖舍朝暮 ── */
+  body[data-theme="cozy"] {
+    --bg: #1f1510;
+    --bg-gradient: linear-gradient(170deg, #1a0e0a 0%, #2c1810 12%, #4a2c1a 28%, #6b4c35 48%, #9a7050 65%, #c4956a 80%, #e0b890 92%, #f5d8b0 100%);
+    --bg-image: linear-gradient(rgba(0,0,0,0.12), rgba(0,0,0,0.08)), url('/%E3%80%90%E5%93%B2%E9%A3%8E%E5%A3%81%E7%BA%B8%E3%80%91%E4%BF%9D%E9%99%A9%E6%9F%9C-%E5%8A%9E%E5%85%AC%E5%AE%A4-%E5%8D%A1%E9%80%9A.png');
+    --card: rgba(32,22,16,0.82); --text: #f5ede0; --sub: #b8a898;
+    --border: rgba(255,255,255,0.09); --accent: #f0b878; --accent2: #5ec4b8;
+    --hover: rgba(255,255,255,0.05); --shadow: 0 2px 16px rgba(0,0,0,0.5);
+    --danger: #f87171; --ok: #4ade80; --warn: #f0b060;
+    --editor-bg: rgba(20,12,8,0.9); --preview-bg: rgba(32,22,16,0.72);
+    --nav-bg: rgba(18,12,8,0.78); --glow: 0 0 30px rgba(240,184,120,0.14);
+    --glass-highlight: rgba(255,255,255,0.04); --glass-blur: 20px;
   }
-  /* ── ④ Nord — 冰蓝专业风 */
-  body[data-theme="nord"] {
-    --bg: rgba(28,32,42,0.88); --card: rgba(38,42,55,0.68); --text: #eceff4; --sub: #d8dee9;
-    --border: rgba(255,255,255,0.06); --accent: #88c0d0; --accent2: #81a1c1;
-    --hover: rgba(255,255,255,0.04); --shadow: 0 1px 4px rgba(0,0,0,0.4);
-    --danger: #bf616a; --ok: #a3be8c; --warn: #ebcb8b;
-    --editor-bg: rgba(28,32,42,0.8); --preview-bg: rgba(38,42,55,0.6);
-    --nav-bg: rgba(38,42,55,0.78); --glow: 0 0 20px rgba(136,192,208,0.15);
-    --glass-highlight: rgba(255,255,255,0.04); --glass-blur: 18px;
+  /* ── ④ Noir · 暗夜深空 ── */
+  body[data-theme="noir"] {
+    --bg: #0a0a11;
+    --bg-gradient: linear-gradient(170deg, #060610 0%, #0a0a18 20%, #0f1022 40%, #111128 60%, #0f1022 80%, #0a0a18 100%);
+    --card: rgba(17,17,30,0.74); --text: #e4e4ee; --sub: #8e8ea0;
+    --border: rgba(255,255,255,0.07); --accent: #8b8cf8; --accent2: #c084fc;
+    --hover: rgba(255,255,255,0.04); --shadow: 0 2px 12px rgba(0,0,0,0.5);
+    --danger: #f87171; --ok: #4ade80; --warn: #f0c060;
+    --editor-bg: rgba(8,8,15,0.9); --preview-bg: rgba(17,17,30,0.65);
+    --nav-bg: rgba(8,8,15,0.84); --glow: 0 0 30px rgba(139,140,248,0.12);
+    --glass-highlight: rgba(255,255,255,0.03); --glass-blur: 18px;
   }
-  /* ── ⑤ Catppuccin Latte — 暖白浅色 */
-  body[data-theme="latte"] {
-    --bg: rgba(239,241,245,0.85); --card: rgba(255,255,255,0.72); --text: #4c4f69; --sub: #9ca0b0;
-    --border: rgba(0,0,0,0.08); --accent: #1e66f5; --accent2: #8839ef;
-    --hover: rgba(0,0,0,0.03); --shadow: 0 1px 3px rgba(0,0,0,0.06);
-    --danger: #d20f39; --ok: #40a02b; --warn: #df8e1d;
-    --editor-bg: rgba(239,241,245,0.8); --preview-bg: rgba(255,255,255,0.65);
-    --nav-bg: rgba(255,255,255,0.78); --glow: 0 0 20px rgba(30,102,245,0.08);
+  /* ── ⑤ Dawn · 晨曦纸韵 ── */
+  body[data-theme="dawn"] {
+    --bg: #f5f0e8;
+    --bg-gradient: linear-gradient(170deg, #e8d5c0 0%, #f0e0d0 15%, #f8efe4 35%, #fdf8f2 55%, #f5efe8 72%, #e8e0f0 88%, #ddd8e8 100%);
+    --card: rgba(255,255,255,0.78); --text: #2c2218; --sub: #8a7e70;
+    --border: rgba(0,0,0,0.08); --accent: #e8785a; --accent2: #8b70c0;
+    --hover: rgba(0,0,0,0.03); --shadow: 0 1px 6px rgba(0,0,0,0.06);
+    --danger: #dc2626; --ok: #16a34a; --warn: #d97706;
+    --editor-bg: rgba(245,240,232,0.88); --preview-bg: rgba(255,255,255,0.68);
+    --nav-bg: rgba(248,244,236,0.82); --glow: 0 0 30px rgba(232,120,90,0.08);
     --glass-highlight: rgba(255,255,255,0.6); --glass-blur: 18px;
-    /* 浅色玻璃 */
-    --modal-glass-bg: rgba(255,255,255,0.55);
+    --modal-glass-bg: rgba(255,255,255,0.65);
     --modal-glass-border: rgba(0,0,0,0.08);
     --modal-glass-highlight: rgba(255,255,255,0.8);
-    --modal-overlay-bg: rgba(255,255,255,0.25);
+    --modal-overlay-bg: rgba(240,234,226,0.3);
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
     font-family: var(--font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-    background: var(--bg); color: var(--text); min-height: 100vh;
-    transition: background .3s, color .3s;
+    background-color: var(--bg);
+    background-image: var(--bg-image, var(--bg-gradient));
+    background-attachment: fixed;
+    background-size: cover;
+    background-position: center;
+    color: var(--text); min-height: 100vh;
+    transition: background-color .3s, color .3s;
   }
   /* 全局字体继承：非代码元素跟随 body 字体 */
   body .panel,
@@ -1020,24 +1037,22 @@
 
 /* ===== 语法高亮 Token 色（各主题自动适配）===== */
 .syn-kw  { color:#c792ea; }  /* 关键字 */
-.syn-str { color:#c3e88d; }  /* 字符串 */
+.syn-str { color:#a6e3a1; }  /* 字符串 */
 .syn-cm  { color:#546e7a; font-style:italic; }  /* 注释 */
-.syn-num { color:#f78c6c; }  /* 数字 */
+.syn-num { color:#fab387; }  /* 数字 */
 .syn-fn  { color:#82aaff; }  /* 函数 */
 .syn-op  { color:#89ddff; }  /* 运算符 */
 .syn-tag { color:#f07178; }  /* 标签 */
 .syn-attr{ color:#ffcb6b; }  /* 属性 */
-/* 暗色主题适配 */
-[data-theme="catppuccin"] .syn-str,[data-theme="dracula"] .syn-str,[data-theme="tokyo"] .syn-str,[data-theme="nord"] .syn-str { color:#a6e3a1; }
-[data-theme="catppuccin"] .syn-num,[data-theme="dracula"] .syn-num,[data-theme="tokyo"] .syn-num,[data-theme="nord"] .syn-num { color:#fab387; }
-[data-theme="latte"] .syn-kw  { color:#8839ef; }
-[data-theme="latte"] .syn-str { color:#40a02b; }
-[data-theme="latte"] .syn-cm  { color:#9ca0b0; }
-[data-theme="latte"] .syn-num { color:#fe640b; }
-[data-theme="latte"] .syn-fn  { color:#1e66f5; }
-[data-theme="latte"] .syn-op  { color:#04a5e5; }
-[data-theme="latte"] .syn-tag { color:#d20f39; }
-[data-theme="latte"] .syn-attr{ color:#df8e1d; }
+/* Dawn 浅色主题语法高亮适配 */
+body[data-theme="dawn"] .syn-kw  { color:#7c3aed; }
+body[data-theme="dawn"] .syn-str { color:#16a34a; }
+body[data-theme="dawn"] .syn-cm  { color:#9ca0b0; }
+body[data-theme="dawn"] .syn-num { color:#ea580c; }
+body[data-theme="dawn"] .syn-fn  { color:#2563eb; }
+body[data-theme="dawn"] .syn-op  { color:#0891b2; }
+body[data-theme="dawn"] .syn-tag { color:#dc2626; }
+body[data-theme="dawn"] .syn-attr{ color:#d97706; }
 pre[data-lang] { position:relative; padding-top:1.7rem; }
 pre[data-lang]::before { content:attr(data-lang); position:absolute; top:0; left:0; right:0; padding:1px .6rem; font-size:.62rem; color:var(--accent); background:var(--bg); border-radius:6px 6px 0 0; border-bottom:1px solid var(--border); font-weight:600; text-transform:uppercase; font-family:sans-serif; }
 

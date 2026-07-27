@@ -247,7 +247,7 @@ function parseJSON(raw) { try { return JSON.parse(raw.toString()); } catch { ret
 // ===== 静态文件 =====
 
 function serveStatic(urlPath, res, req) {
-  const filePath = urlPath === '/' ? '/index.html' : urlPath;
+  const filePath = urlPath === '/' ? '/index.html' : decodeURIComponent(urlPath);
   const fullPath = path.join(ROOT, filePath);
   if (!fullPath.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
   const ext = path.extname(fullPath);

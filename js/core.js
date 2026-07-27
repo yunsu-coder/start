@@ -1,5 +1,7 @@
 // ===== 全局命名空间 =====
-window.Yiwei = window.Yiwei || { state: {}, config: {} };
+window.Yiwei = window.Yiwei || {};
+window.Yiwei.state = window.Yiwei.state || {};
+window.Yiwei.config = window.Yiwei.config || {};
 const S = Yiwei.state; // 状态读写快捷方式
 
 // ===== 平台检测（快捷键标签适配）=====
@@ -149,9 +151,9 @@ document.querySelectorAll('.nav-item').forEach(btn => {
 })();
 
 // ===== 主题 =====
-const themes = ['catppuccin','tokyo','dracula','nord','latte'];
+const themes = ['dark','light'];
 const themeBtn = document.getElementById('themeBtn');
-S.theme = localStorage.getItem('theme') || 'catppuccin';
+S.theme = localStorage.getItem('theme') || 'dark';
 applyTheme(S.theme);
 themeBtn.addEventListener('click', () => {
   const idx = themes.indexOf(S.theme);
@@ -166,7 +168,7 @@ themeBtn.addEventListener('contextmenu', e => {
   themeMenu = document.createElement('div');
   themeMenu.style.cssText = 'position:fixed;z-index:9999;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.3rem;box-shadow:0 8px 24px rgba(0,0,0,0.4);';
   document.body.appendChild(themeMenu);
-  const names = {catppuccin:'① Catppuccin Mocha',tokyo:'② Tokyo Night',dracula:'③ Dracula',nord:'④ Nord',latte:'⑤ Catppuccin Latte'};
+  const names = {dark:'🌙 暗夜', light:'☀️ 晨曦'};
   themes.forEach(t => {
     const item = document.createElement('div');
     item.style.cssText = 'padding:.4rem .8rem;cursor:pointer;border-radius:6px;font-size:.8rem;white-space:nowrap;color:var(--text);';
@@ -256,29 +258,29 @@ const DEFAULT_BOOKMARKS = {
     { id: 'tools', name: '工具', icon: 'build' },
   ],
   links: [
-    { id: 'l1', catId: 'ai', name: 'DeepSeek', url: 'https://chat.deepseek.com', icon: '🤖' },
-    { id: 'l2', catId: 'ai', name: '豆包', url: 'https://www.doubao.com', icon: '🫘' },
-    { id: 'l3', catId: 'ai', name: 'ChatGPT', url: 'https://chat.openai.com', icon: '🧠' },
-    { id: 'l4', catId: 'ai', name: 'Kimi', url: 'https://kimi.moonshot.cn', icon: '🌙' },
-    { id: 'l5', catId: 'ai', name: '通义千问', url: 'https://tongyi.aliyun.com', icon: '☁️' },
-    { id: 'l6', catId: 'ai', name: 'Claude', url: 'https://claude.ai', icon: '🧪' },
-    { id: 'l7', catId: 'common', name: '哔哩哔哩', url: 'https://www.bilibili.com', icon: '📺' },
-    { id: 'l8', catId: 'common', name: '知乎', url: 'https://www.zhihu.com', icon: '🔷' },
-    { id: 'l9', catId: 'common', name: 'YouTube', url: 'https://www.youtube.com', icon: '▶️' },
-    { id: 'l10', catId: 'common', name: 'GitHub', url: 'https://github.com', icon: '🐙' },
-    { id: 'l11', catId: 'common', name: '小红书', url: 'https://www.xiaohongshu.com', icon: '📕' },
-    { id: 'l12', catId: 'common', name: 'CSDN', url: 'https://www.csdn.net', icon: '📄' },
-    { id: 'l13', catId: 'dev', name: 'MDN 前端', url: 'https://developer.mozilla.org/zh-CN/', icon: '📘' },
-    { id: 'l14', catId: 'dev', name: '菜鸟教程', url: 'https://www.runoob.com', icon: '🐤' },
-    { id: 'l15', catId: 'dev', name: 'W3School', url: 'https://www.w3school.com.cn', icon: '🌐' },
-    { id: 'l16', catId: 'dev', name: 'Vue.js', url: 'https://cn.vuejs.org', icon: '💚' },
-    { id: 'l17', catId: 'dev', name: 'Python教程', url: 'https://www.liaoxuefeng.com', icon: '🐍' },
-    { id: 'l18', catId: 'dev', name: 'LeetCode', url: 'https://leetcode.cn', icon: '⚡' },
-    { id: 'l19', catId: 'tools', name: 'Convertio', url: 'https://convertio.co/zh/', icon: '🔄' },
-    { id: 'l20', catId: 'tools', name: 'Photopea', url: 'https://www.photopea.com', icon: '🎨' },
-    { id: 'l21', catId: 'tools', name: 'TinyPNG', url: 'https://tinypng.com', icon: '🗜️' },
-    { id: 'l22', catId: 'tools', name: '工具集合', url: 'https://tool.lu', icon: '🧰' },
-    { id: 'l23', catId: 'tools', name: '草料二维码', url: 'https://cli.im', icon: '📱' },
+    { id: 'l1', catId: 'ai', name: 'DeepSeek', url: 'https://chat.deepseek.com', icon: 'psychology' },
+    { id: 'l2', catId: 'ai', name: '豆包', url: 'https://www.doubao.com', icon: 'auto_awesome' },
+    { id: 'l3', catId: 'ai', name: 'ChatGPT', url: 'https://chat.openai.com', icon: 'smart_toy' },
+    { id: 'l4', catId: 'ai', name: 'Kimi', url: 'https://kimi.moonshot.cn', icon: 'dark_mode' },
+    { id: 'l5', catId: 'ai', name: '通义千问', url: 'https://tongyi.aliyun.com', icon: 'cloud' },
+    { id: 'l6', catId: 'ai', name: 'Claude', url: 'https://claude.ai', icon: 'experiment' },
+    { id: 'l7', catId: 'common', name: '哔哩哔哩', url: 'https://www.bilibili.com', icon: 'play_circle' },
+    { id: 'l8', catId: 'common', name: '知乎', url: 'https://www.zhihu.com', icon: 'forum' },
+    { id: 'l9', catId: 'common', name: 'YouTube', url: 'https://www.youtube.com', icon: 'smart_display' },
+    { id: 'l10', catId: 'common', name: 'GitHub', url: 'https://github.com', icon: 'code' },
+    { id: 'l11', catId: 'common', name: '小红书', url: 'https://www.xiaohongshu.com', icon: 'collections_bookmark' },
+    { id: 'l12', catId: 'common', name: 'CSDN', url: 'https://www.csdn.net', icon: 'article' },
+    { id: 'l13', catId: 'dev', name: 'MDN 前端', url: 'https://developer.mozilla.org/zh-CN/', icon: 'menu_book' },
+    { id: 'l14', catId: 'dev', name: '菜鸟教程', url: 'https://www.runoob.com', icon: 'school' },
+    { id: 'l15', catId: 'dev', name: 'W3School', url: 'https://www.w3school.com.cn', icon: 'public' },
+    { id: 'l16', catId: 'dev', name: 'Vue.js', url: 'https://cn.vuejs.org', icon: 'layers' },
+    { id: 'l17', catId: 'dev', name: 'Python 教程', url: 'https://www.liaoxuefeng.com', icon: 'terminal' },
+    { id: 'l18', catId: 'dev', name: 'LeetCode', url: 'https://leetcode.cn', icon: 'bolt' },
+    { id: 'l19', catId: 'tools', name: 'Convertio', url: 'https://convertio.co/zh/', icon: 'swap_horiz' },
+    { id: 'l20', catId: 'tools', name: 'Photopea', url: 'https://www.photopea.com', icon: 'palette' },
+    { id: 'l21', catId: 'tools', name: 'TinyPNG', url: 'https://tinypng.com', icon: 'compress' },
+    { id: 'l22', catId: 'tools', name: '工具集合', url: 'https://tool.lu', icon: 'build' },
+    { id: 'l23', catId: 'tools', name: '草料二维码', url: 'https://cli.im', icon: 'qr_code_2' },
     { id: 'l24', catId: 'tools', name: 'Excalidraw', url: 'https://excalidraw.com', icon: '✏️' },
   ]
 };
@@ -304,7 +306,10 @@ var editMode = false;
 
 function nextLinkId() { return 'l' + (++_linkCounter) + '_' + Date.now().toString(36); }
 
+var ICON_COLORS = ['#a78bfa','#60a5fa','#34d399','#f59e0b','#f472b6','#38bdf8','#fb923c','#a3e635','#818cf8','#fbbf24','#2dd4bf','#e879f9'];
+
 function renderBookmarks() {
+  var colorIdx = 0;
   BM.categories.forEach(function(cat) {
     var grid = document.getElementById(cat.id);
     if (!grid) return;
@@ -322,7 +327,7 @@ function renderBookmarks() {
       var href = editMode ? 'javascript:void(0)' : ('href="' + escHtml(l.url) + '" target="_blank" rel="noopener"');
       return '<a class="link' + (editMode ? ' bm-link-edit' : '') + '" ' + href + ' data-id="' + l.id + '" draggable="' + editMode + '"' +
         (editMode ? ' onclick="event.preventDefault();"' : '') + '>' +
-        '<span class="icon">' + escHtml(l.icon) + '</span><span class="name">' + escHtml(l.name) + '</span>' +
+        '<span class="icon mi" style="color:' + ICON_COLORS[colorIdx++ % ICON_COLORS.length] + '">' + escHtml(l.icon) + '</span><span class="name">' + escHtml(l.name) + '</span>' +
         (editMode ? '<span class="bm-link-actions"><button class="bm-edit-link" data-id="' + l.id + '" title="编辑">✎</button><button class="bm-del-link" data-id="' + l.id + '" title="删除">✕</button></span>' : '') +
         '</a>';
     }).join('');
@@ -428,7 +433,7 @@ function showLinkDialog(catId, linkId) {
   if (name === null) return;
   var url = prompt('网址', link ? link.url : 'https://');
   if (url === null) return;
-  var icon = prompt('图标（emoji 或 Material 图标名）', link ? link.icon : '🔗');
+  var icon = prompt('Material 图标名（如 smart_toy, code, public）', link ? link.icon : 'link');
   if (icon === null) return;
 
   if (link) {
