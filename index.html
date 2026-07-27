@@ -397,8 +397,8 @@
     <span style="margin-left:auto;font-size:.75rem;color:var(--sub);" id="taskCount">--</span>
   </div>
   <!-- 快捷添加 -->
-  <div class="task-add-bar">
-    <input type="text" id="taskDescInput" placeholder="输入任务描述，回车添加..." autofocus>
+  <div class="todo-add-bar">
+    <input type="text" id="taskDescInput" placeholder="输入任务描述，回车添加...">
     <input type="text" id="taskCatInput" placeholder="分类（可选）" style="max-width:120px;">
     <input type="date" id="taskDeadlineInput" title="截止日期" style="max-width:140px;">
     <select id="taskStatusInput" style="max-width:100px;">
@@ -409,16 +409,16 @@
     <button class="btn accent" onclick="addTask()"><span class="mi">add</span></button>
   </div>
   <!-- 筛选 -->
-  <div class="task-filters">
-    <button class="task-filter-btn active" data-status="all" onclick="setTaskFilter('all',this)">全部</button>
-    <button class="task-filter-btn" data-status="todo" onclick="setTaskFilter('todo',this)"><span class="mi" style="font-size:.7rem;vertical-align:middle;">radio_button_unchecked</span> 待开始</button>
-    <button class="task-filter-btn" data-status="doing" onclick="setTaskFilter('doing',this)"><span class="mi" style="font-size:.7rem;vertical-align:middle;">pending</span> 进行中</button>
-    <button class="task-filter-btn" data-status="done" onclick="setTaskFilter('done',this)"><span class="mi" style="font-size:.7rem;vertical-align:middle;">check_circle</span> 已完成</button>
+  <div class="todo-filters">
+    <button class="todo-filter-btn active" data-status="all" onclick="setTaskFilter('all',this)">全部</button>
+    <button class="todo-filter-btn" data-status="todo" onclick="setTaskFilter('todo',this)"><span class="mi" style="font-size:.7rem;vertical-align:middle;">radio_button_unchecked</span> 待开始</button>
+    <button class="todo-filter-btn" data-status="doing" onclick="setTaskFilter('doing',this)"><span class="mi" style="font-size:.7rem;vertical-align:middle;">pending</span> 进行中</button>
+    <button class="todo-filter-btn" data-status="done" onclick="setTaskFilter('done',this)"><span class="mi" style="font-size:.7rem;vertical-align:middle;">check_circle</span> 已完成</button>
   </div>
   <!-- 列表视图 -->
-  <div class="task-list" id="taskList"></div>
+  <div class="todo-list" id="todoList"></div>
   <!-- 看板视图 -->
-  <div class="task-kanban" id="taskKanban" style="display:none;">
+  <div class="todo-kanban" id="todoKanban" style="display:none;">
     <div class="kanban-col" data-status="todo">
       <div class="kanban-col-header"><span class="mi">radio_button_unchecked</span> 待开始 <span class="kanban-count" id="kanbanCountTodo">0</span></div>
       <div class="kanban-col-body" id="kanbanColTodo"></div>

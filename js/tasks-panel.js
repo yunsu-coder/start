@@ -8,8 +8,8 @@ let allTasks = [];
 function toggleTaskView() {
   taskKanbanView = !taskKanbanView;
   const btn = document.getElementById('taskViewToggle');
-  const list = document.getElementById('taskList');
-  const kanban = document.getElementById('taskKanban');
+  const list = document.getElementById('todoList');
+  const kanban = document.getElementById('todoKanban');
   if (taskKanbanView) {
     btn.innerHTML = '<span class="mi">view_list</span> 列表';
     list.style.display = 'none';
@@ -44,7 +44,7 @@ function updateTaskCount() {
 
 // ===== 渲染列表 =====
 function renderTaskList() {
-  const list = document.getElementById('taskList');
+  const list = document.getElementById('todoList');
   if (!list) return;
   if (!allTasks.length) {
     list.innerHTML = '<div class="empty-state">还没有任务，在上面输入描述添加第一个吧</div>';
@@ -53,27 +53,27 @@ function renderTaskList() {
 
   list.innerHTML = allTasks.map(t => {
     const statusIcon = { todo: 'radio_button_unchecked', doing: 'pending', done: 'check_circle' };
-    const statusClass = 'task-status-' + t.status;
+    const statusClass = 'todo-status-' + t.status;
     const deadlineStr = t.deadline ? fmtDeadline(t.deadline) : '';
-    const overdueClass = t.deadline && t.status !== 'done' && new Date(t.deadline) < new Date() ? ' task-overdue' : '';
-    const catHtml = t.category ? '<span class="task-cat-badge">' + escHtml(t.category) + '</span>' : '';
-    const notesPreview = t.notes ? '<div class="task-notes-preview">' + escHtml(t.notes).slice(0, 100) + '</div>' : '';
+    const overdueClass = t.deadline && t.status !== 'done' && new Date(t.deadline) < new Date() ? ' todo-overdue' : '';
+    const catHtml = t.category ? '<span class="todo-cat-badge">' + escHtml(t.category) + '</span>' : '';
+    const notesPreview = t.notes ? '<div class="todo-notes-preview">' + escHtml(t.notes).slice(0, 100) + '</div>' : '';
 
-    return '<div class="task-item' + overdueClass + '" onclick="openTaskEdit(\'' + t.id + '\')">' +
-      '<button class="task-check ' + statusClass + '" onclick="event.stopPropagation();cycleTaskStatus(\'' + t.id + '\')" title="切换状态">' +
+    return '<div class="todo-item' + overdueClass + '" onclick="openTaskEdit(\'' + t.id + '\')">' +
+      '<button class="todo-check ' + statusClass + '" onclick="event.stopPropagation();cycleTaskStatus(\'' + t.id + '\')" title="切换状态">' +
         '<span class="mi">' + statusIcon[t.status] + '</span>' +
       '</button>' +
-      '<div class="task-body">' +
-        '<div class="task-desc">' + escHtml(t.description) + catHtml + '</div>' +
-        '<div class="task-meta">' +
-          (deadlineStr ? '<span class="task-deadline"><span class="mi">schedule</span> ' + deadlineStr + '</span>' : '') +
-          '<span class="task-status-tag ' + statusClass + '">' +
+      '<div class="todo-body">' +
+        '<div class="todo-desc">' + escHtml(t.description) + catHtml + '</div>' +
+        '<div class="todo-meta">' +
+          (deadlineStr ? '<span class="todo-deadline"><span class="mi">schedule</span> ' + deadlineStr + '</span>' : '') +
+          '<span class="todo-status-tag ' + statusClass + '">' +
             { todo: '待开始', doing: '进行中', done: '已完成' }[t.status] +
           '</span>' +
         '</div>' +
         notesPreview +
       '</div>' +
-      '<button class="task-del" onclick="event.stopPropagation();deleteTaskConfirm(\'' + t.id + '\')" title="删除"><span class="mi">close</span></button>' +
+      '<button class="todo-del" onclick="event.stopPropagation();deleteTaskConfirm(\'' + t.id + '\')" title="删除"><span class="mi">close</span></button>' +
     '</div>';
   }).join('');
 }
@@ -94,8 +94,8 @@ function renderKanban() {
     }
     el.innerHTML = cols[status].map(t => {
       const deadlineStr = t.deadline ? fmtDeadline(t.deadline) : '';
-      const overdueClass = t.deadline && t.status !== 'done' && new Date(t.deadline) < new Date() ? ' task-overdue' : '';
-      const catHtml = t.category ? '<span class="task-cat-badge">' + escHtml(t.category) + '</span>' : '';
+      const overdueClass = t.deadline && t.status !== 'done' && new Date(t.deadline) < new Date() ? ' todo-overdue' : '';
+      const catHtml = t.category ? '<span class="todo-cat-badge">' + escHtml(t.category) + '</span>' : '';
       return '<div class="kanban-card' + overdueClass + '" draggable="true"' +
         ' ondragstart="kanbanDragStart(event,\'' + t.id + '\')"' +
         ' ondragover="kanbanDragOver(event)"' +
@@ -205,7 +205,7 @@ async function deleteTaskConfirm(id) {
 
 function setTaskFilter(status, btn) {
   taskFilter = status;
-  document.querySelectorAll('.task-filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.todo-filter-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   loadTasks();
 }
