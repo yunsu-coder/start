@@ -92,7 +92,7 @@ function renderWallpapers() {
   `).join('');
 }
 
-async function setWallpaper(id) {
+async function setWallpaper(id) { Yiwei.sound.play("wallpaper-set");
   stopCarousel();
   const r = await fetch('/api/wallpaper/current', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -108,7 +108,7 @@ async function setWallpaper(id) {
   }
 }
 
-async function shuffleWallpaper() {
+async function shuffleWallpaper() { Yiwei.sound.play("wallpaper-rand");
   stopCarousel();
   const r = await fetch('/api/wallpaper/random', { method: 'POST' });
   const data = await r.json();
@@ -269,7 +269,7 @@ async function saveToWallpaper(sid, fname) {
 }
 
 // ===== 恢复默认壁纸 =====
-async function clearWallpaper() {
+async function clearWallpaper() { Yiwei.sound.play("file-delete");
   if (!confirm('恢复默认壁纸？将清除当前壁纸设置')) return;
   stopCarousel();
   await fetch('/api/wallpaper/current', {
@@ -282,7 +282,7 @@ async function clearWallpaper() {
 }
 
 // ===== 壁纸轮播 =====
-function toggleCarousel() {
+function toggleCarousel() { Yiwei.sound.play("btn-click");
   const btn = document.getElementById('carouselBtn');
   if (S.carouselTimer) {
     stopCarousel();

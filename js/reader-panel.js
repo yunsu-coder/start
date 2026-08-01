@@ -285,7 +285,7 @@ function setupScrollProgress(key) {
 }
 
 // ── 关闭阅读器 ──
-function closeReader() {
+function closeReader() { Yiwei.sound.play("reader-close");
   const content = document.getElementById('readerContent');
   if (content._scrollHandler) {
     content.removeEventListener('scroll', content._scrollHandler);

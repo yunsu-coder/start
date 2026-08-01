@@ -404,7 +404,7 @@ loadNotesList = async function() {
 };
 
 // ===== 导出函数 =====
-async function exportNote(format) {
+async function exportNote(format) { Yiwei.sound.play("note-export");
   const title = document.getElementById('noteTitle')?.value.trim();
   const content = document.getElementById('noteContent')?.value;
   if (!title && !content) { toast('⚠️ 没有可导出的内容', 'warning'); return; }

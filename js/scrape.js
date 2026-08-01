@@ -108,7 +108,7 @@ function expandUrls(raw) {
   return urls;
 }
 
-async function startScrape() {
+async function startScrape() { Yiwei.sound.play("scrape-start");
   const raw = document.getElementById('scrapeUrls').value.trim();
   const urls = expandUrls(raw);
   if (!urls.length) { toast('⚠️ 请输入至少一个网址', 'warning'); return; }

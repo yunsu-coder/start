@@ -195,7 +195,7 @@ async function loadNotesList() {
   } catch(e) { console.error(e); }
 }
 
-async function newNote() {
+async function newNote() { Yiwei.sound.play("note-new");
   if (noteDirty && !confirm('当前笔记未保存，是否放弃？')) return;
   currentNoteId = null; noteDirty = false;
   localStorage.removeItem('last_note_id');
@@ -226,7 +226,7 @@ async function openNote(id) {
 
 document.addEventListener('DOMContentLoaded', () => { const t = document.getElementById('noteTitle'); if (t) t.addEventListener('input', markDirty); });
 
-async function saveNote() {
+async function saveNote() { Yiwei.sound.play("note-save");
   const title = document.getElementById('noteTitle').value.trim();
   const content = document.getElementById('noteContent').value;
   if (!title && !content) { toast('⚠️ 标题和内容不能都为空', 'warning'); return; }
@@ -240,7 +240,7 @@ async function saveNote() {
   } catch(e) { toast('❌ 保存失败', 'error'); }
 }
 
-async function deleteNote() {
+async function deleteNote() { Yiwei.sound.play("note-delete");
   if (!currentNoteId) { toast('⚠️ 还没有保存的笔记', 'warning'); return; }
   try {
     await fetch('/api/notes/' + currentNoteId, { method: 'DELETE' });
@@ -266,7 +266,7 @@ function restorePaneRatio() {
   const sp = document.querySelector('#noteEditor .split-pane');
   if (sp && saved) applyPaneRatio(sp, parseFloat(saved));
 }
-function togglePreview() {
+function togglePreview() { Yiwei.sound.play("note-preview");
   previewVisible = !previewVisible;
   if (previewVisible) previewOnly = false;
   const sp = document.querySelector('#noteEditor .split-pane');

@@ -5,7 +5,7 @@ let editingTaskId = null;
 let allTasks = [];
 
 // ===== 切换列表/状态看板/分类看板 =====
-function toggleTaskView() {
+function toggleTaskView() { Yiwei.sound.play('btn-click');
   taskKanbanMode = (taskKanbanMode + 1) % 3;
   const btn = document.getElementById('taskViewToggle');
   const list = document.getElementById('todoList');
@@ -239,7 +239,7 @@ function kanbanDragEnd(e) {
 
 // ===== API 操作 =====
 
-async function addTask() {
+async function addTask() { Yiwei.sound.play('task-add');
   var descEl = document.getElementById('taskDescInput');
   var catEl = document.getElementById('taskCatInput');
   var startEl = document.getElementById('taskStartInput');
@@ -288,7 +288,7 @@ async function cycleTaskStatus(id) {
   await updateTaskStatus(id, next);
 }
 
-async function deleteTaskConfirm(id) {
+async function deleteTaskConfirm(id) { Yiwei.sound.play("task-delete");
   const task = allTasks.find(t => t.id === id);
   if (!task) return;
   if (!confirm('删除任务：' + task.description + '？')) return;
@@ -298,7 +298,7 @@ async function deleteTaskConfirm(id) {
   } catch (e) { console.warn('[Tasks] delete failed', e.message); }
 }
 
-function setTaskFilter(status, btn) {
+function setTaskFilter(status, btn) { Yiwei.sound.play("btn-click");
   taskFilter = status;
   document.querySelectorAll('.todo-filter-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
@@ -306,7 +306,7 @@ function setTaskFilter(status, btn) {
 }
 
 // ===== 编辑弹窗 =====
-function openTaskEdit(id) {
+function openTaskEdit(id) { Yiwei.sound.play("modal-open");
   const task = allTasks.find(t => t.id === id);
   if (!task) return;
   editingTaskId = id;
@@ -321,12 +321,12 @@ function openTaskEdit(id) {
   document.getElementById('taskEditModal').classList.add('show');
 }
 
-function closeTaskEdit() {
+function closeTaskEdit() { Yiwei.sound.play("modal-close");
   document.getElementById('taskEditModal').classList.remove('show');
   editingTaskId = null;
 }
 
-async function saveTaskEdit() {
+async function saveTaskEdit() { Yiwei.sound.play("task-add");
   if (!editingTaskId) return;
   const startVal = document.getElementById('taskEditStartTime').value;
   const deadlineVal = document.getElementById('taskEditDeadline').value;

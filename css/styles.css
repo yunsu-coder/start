@@ -1,6 +1,6 @@
 
 
-/* ===== 背景环境光晕 ===== */
+/* ===== 动态渐变光场（5 色光团缓慢流动）===== */
 #ambient-orbs {
   position: fixed;
   top: 0; left: 0;
@@ -9,44 +9,63 @@
   z-index: 0;
   overflow: hidden;
 }
+#ambient-orbs::before {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  background:
+    radial-gradient(ellipse 900px 700px at 20% 15%, rgba(255,107,157,0.18) 0%, transparent 50%),
+    radial-gradient(ellipse 800px 600px at 75% 25%, rgba(100,240,255,0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 700px 800px at 85% 70%, rgba(255,215,0,0.16) 0%, transparent 50%),
+    radial-gradient(ellipse 850px 650px at 15% 75%, rgba(167,139,250,0.14) 0%, transparent 50%),
+    radial-gradient(ellipse 750px 550px at 50% 50%, rgba(255,130,100,0.12) 0%, transparent 50%);
+  animation: colorFieldDrift 30s var(--ease-smooth) infinite;
+}
+@keyframes colorFieldDrift {
+  0%   { transform: translate(0, 0) scale(1); opacity: 0.8; }
+  25%  { transform: translate(20px, -15px) scale(1.05); opacity: 1; }
+  50%  { transform: translate(-15px, 10px) scale(0.97); opacity: 0.85; }
+  75%  { transform: translate(10px, -5px) scale(1.03); opacity: 0.9; }
+  100% { transform: translate(0, 0) scale(1); opacity: 0.8; }
+}
+
 .ambient-orb {
   position: absolute;
   border-radius: 50%;
   will-change: transform;
-  animation: orbFloat 24s var(--ease-smooth) infinite;
+  filter: blur(80px);
 }
 .ambient-orb:nth-child(1) {
-  width: 600px; height: 600px;
-  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
-  top: -15%; left: -8%;
-  animation-delay: 0s;
-  animation-duration: 28s;
-  opacity: 0.10;
+  width: 700px; height: 700px;
+  background: radial-gradient(circle, rgba(255,107,157,0.25) 0%, transparent 60%);
+  top: -18%; left: -10%;
+  animation: orbDrift1 22s var(--ease-smooth) infinite;
 }
 .ambient-orb:nth-child(2) {
-  width: 500px; height: 500px;
-  background: radial-gradient(circle, var(--accent2) 0%, transparent 70%);
-  bottom: -10%; right: -8%;
-  animation-delay: -10s;
-  animation-duration: 24s;
-  opacity: 0.09;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(100,240,255,0.20) 0%, transparent 60%);
+  bottom: -12%; right: -8%;
+  animation: orbDrift2 26s var(--ease-smooth) infinite;
 }
 .ambient-orb:nth-child(3) {
-  width: 350px; height: 350px;
-  background: radial-gradient(circle, var(--warn) 0%, transparent 70%);
-  top: 45%; left: 55%;
-  animation-delay: -18s;
-  animation-duration: 30s;
-  opacity: 0.05;
+  width: 550px; height: 550px;
+  background: radial-gradient(circle, rgba(255,215,0,0.18) 0%, transparent 60%);
+  top: 40%; left: 55%;
+  animation: orbDrift3 20s var(--ease-smooth) infinite;
 }
-@keyframes orbFloat {
-  0%   { transform: translate(0, 0) scale(1); }
-  16%  { transform: translate(80px, -50px) scale(1.08); }
-  33%  { transform: translate(-50px, 70px) scale(0.93); }
-  50%  { transform: translate(90px, 30px) scale(1.04); }
-  66%  { transform: translate(-60px, -40px) scale(0.96); }
-  83%  { transform: translate(40px, 50px) scale(1.06); }
-  100% { transform: translate(0, 0) scale(1); }
+@keyframes orbDrift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+  33% { transform: translate(100px, -60px) scale(1.2); opacity: 1; }
+  66% { transform: translate(-40px, 70px) scale(0.85); opacity: 0.4; }
+}
+@keyframes orbDrift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+  33% { transform: translate(-80px, -40px) scale(1.25); opacity: 0.9; }
+  66% { transform: translate(50px, 50px) scale(0.8); opacity: 0.3; }
+}
+@keyframes orbDrift3 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+  50% { transform: translate(-60px, -50px) scale(1.3); opacity: 0.85; }
 }
 
 /* ===== 卡片 3D 倾斜 ===== */
@@ -80,21 +99,21 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════
-     Dark · 暗夜（默认）
-     背景：云朵-创意-太阳 — 深靛紫夜 → 暖金暮光
+     Dark · 霓虹暗室（默认）
+     深暗底色 + 五彩光场 + 玻璃卡片
      ═══════════════════════════════════════════════════════════════ */
   :root, body[data-theme="dark"] {
     --theme-bg-img: url('/%E3%80%90%E5%93%B2%E9%A3%8E%E5%A3%81%E7%BA%B8%E3%80%91%E4%BA%91%E6%9C%B5-%E5%88%9B%E6%84%8F-%E5%A4%AA%E9%98%B3_bg.webp');
     --theme-bg-blur: 0px;
-    --theme-bg-opacity: 0.45;
-    --bg: #08081a; --card: rgba(20,20,36,0.86); --text: #eee8e0; --sub: #a09890;
-    --border: rgba(255,255,255,0.05); --accent: #e0b858; --accent2: #d090a8;
-    --hover: rgba(255,255,255,0.04); --shadow: 0 1px 3px rgba(0,0,0,0.5);
-    --danger: #f07070; --ok: #50c878; --warn: #e0b060;
-    --editor-bg: rgba(12,12,24,0.94); --preview-bg: rgba(20,20,36,0.78);
-    --nav-bg: rgba(10,10,22,0.45); --nav-active-bg: rgba(224,184,88,0.12);
-    --glow: 0 0 20px rgba(224,184,88,0.1);
-    --glass-highlight: rgba(255,255,255,0.035); --glass-blur: 20px;
+    --theme-bg-opacity: 0.75;
+    --bg: #080812; --card: rgba(18,16,30,0.72); --text: #eee8e0; --sub: #a09890;
+    --border: rgba(255,255,255,0.08); --accent: #ff6b9d; --accent2: #64f0ff;
+    --hover: rgba(255,255,255,0.05); --shadow: 0 2px 8px rgba(0,0,0,0.5);
+    --danger: #ff5577; --ok: #44dd88; --warn: #ffbb44;
+    --editor-bg: rgba(12,10,20,0.95); --preview-bg: rgba(18,16,30,0.80);
+    --nav-bg: rgba(8,8,18,0.55); --nav-active-bg: rgba(255,107,157,0.14);
+    --glow: 0 0 24px rgba(255,107,157,0.1);
+    --glass-highlight: rgba(255,255,255,0.04); --glass-blur: 18px;
   }
   /* ═══════════════════════════════════════════════════════════════
      Light · 晨曦
@@ -375,9 +394,9 @@
     position: relative; overflow: visible;
   }
   .link:hover {
-    box-shadow:var(--card-hover), var(--glow);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1.5px rgba(255,107,157,0.35), 0 0 50px rgba(255,107,157,0.1);
     transform:translateY(-4px) scale(1.03);
-    border-color:var(--accent); background:var(--hover);
+    border-color:transparent; background:var(--hover);
   }
   .link .icon {
     font-size:1.4rem; margin-bottom:.15rem;
@@ -1270,21 +1289,28 @@ pre[data-lang]::before { content:attr(data-lang); position:absolute; top:0; left
 
 /* 活跃导航项图标 — 主题色微光 + 微放大 */
 .nav-item.active .nav-icon {
-  filter: drop-shadow(0 0 5px var(--accent));
+  filter: drop-shadow(0 0 8px var(--accent)) drop-shadow(0 0 2px var(--accent2));
   transform: scale(1.08);
 }
 
-/* 时钟微光脉冲 */
+/* 时钟 — 五彩渐变流光 */
 .time {
-  background: linear-gradient(135deg, var(--text), var(--accent));
+  background: linear-gradient(135deg, #ff6b9d 0%, #c084fc 25%, #64f0ff 50%, #ffd700 75%, #ff6b9d 100%);
+  background-size: 300% 300%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: clockPulse 4s var(--ease-smooth) infinite;
+  animation: clockGradient 8s var(--ease-smooth) infinite;
+  font-weight: 200;
+  letter-spacing: -0.03em;
+  filter: drop-shadow(0 0 20px rgba(255,107,157,0.2));
 }
-@keyframes clockPulse {
-  0%, 100% { filter: brightness(1) saturate(1); }
-  50% { filter: brightness(1.2) saturate(1.15); }
+@keyframes clockGradient {
+  0% { background-position: 0% 50%; filter: drop-shadow(0 0 15px rgba(255,107,157,0.2)); }
+  25% { background-position: 50% 0%; filter: drop-shadow(0 0 20px rgba(196,132,252,0.25)); }
+  50% { background-position: 100% 50%; filter: drop-shadow(0 0 25px rgba(100,240,255,0.2)); }
+  75% { background-position: 50% 100%; filter: drop-shadow(0 0 20px rgba(255,215,0,0.25)); }
+  100% { background-position: 0% 50%; filter: drop-shadow(0 0 15px rgba(255,107,157,0.2)); }
 }
 
 /* 搜索框聚焦光晕增强 */
@@ -1392,8 +1418,11 @@ pre[data-lang]::before { content:attr(data-lang); position:absolute; top:0; left
   vertical-align: middle;
   margin-right: 3px;
   font-size: 17px;
-  color: var(--accent);
-  opacity: 0.85;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  opacity: 1;
 }
 
 /* 上传进度条 */
@@ -2427,7 +2456,7 @@ body[data-anim="reduced"] {
   --dur-glacial: 800ms;
 }
 body[data-anim="reduced"] .ambient-orb { animation-duration: 40s !important; }
-body[data-anim="reduced"] .time { animation: none !important; background: var(--text); -webkit-text-fill-color: var(--text); }
+body[data-anim="reduced"] .time { animation: none !important; background: var(--accent); -webkit-text-fill-color: var(--accent); filter: none; }
 body[data-anim="reduced"] .grid .link,
 body[data-anim="reduced"] .section { animation: none !important; opacity: 1; transform: none; }
 body[data-anim="playful"] {

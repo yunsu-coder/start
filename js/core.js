@@ -44,6 +44,7 @@ function switchPanel(name) {
     if (typeof leaveChatPanel === 'function') leaveChatPanel();
   }
   S.currentPanel = name;
+  Yiwei.sound.play('nav-switch');
   location.hash = name;
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   const target = document.querySelector(`[data-panel="${name}"]`);
@@ -71,7 +72,8 @@ function switchPanel(name) {
 }
 
 document.querySelectorAll('.nav-item').forEach(btn => {
-  btn.addEventListener('click', () => switchPanel(btn.dataset.panel));
+  btn.addEventListener('click', () => { Yiwei.sound.play('nav-click'); switchPanel(btn.dataset.panel); });
+  btn.addEventListener('mouseenter', () => Yiwei.sound.play('nav-hover'));
 });
 
 // ===== 智能导航栏隐藏（macOS Dock 式 + 滚动方向感知） =====
@@ -156,6 +158,7 @@ const themeBtn = document.getElementById('themeBtn');
 S.theme = localStorage.getItem('theme') || 'dark';
 applyTheme(S.theme);
 themeBtn.addEventListener('click', () => {
+  Yiwei.sound.play('theme-toggle');
   const idx = themes.indexOf(S.theme);
   S.theme = themes[(idx + 1) % themes.length];
   localStorage.setItem('theme', S.theme);
@@ -199,6 +202,7 @@ let toastTimer;
 function toast(msg, type = 'success') {
   const t = document.getElementById('toast');
   t.textContent = msg; t.className = 'toast ' + type + ' show';
+  Yiwei.sound.play(type === 'error' ? 'toast-err' : type === 'warning' ? 'toast-warn' : 'toast-ok');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), type === 'error' ? 4000 : 2000);
 }
@@ -245,9 +249,11 @@ loadWeather(); setInterval(loadWeather, 900000); // 15 分钟刷新
 // ===== 搜索 =====
 document.getElementById('searchForm').addEventListener('submit', e => {
   e.preventDefault();
+  Yiwei.sound.play('search-go');
   const q = document.getElementById('q').value.trim();
   if (q) window.open('https://www.bing.com/search?q=' + encodeURIComponent(q), '_blank');
 });
+document.getElementById('q').addEventListener('focus', () => Yiwei.sound.play('search-focus'));
 
 // ===== 书签 — localStorage 持久化 + 编辑 + 拖拽 =====
 const DEFAULT_BOOKMARKS = {
@@ -306,7 +312,7 @@ var editMode = false;
 
 function nextLinkId() { return 'l' + (++_linkCounter) + '_' + Date.now().toString(36); }
 
-var ICON_COLORS = ['#a78bfa','#60a5fa','#34d399','#f59e0b','#f472b6','#38bdf8','#fb923c','#a3e635','#818cf8','#fbbf24','#2dd4bf','#e879f9'];
+var ICON_COLORS = ['#ff6b9d','#64f0ff','#ffd700','#c084fc','#ff8264','#44dd88','#fbbf24','#a78bfa','#ff5580','#38bdf8','#f472b6','#a3e635'];
 
 function renderBookmarks() {
   var colorIdx = 0;
@@ -681,7 +687,7 @@ document.addEventListener('DOMContentLoaded', function(){
   const particles = [];
   const maxParticles = 30;
   let mouseX = -100, mouseY = -100;
-  const colors = ['#818cf8','#a78bfa','#f472b6','#34d399','#fbbf24','#60a5fa'];
+  const colors = ['#ff6b9d','#64f0ff','#ffd700','#c084fc','#ff8264','#44dd88'];
 
   function resize() { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }
   resize();
@@ -917,6 +923,16 @@ document.addEventListener('DOMContentLoaded', function(){
   // 不自动启动，由 click 触发
 })();
 
+// ===== 全局音效事件委托 =====
+document.addEventListener('mouseenter', function(e) {
+  var card = e.target.closest('.link, .file-card, .file-row, .book-card, .scrape-card, .work-card, .note-list-item');
+  if (card) Yiwei.sound.play('card-hover');
+}, true);
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.btn, .btn-sm, .btn-new, .wp-fab, .cust-fab');
+  if (btn) Yiwei.sound.play('btn-click');
+}, true);
+
 // ===== 全局错误捕获 =====
 window.addEventListener('error', function(e) {
   console.error('[Yiwei]', e.error?.stack || e.message);
@@ -929,12 +945,12 @@ window.addEventListener('unhandledrejection', function(e) {
 // ===== 壁纸弹窗 =====
 function openWallpaperModal() {
   const modal = document.getElementById('wpModal');
-  if (modal) modal.classList.add('show');
+  if (modal) { modal.classList.add('show'); Yiwei.sound.play('modal-open'); }
   if (typeof loadWallpapers === 'function') loadWallpapers();
 }
 function closeWallpaperModal() {
   const modal = document.getElementById('wpModal');
-  if (modal) modal.classList.remove('show');
+  if (modal) { modal.classList.remove('show'); Yiwei.sound.play('modal-close'); }
 }
 
 // ===== 离线检测 =====
@@ -956,6 +972,7 @@ function closeWallpaperModal() {
 // ===== 自定义面板 (字体/特效/动画参数) =====
 window.openCustomizeModal = function() {
   try {
+    Yiwei.sound.play('modal-open');
     const modal = document.getElementById('customizeModal');
     if (!modal) return;
     // 同步 UI
@@ -968,6 +985,8 @@ window.openCustomizeModal = function() {
     if (greetingEl) greetingEl.checked = cfg.get('greeting');
     const pomodoroEl = document.getElementById('cfg-pomodoro');
     if (pomodoroEl) pomodoroEl.checked = cfg.get('pomodoro');
+    const soundEl = document.getElementById('cfg-sound');
+    if (soundEl) soundEl.checked = Yiwei.sound.isEnabled();
     const musicEl = document.getElementById('cfg-music');
     if (musicEl) musicEl.checked = cfg.get('music');
     const pomdoOpacityEl = document.getElementById('cfg-pomodoOpacity');
@@ -980,6 +999,7 @@ window.openCustomizeModal = function() {
 };
 
 window.closeCustomizeModal = function() {
+  Yiwei.sound.play('modal-close');
   document.getElementById('customizeModal').classList.remove('show');
 };
 
@@ -993,6 +1013,10 @@ document.addEventListener('change', e => {
     Yiwei.customize.set(key, e.target.checked);
   } else if (key === 'music') {
     Yiwei.customize.set(key, e.target.checked);
+  } else if (key === 'sound') {
+    Yiwei.sound.toggle();
+    e.target.checked = Yiwei.sound.isEnabled(); // toggle 已翻转，同步 UI
+    toast(Yiwei.sound.isEnabled() ? '🔊 音效已开启' : '🔇 音效已关闭', 'info');
   } else if (key === 'wpOpacity') {
     localStorage.setItem('wpOpacity', e.target.value);
     applyWallpaperOpacity(e.target.value);
@@ -1112,11 +1136,13 @@ document.addEventListener('keydown', e => {
 
   window.openApiModal = function () {
     fillUI();
+    Yiwei.sound.play('modal-open');
     document.getElementById('apiModal').classList.add('show');
   };
   document.getElementById('apiBtn').addEventListener('click', function() { window.openApiModal(); });
 
   window.closeApiModal = function () {
+    Yiwei.sound.play('modal-close');
     document.getElementById('apiModal').classList.remove('show');
   };
 

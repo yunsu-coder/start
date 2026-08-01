@@ -744,6 +744,12 @@
       </div>
       <div class="cfg-field">
         <label class="cfg-check-label">
+          <input type="checkbox" id="cfg-sound" checked>
+          <span><span class="mi">volume_up</span> 界面音效</span>
+        </label>
+      </div>
+      <div class="cfg-field">
+        <label class="cfg-check-label">
           <input type="checkbox" id="cfg-music" checked>
           <span><span class="mi">music_note</span> 背景音乐</span>
         </label>
@@ -812,6 +818,7 @@
 </div>
 
 <!-- app.js → 分拆为 5 个模块 -->
+<script src="/js/sound.js?v=1" defer></script>
 <script src="/js/core.js?v=1783190030" defer></script>
 <script src="/js/pomodoro.js?v=1783190030" defer></script>
 <script src="/js/files-panel.js?v=1780652200" defer></script>

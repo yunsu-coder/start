@@ -29,7 +29,7 @@ async function loadLangs() {
 }
 
 // ===== 流式翻译 =====
-async function doTranslate(text) {
+async function doTranslate(text) { Yiwei.sound.play("translate-go");
   if (!text.trim()) {
     tlOutput.innerHTML = '<span class="placeholder">等待输入…</span>';
     tlDetect.textContent = '';

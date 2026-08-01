@@ -146,7 +146,7 @@ window.Yiwei = window.Yiwei || {};
     render();
   }
 
-  function startTimer() {
+  function startTimer() { Yiwei.sound.play("pomo-start");
     if (state.running) return;
     if (state.remaining <= 0 && state.mode !== 'stopwatch') resetTimer();
     state.running = true;
@@ -154,7 +154,7 @@ window.Yiwei = window.Yiwei || {};
     render();
   }
 
-  function pauseTimer() {
+  function pauseTimer() { Yiwei.sound.play("pomo-pause");
     state.running = false;
     stopTimer();
     render();
@@ -164,7 +164,7 @@ window.Yiwei = window.Yiwei || {};
     if (timerId) { clearInterval(timerId); timerId = null; }
   }
 
-  function resetTimer() {
+  function resetTimer() { Yiwei.sound.play("btn-click");
     state.running = false;
     stopTimer();
     state.remaining = PRESETS[state.mode] || PRESETS.pomodoro;
@@ -172,7 +172,7 @@ window.Yiwei = window.Yiwei || {};
     render();
   }
 
-  function setMode(mode) {
+  function setMode(mode) { Yiwei.sound.play("btn-click");
     if (!PRESETS.hasOwnProperty(mode)) return;
     if (state.mode === mode && state.remaining > 0) return;
     state.running = false;

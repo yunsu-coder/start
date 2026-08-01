@@ -125,7 +125,7 @@ async function loadConv(id) {
   updateChatCount();
 }
 
-async function newConversation() {
+async function newConversation() { Yiwei.sound.play("chat-new");
   if (chatStreaming) return;
   if (activeConvId && chatHistory.length) await saveConv().catch(function(){});
   activeConvId = convId();
@@ -178,7 +178,7 @@ async function refreshConvList() {
   }
 }
 
-async function clearHistory() {
+async function clearHistory() { Yiwei.sound.play("chat-clear");
   if (!chatHistory.length) return;
   chatHistory = [];
   if (activeConvId) await ChatDB.remove(activeConvId);
@@ -363,7 +363,7 @@ function addImagePreview(dataUrl, name) {
 function handleChatKey(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
 }
-function sendChat() {
+function sendChat() { Yiwei.sound.play("chat-send");
   if (chatStreaming) return;
   const text = chatInput.value.trim();
   if (!text && !pendingImages.length && !window._chatDocText) return;

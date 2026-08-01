@@ -574,7 +574,7 @@ function deselectAll() {
   updateSelectionVisuals();
 }
 
-async function batchDelete() {
+async function batchDelete() { Yiwei.sound.play("file-delete");
   const checked = getActiveCheckboxes(true);
   if (!checked.length) return;
   if (!confirm(`确定删除选中的 ${checked.length} 个文件？`)) return;
@@ -607,7 +607,7 @@ async function batchMove() {
   if (ok > 0) { loadFiles(); updateStorageBar(); }
 }
 
-function batchDownload() {
+function batchDownload() { Yiwei.sound.play("file-download");
   const checked = getActiveCheckboxes(true);
   if (!checked.length) return;
   if (checked.length === 1) {
@@ -634,14 +634,14 @@ function toggleFileView() {
   loadFiles();
 }
 
-function toggleFileTrash() {
+function toggleFileTrash() { Yiwei.sound.play("btn-click");
   const drawer = document.getElementById('trashDrawer');
   const visible = drawer.style.display === 'block';
   drawer.style.display = visible ? 'none' : 'block';
   if (!visible) loadTrash();
 }
 
-async function createFolder() {
+async function createFolder() { Yiwei.sound.play("file-new-folder");
   const name = prompt('请输入文件夹名称:');
   if (!name || !name.trim()) return;
   const folderPath = currentDir ? currentDir + '/' + name.trim() : name.trim();
