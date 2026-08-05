@@ -86,6 +86,17 @@ function md2html(md) {
       h = h.replace(/<img /g, '<img loading="lazy" ');
       h = h.replace(/<a /g, '<a target="_blank" rel="noopener" ');
       h = h.replace(/<pre><code class="language-(\w+)">/g, '<pre data-lang="$1"><code class="language-$1">');
+      // KaTeX 数学公式（$$ 块级 / $ 行内）
+      if (typeof katex !== 'undefined') {
+        try {
+          h = h.replace(/\$\$([\s\S]*?)\$\$/g, function(m, f) {
+            try { return katex.renderToString(f.trim(), { displayMode: true, throwOnError: false }); } catch(e) { return m; }
+          });
+          h = h.replace(/\$([^\$]+?)\$/g, function(m, f) {
+            try { return katex.renderToString(f.trim(), { displayMode: false, throwOnError: false }); } catch(e) { return m; }
+          });
+        } catch(e) {}
+      }
       return h || '<p></p>';
     } catch(e) { console.warn('[md2html] render error', e); }
   }
@@ -209,6 +220,7 @@ async function newNote() { Yiwei.sound.play("note-new");
 }
 
 async function openNote(id) {
+  Yiwei.sound.play('card-click');
   if (noteDirty && id !== currentNoteId && !confirm('当前笔记未保存，是否放弃？')) return;
   try {
     const note = await (await fetch('/api/notes/' + id)).json();
@@ -351,12 +363,16 @@ function toggleNotesSidebar() {
     // 恢复自动 dock
     dockManualOff = false;
     layout.classList.remove('dock-hidden');
+    Yiwei.sound.play('btn-toggle-off');
+
     const btn = document.getElementById('btnToggleSidebar');
     if (btn) btn.style.color = 'var(--sub)';
   } else {
     // 手动固定侧栏状态
     dockManualOff = true;
     layout.classList.toggle('dock-hidden');
+    Yiwei.sound.play(layout.classList.contains('dock-hidden') ? 'btn-toggle-on' : 'btn-toggle-off');
+
     const btn = document.getElementById('btnToggleSidebar');
     if (btn) btn.style.color = layout.classList.contains('dock-hidden') ? 'var(--accent)' : 'var(--sub)';
   }
@@ -684,7 +700,6 @@ document.addEventListener('keydown', e => {
   }
 });
 
-
   // ===== 编辑器 Tab 缩进 + 代码块智能换行 =====
   document.addEventListener('keydown', function(e) {
     var ta = document.getElementById('noteContent');
@@ -736,10 +751,12 @@ let noteImportDir = '';
 function openNoteImport() {
   noteImportDir = '';
   document.getElementById('noteImportModal').classList.add('show');
+    Yiwei.sound.play('modal-open');
   loadNoteImportFiles();
 }
 
 function closeNoteImport() {
+    Yiwei.sound.play('modal-close');
   document.getElementById('noteImportModal').classList.remove('show');
 }
 
@@ -887,3 +904,405 @@ async function toggleGuide() {
     if (btn) btn.style.color = 'var(--sub)';
   }
 }
+
+// ===== 打字音效（全局标记 + 内联事件）=====
+window._typeSoundEnabled = localStorage.getItem('yiwei_type_sound') === 'true';
+
+window.toggleTypeSound = function() {
+  window._typeSoundEnabled = !window._typeSoundEnabled;
+  localStorage.setItem('yiwei_type_sound', window._typeSoundEnabled);
+  var btn = document.getElementById('btnTypeSound');
+  if (btn) { btn.style.color = window._typeSoundEnabled ? 'var(--accent2)' : ''; btn.style.background = window._typeSoundEnabled ? 'var(--nav-active-bg)' : ''; }
+  try { Yiwei.sound.play(window._typeSoundEnabled ? 'btn-toggle-on' : 'btn-toggle-off'); } catch(e) {}
+  try { toast(window._typeSoundEnabled ? '⌨️ 打字音效 开' : '🔇 打字音效 关', 'info'); } catch(e) {}
+};
+
+(function() { var b = document.getElementById('btnTypeSound'); if (b && window._typeSoundEnabled) { b.style.color = 'var(--accent2)'; b.style.background = 'var(--nav-active-bg)'; } })();
+
+// ===== 笔记番茄钟联动 =====
+window.startNotePomodoro = function() {
+  if (!window.Yiwei || !window.Yiwei.pomodoro) { toast('⚠️ 番茄钟模块未加载', 'warning'); return; }
+  var title = document.getElementById('noteTitle')?.value || '未命名笔记';
+  localStorage.setItem('yiwei_pomo_note_title', title);
+  localStorage.setItem('yiwei_pomo_note_start', Date.now());
+  var pomo = window.Yiwei.pomodoro;
+  if (pomo.setMode) pomo.setMode('pomodoro');
+  setTimeout(function() {
+    var state = pomo.getState ? pomo.getState() : null;
+    if (state && !state.running) { var sb = document.getElementById('pomodoStartBtn'); if (sb) sb.click(); }
+  }, 150);
+  Yiwei.sound.play('pomo-start');
+  toast('🍅「' + title + '」· 专注 25 分钟', 'info');
+};
+
+// ===== 批量修复: 打字音效 + 番茄钟鸡仔 + 画图占位符 + 首页 =====
+
+// --- 1. 打字音效：简化且鲁棒 ---
+(function() {
+  var tsEnabled = localStorage.getItem('yiwei_type_sound') === 'true';
+  var tsBtn = null;
+  window.toggleTypeSound = function() {
+    tsEnabled = !tsEnabled;
+    localStorage.setItem('yiwei_type_sound', tsEnabled);
+    tsBtn = tsBtn || document.getElementById('btnTypeSound');
+    if (tsBtn) {
+      tsBtn.style.color = tsEnabled ? 'var(--accent2)' : '';
+      tsBtn.style.background = tsEnabled ? 'var(--nav-active-bg)' : '';
+    }
+    try { Yiwei.sound.play(tsEnabled ? 'btn-toggle-on' : 'btn-toggle-off'); } catch(e) {}
+    try { toast(tsEnabled ? '⌨️ 打字音效 开' : '🔇 打字音效 关', 'info'); } catch(e) {}
+  };
+  // 直接绑定，不等 DOMContentLoaded
+  function bindTypeSound() {
+    tsBtn = document.getElementById('btnTypeSound');
+    if (tsBtn && tsEnabled) { tsBtn.style.color = 'var(--accent2)'; tsBtn.style.background = 'var(--nav-active-bg)'; }
+    var nc = document.getElementById('noteContent');
+    if (!nc) return;
+    nc.addEventListener('keydown', function(e) {
+      if (!tsEnabled) return;
+      var sn = e.key === 'Enter' ? 'type-enter' : (e.key === 'Backspace' ? 'click-light' : (e.key.length === 1 ? 'type-click' : ''));
+      if (sn) { try { Yiwei.sound.play(sn); } catch(ex) {} }
+    });
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', bindTypeSound); }
+  else { setTimeout(bindTypeSound, 100); }
+})();
+
+// --- 2. 画图工具：形状 + 文本框 + 选中移动 ---
+(function() {
+  var dActive = false, dCtx, dCanvas, dColor = '#ff6b9d', dSize = 3, dTool = 'pen';
+  var dDrawing = false, dStartX, dStartY, dSnapshot;
+  var dElements = []; // 追踪所有绘制元素
+  var dSelected = -1; // 当前选中的元素索引
+  var dMoving = false, dMoveOffX, dMoveOffY;
+
+  window.toggleDrawing = function() { if (dActive) { closeDraw(); return; } openDraw(); };
+
+  function redrawAll() {
+    dCtx.fillStyle = '#fff'; dCtx.fillRect(0, 0, dCanvas.width, dCanvas.height);
+    dCtx.lineCap = 'round'; dCtx.lineJoin = 'round';
+    dElements.forEach(function(el, i) {
+      dCtx.strokeStyle = el.color; dCtx.fillStyle = el.color; dCtx.lineWidth = el.size;
+      if (el.type === 'pen') {
+        if (el.points && el.points.length > 1) {
+          dCtx.beginPath(); dCtx.moveTo(el.points[0].x, el.points[0].y);
+          for (var p = 1; p < el.points.length; p++) dCtx.lineTo(el.points[p].x, el.points[p].y);
+          dCtx.stroke();
+        }
+      } else if (el.type === 'line') {
+        dCtx.beginPath(); dCtx.moveTo(el.x1, el.y1); dCtx.lineTo(el.x2, el.y2); dCtx.stroke();
+      } else if (el.type === 'rect') {
+        dCtx.strokeRect(el.x, el.y, el.w, el.h);
+      } else if (el.type === 'circle') {
+        dCtx.beginPath(); dCtx.ellipse(el.x + el.r, el.y + el.r, el.r, el.r, 0, 0, Math.PI*2); dCtx.stroke();
+      } else if (el.type === 'text') {
+        dCtx.font = (el.size * 3.5) + 'px sans-serif'; dCtx.fillText(el.text, el.x, el.y);
+      }
+    });
+    // 绘制选中元素的外框
+    if (dSelected >= 0 && dSelected < dElements.length) {
+      var sel = dElements[dSelected];
+      dCtx.strokeStyle = '#4488ff'; dCtx.lineWidth = 1.5;
+      dCtx.setLineDash([4, 3]);
+      if (sel.type === 'text') {
+        var tw = dCtx.measureText(sel.text).width;
+        dCtx.strokeRect(sel.x - 3, sel.y - sel.size * 3.5 + 2, tw + 6, sel.size * 3.5 + 4);
+      } else if (sel.type === 'rect') {
+        dCtx.strokeRect(sel.x - 3, sel.y - 3, sel.w + 6, sel.h + 6);
+      } else if (sel.type === 'circle') {
+        dCtx.strokeRect(sel.x - 3, sel.y - 3, sel.r * 2 + 6, sel.r * 2 + 6);
+      } else if (sel.type === 'line') {
+        dCtx.strokeRect(Math.min(sel.x1, sel.x2) - 4, Math.min(sel.y1, sel.y2) - 4, Math.abs(sel.x2 - sel.x1) + 8, Math.abs(sel.y2 - sel.y1) + 8);
+      } else if (sel.type === 'pen' && sel.points) {
+        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        sel.points.forEach(function(p) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
+        dCtx.strokeRect(minX - 4, minY - 4, maxX - minX + 8, maxY - minY + 8);
+      }
+      dCtx.setLineDash([]);
+    }
+  }
+
+  function hitTest(x, y) {
+    // 倒序遍历（上层优先）
+    for (var i = dElements.length - 1; i >= 0; i--) {
+      var el = dElements[i];
+      var margin = 8;
+      if (el.type === 'text') {
+        dCtx.font = (el.size * 3.5) + 'px sans-serif';
+        var tw = dCtx.measureText(el.text).width;
+        if (x >= el.x - margin && x <= el.x + tw + margin && y >= el.y - el.size * 3.5 - margin && y <= el.y + margin) return i;
+      } else if (el.type === 'rect') {
+        if (x >= el.x - margin && x <= el.x + el.w + margin && y >= el.y - margin && y <= el.y + el.h + margin) return i;
+      } else if (el.type === 'circle') {
+        var dx = x - (el.x + el.r), dy = y - (el.y + el.r);
+        if (Math.sqrt(dx*dx + dy*dy) <= el.r + margin) return i;
+      } else if (el.type === 'line') {
+        var lx1 = Math.min(el.x1, el.x2) - margin, lx2 = Math.max(el.x1, el.x2) + margin;
+        var ly1 = Math.min(el.y1, el.y2) - margin, ly2 = Math.max(el.y1, el.y2) + margin;
+        if (x >= lx1 && x <= lx2 && y >= ly1 && y <= ly2) return i;
+      } else if (el.type === 'pen' && el.points) {
+        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        el.points.forEach(function(p) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
+        if (x >= minX - margin && x <= maxX + margin && y >= minY - margin && y <= maxY + margin) return i;
+      }
+    }
+    return -1;
+  }
+
+  function openDraw() {
+    dActive = true;
+    var ov = document.createElement('div');
+    ov.id = 'drawOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.75);display:flex;flex-direction:column;align-items:center;justify-content:center;';
+    ov.onclick = function(e) { if (e.target === ov) closeDraw(); };
+
+    var tb = document.createElement('div');
+    tb.style.cssText = 'display:flex;gap:4px;align-items:center;padding:6px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px 8px 0 0;flex-wrap:wrap;';
+    tb.innerHTML =
+      '<span style="font-size:.65rem;color:var(--sub);">工具</span>' +
+      [{v:'select',l:'🖱️',t:'选择/移动'},{v:'pen',l:'✏️',t:'画笔'},{v:'rect',l:'⬜',t:'矩形'},{v:'circle',l:'⭕',t:'圆形'},{v:'line',l:'📏',t:'直线'},{v:'text',l:'📝',t:'文字'}].map(function(tl) {
+        return '<button class="draw-tool-btn" style="padding:2px 5px;font-size:.7rem;border:2px solid '+(dTool===tl.v?'var(--accent)':'var(--border)')+';background:'+(dTool===tl.v?'var(--nav-active-bg)':'var(--bg)')+';color:var(--text);cursor:pointer;border-radius:3px;" data-tool="'+tl.v+'" title="'+tl.t+'">'+tl.l+'</button>';
+      }).join('') +
+      '<span style="font-size:.65rem;color:var(--sub);margin-left:4px;">色</span>' +
+      ['#ff6b9d','#64f0ff','#ffbb44','#44dd88','#ffffff','#ff4444','#4488ff','#000000'].map(function(c){return '<button style="width:18px;height:18px;border-radius:50%;background:'+c+';border:2px solid '+(c===dColor?'var(--text)':'var(--border)')+';cursor:pointer;flex-shrink:0;" onclick="window._drawSetColor(\''+c+'\',this)"></button>';}).join('') +
+      '<span style="font-size:.65rem;color:var(--sub);margin-left:4px;">粗</span>' +
+      [1,3,5,8].map(function(s){return '<button style="padding:1px 4px;font-size:.6rem;border:2px solid '+(s===dSize?'var(--accent)':'var(--border)')+';background:'+(s===dSize?'var(--nav-active-bg)':'var(--bg)')+';color:var(--text);cursor:pointer;border-radius:3px;" onclick="window._drawSetSize('+s+');var bs=this.parentElement.querySelectorAll(\'button\');" title="'+s+'px">'+s+'</button>';}).join('') +
+      '<button class="btn-sm" onclick="window._drawUndo()" style="margin-left:auto;" title="撤销最后一个元素">↩</button>' +
+      '<button class="btn-sm" onclick="window._drawClear()">清空</button>' +
+      '<button class="btn accent" onclick="window._drawInsert()">插入</button>' +
+      '<button class="btn-sm" onclick="window._drawClose()">✕</button>';
+
+    dCanvas = document.createElement('canvas');
+    dCanvas.width = Math.min(800, window.innerWidth - 40);
+    dCanvas.height = Math.min(500, window.innerHeight - 200);
+    dCanvas.style.cssText = 'background:#fff;border:1px solid var(--border);border-top:none;';
+
+    dCtx = dCanvas.getContext('2d');
+    redrawAll();
+
+    ov.appendChild(tb); ov.appendChild(dCanvas);
+    document.body.appendChild(ov);
+
+    // 工具栏按钮事件委托
+    tb.addEventListener('click', function(e) {
+      var btn = e.target.closest('.draw-tool-btn');
+      if (!btn) return;
+      var tool = btn.dataset.tool;
+      window._drawSetTool(tool);
+      tb.querySelectorAll('.draw-tool-btn').forEach(function(b) {
+        b.style.borderColor = 'var(--border)'; b.style.background = 'var(--bg)';
+      });
+      btn.style.borderColor = 'var(--accent)'; btn.style.background = 'var(--nav-active-bg)';
+    });
+
+    dCanvas.addEventListener('mousedown', drawDown);
+    dCanvas.addEventListener('mousemove', drawMove);
+    dCanvas.addEventListener('mouseup', drawUp);
+    dCanvas.addEventListener('touchstart', function(e) { e.preventDefault(); var t = e.touches[0]; drawDown({clientX:t.clientX,clientY:t.clientY}); });
+    dCanvas.addEventListener('touchmove', function(e) { e.preventDefault(); var t = e.touches[0]; drawMove({clientX:t.clientX,clientY:t.clientY}); });
+    dCanvas.addEventListener('touchend', drawUp);
+    try { Yiwei.sound.play('modal-open'); } catch(e) {}
+  }
+
+  function drawDown(e) {
+    var r = dCanvas.getBoundingClientRect();
+    var x = e.clientX - r.left, y = e.clientY - r.top;
+    dStartX = x; dStartY = y;
+
+    // 选择/移动模式
+    if (dTool === 'select') {
+      var hit = hitTest(x, y);
+      if (hit >= 0) {
+        dSelected = hit;
+        dMoving = true;
+        var el = dElements[hit];
+        if (el.type === 'text') { dMoveOffX = x - el.x; dMoveOffY = y - el.y; }
+        else if (el.type === 'rect') { dMoveOffX = x - el.x; dMoveOffY = y - el.y; }
+        else if (el.type === 'circle') { dMoveOffX = x - el.x; dMoveOffY = y - el.y; }
+        else if (el.type === 'line') { dMoveOffX = x - el.x1; dMoveOffY = y - el.y1; }
+        else if (el.type === 'pen' && el.points) { dMoveOffX = x - el.points[0].x; dMoveOffY = y - el.points[0].y; }
+        redrawAll();
+        return;
+      }
+      dSelected = -1; redrawAll();
+      return;
+    }
+
+    // 文字模式
+    if (dTool === 'text') {
+      var ti = document.createElement('input');
+      ti.type = 'text'; ti.placeholder = '输入文字后回车...';
+      var cr = dCanvas.getBoundingClientRect();
+      ti.style.cssText = 'position:fixed;left:' + e.clientX + 'px;top:' + (e.clientY - 18) + 'px;min-width:80px;padding:3px 6px;font-size:' + (dSize*3) + 'px;border:2px dashed ' + dColor + ';background:rgba(0,0,0,.75);color:' + dColor + ';outline:none;z-index:2005;font-family:sans-serif;border-radius:3px;';
+      document.body.appendChild(ti);
+      ti.focus();
+      var done = function() {
+        var txt = ti.value; ti.remove();
+        if (txt) {
+          dElements.push({ type: 'text', text: txt, x: x, y: y, color: dColor, size: dSize });
+          redrawAll();
+        }
+      };
+      ti.addEventListener('keydown', function(ev) {
+        if (ev.key === 'Enter') done();
+        if (ev.key === 'Escape') { ti.remove(); }
+      });
+      ti.addEventListener('blur', function() { setTimeout(function() { if (ti.parentNode) done(); }, 100); });
+      return;
+    }
+
+    dDrawing = true;
+    dCtx.strokeStyle = dColor; dCtx.lineWidth = dSize;
+    dSnapshot = dCtx.getImageData(0, 0, dCanvas.width, dCanvas.height);
+    dCtx.beginPath();
+    dCtx.moveTo(x, y);
+  }
+
+  function drawMove(e) {
+    var r = dCanvas.getBoundingClientRect();
+    var x = e.clientX - r.left, y = e.clientY - r.top;
+
+    // 移动选中元素
+    if (dMoving && dSelected >= 0) {
+      var el = dElements[dSelected];
+      if (el.type === 'text') { el.x = x - dMoveOffX; el.y = y - dMoveOffY; }
+      else if (el.type === 'rect') { el.x = x - dMoveOffX; el.y = y - dMoveOffY; }
+      else if (el.type === 'circle') { el.x = x - dMoveOffX; el.y = y - dMoveOffY; }
+      else if (el.type === 'line') {
+        var dx = x - dMoveOffX - el.x1, dy = y - dMoveOffY - el.y1;
+        el.x1 += dx; el.y1 += dy; el.x2 += dx; el.y2 += dy;
+        dMoveOffX = x - el.x1; dMoveOffY = y - el.y1;
+      } else if (el.type === 'pen' && el.points) {
+        var pdx = x - dMoveOffX - el.points[0].x;
+        var pdy = y - dMoveOffY - el.points[0].y;
+        el.points.forEach(function(p) { p.x += pdx; p.y += pdy; });
+        dMoveOffX = x - el.points[0].x; dMoveOffY = y - el.points[0].y;
+      }
+      redrawAll();
+      return;
+    }
+
+    dLastX = x; dLastY = y; // 追踪最后位置用于 drawUp 保存形状
+
+    if (!dDrawing) return;
+
+    if (dTool === 'pen') {
+      dCtx.lineTo(x, y); dCtx.stroke();
+      if (!dElements.length || dElements[dElements.length - 1].type !== 'pen' || !dElements[dElements.length - 1].active) {
+        dElements.push({ type: 'pen', color: dColor, size: dSize, points: [{x: dStartX, y: dStartY}], active: true });
+      }
+      dElements[dElements.length - 1].points.push({x: x, y: y});
+    } else {
+      // 形状预览：还原快照再画
+      dCtx.putImageData(dSnapshot, 0, 0);
+      dCtx.strokeStyle = dColor; dCtx.lineWidth = dSize;
+      dCtx.beginPath();
+      if (dTool === 'rect') dCtx.strokeRect(dStartX, dStartY, x - dStartX, y - dStartY);
+      else if (dTool === 'circle') { var rx = (x - dStartX) / 2; var ry = (y - dStartY) / 2; dCtx.ellipse(dStartX + rx, dStartY + ry, Math.abs(rx), Math.abs(ry), 0, 0, Math.PI * 2); dCtx.stroke(); }
+      else if (dTool === 'line') { dCtx.moveTo(dStartX, dStartY); dCtx.lineTo(x, y); dCtx.stroke(); }
+    }
+  }
+
+  var dLastX = 0, dLastY = 0; // 追踪最后鼠标位置
+
+  function drawUp() {
+    if (dMoving) { dMoving = false; return; }
+    if (!dDrawing) return;
+    dDrawing = false;
+    // 保存形状元素
+    if (dTool === 'pen') {
+      var last = dElements[dElements.length - 1];
+      if (last && last.type === 'pen') last.active = false;
+    } else if (dTool === 'rect') {
+      var w = dLastX - dStartX, h = dLastY - dStartY;
+      if (Math.abs(w) > 1 || Math.abs(h) > 1) {
+        dElements.push({ type: 'rect', x: Math.min(dStartX, dLastX), y: Math.min(dStartY, dLastY), w: Math.abs(w), h: Math.abs(h), color: dColor, size: dSize });
+      }
+    } else if (dTool === 'circle') {
+      var rx = (dLastX - dStartX) / 2, ry = (dLastY - dStartY) / 2;
+      var r = Math.max(Math.abs(rx), Math.abs(ry));
+      if (r > 2) {
+        dElements.push({ type: 'circle', x: dStartX - r, y: dStartY - r, r: r, color: dColor, size: dSize });
+      }
+    } else if (dTool === 'line') {
+      var ldx = dLastX - dStartX, ldy = dLastY - dStartY;
+      if (Math.abs(ldx) > 1 || Math.abs(ldy) > 1) {
+        dElements.push({ type: 'line', x1: dStartX, y1: dStartY, x2: dLastX, y2: dLastY, color: dColor, size: dSize });
+      }
+    }
+    dSnapshot = null;
+    redrawAll();
+  }
+
+  window._drawSetTool = function(t) {
+    dTool = t;
+    dSelected = -1; dMoving = false;
+    if (dCanvas) dCanvas.style.cursor = (t === 'text' || t === 'select') ? 'default' : 'crosshair';
+    redrawAll();
+  };
+  window._drawSetColor = function(c, btn) { dColor = c; };
+  window._drawSetSize = function(s) { dSize = parseInt(s); };
+  window._drawClear = function() { dElements = []; dSelected = -1; redrawAll(); };
+  window._drawUndo = function() { dElements.pop(); dSelected = -1; redrawAll(); };
+  window._drawInsert = function() {
+    var ta = document.getElementById('noteContent');
+    if (!ta) { closeDraw(); return; }
+    dCanvas.toBlob(function(blob) {
+      var form = new FormData(); form.append('file', blob, 'drawing_' + Date.now() + '.png');
+      fetch('/api/files', { method: 'POST', body: form }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.uploaded && d.uploaded[0]) {
+          var ref = '\n![](/api/view/' + encodeURIComponent(d.uploaded[0].name) + ')\n';
+          ta.value = ta.value.slice(0, ta.selectionStart) + ref + ta.value.slice(ta.selectionEnd);
+          try { renderLive(); markDirty(); toast('✅ 已插入'); } catch(e) {}
+        } else {
+          ta.value = ta.value.slice(0, ta.selectionStart) + '\n🎨 [手绘图]\n' + ta.value.slice(ta.selectionEnd);
+        }
+        ta.focus(); closeDraw();
+        try { if (typeof loadFiles === 'function') loadFiles(); } catch(e) {}
+      }).catch(function() {
+        ta.value = ta.value.slice(0, ta.selectionStart) + '\n🎨 [手绘图]\n' + ta.value.slice(ta.selectionEnd);
+        ta.focus(); closeDraw();
+      });
+    }, 'image/png');
+  };
+  window._drawClose = function() { closeDraw(); };
+
+  function closeDraw() {
+    dActive = false;
+    var ov = document.getElementById('drawOverlay');
+    if (ov) ov.remove();
+    try { Yiwei.sound.play('modal-close'); } catch(e) {}
+  }
+})();
+
+// --- 3. 番茄钟联动：离开笔记面板自动暂停 ---
+(function() {
+  var notePanelEl = document.getElementById('panel-notes');
+  if (!notePanelEl) return;
+  var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      if (m.attributeName === 'class') {
+        var wasActive = m.oldValue && m.oldValue.includes('active');
+        var isActive = notePanelEl.classList.contains('active');
+        if (wasActive && !isActive) {
+          // 离开笔记面板，检查番茄钟是否在运行
+          try {
+            var pomo = window.Yiwei && window.Yiwei.pomodoro;
+            if (pomo) {
+              var state = pomo.getState();
+              if (state && state.running && state.mode === 'pomodoro') {
+                // 自动暂停并提示
+                var pauseBtn = document.getElementById('pomodoPauseBtn');
+                if (pauseBtn) pauseBtn.click();
+                try { toast('⏸️ 离开笔记，番茄钟已暂停', 'warning'); } catch(e) {}
+              }
+            }
+          } catch(e) {}
+        }
+      }
+    });
+  });
+  observer.observe(notePanelEl, { attributes: true, attributeOldValue: true, attributeFilter: ['class'] });
+})();
+
+console.log('[fixes] typing sound, drawing, pomodoro guard loaded');

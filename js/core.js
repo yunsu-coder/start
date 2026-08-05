@@ -58,7 +58,21 @@ function switchPanel(name) {
     newPanel.style.opacity = '';
     newPanel.style.transform = '';
   }
-  if (name === 'files') { loadFiles(); updateStorageBar(); }
+  if (name === 'files') {
+    loadFiles(); updateStorageBar();
+    // 显示终端触发区（仅文件面板）
+    var tt = document.getElementById('termTrigger');
+    if (tt) tt.style.display = '';
+  } else {
+    // 离开文件面板时关闭终端并隐藏触发区
+    if (typeof closeFileTerm === 'function') closeFileTerm();
+    var tt2 = document.getElementById('termTrigger');
+    if (tt2) tt2.style.display = 'none';
+  }
+  // 小鸡仅笔记面板可见
+  if (typeof setChickPanelVisible === 'function') {
+    setChickPanelVisible(name === 'notes');
+  }
   if (name === 'notes') {
     if (typeof loadNotesList === 'function') loadNotesList();
     if (typeof loadWorks === 'function') loadWorks();
@@ -208,28 +222,56 @@ function toast(msg, type = 'success') {
 }
 
 // ===== 时钟 =====
+var GREETINGS = [
+  '代码写完了吗？没写完也没关系，先摸摸鱼 🐟',
+  '今天也是元气满满的一天呢（大概）✨',
+  '咖啡机在召唤你...☕ 听到了吗？',
+  '嘘——这里藏着一个彩蛋 🥚',
+  '你的专注力+10，拖延症-5 🎮',
+  '隔壁工位的零食闻起来真香 🤤',
+  'Bug 退散！Bug 退散！🔮',
+  'Ctrl+S 是你的好朋友，别忘了 📝',
+  '灵感就像WiFi，时有时无 📶',
+  '别卷了，站起来扭扭腰 🕺',
+  '今天的小目标：不被 Deadline 追上 🏃',
+  '脑子：我学会了。手：不，你没有 🤡',
+  '多喝水，少熬夜，记得吃饭 🍚',
+  '生产队的驴都不敢这么歇 🐴',
+  '你的键盘说它累了，想休息 😮‍💨',
+  '来都来了，写两行再走？👀',
+  '该摸鱼时就摸鱼，别委屈自己 🌊',
+  '假如生活欺骗了你，重启一下试试 🔄',
+  '你今天真好看（对，就是你）💫',
+  '404: 动力未找到，但你可以的 🚀',
+];
+var lastGreetingIdx = -1;
 function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 6) return '夜深了，注意休息 🌙';
-  if (h < 9) return '早上好，新的一天 ☀️';
-  if (h < 12) return '上午好，专注时刻 💪';
-  if (h < 14) return '中午好，别忘了吃饭 🍜';
-  if (h < 18) return '下午好，效率拉满 ⚡';
-  if (h < 22) return '晚上好，放松一下 🌆';
-  return '夜深了，早点休息 🌙';
+  var idx;
+  do { idx = Math.floor(Math.random() * GREETINGS.length); } while (idx === lastGreetingIdx && GREETINGS.length > 1);
+  lastGreetingIdx = idx;
+  return GREETINGS[idx];
 }
 function tick() {
-  const now = new Date();
-  const is24h = Yiwei.customize ? Yiwei.customize.get('clockFormat') === '24h' : true;
-  document.getElementById('clock').textContent = now.toLocaleTimeString('zh-CN', { hour12: !is24h });
-  document.getElementById('date').textContent = now.toLocaleDateString('zh-CN', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-  const g = document.getElementById('greeting');
-  if (g && Yiwei.customize) {
-    const show = Yiwei.customize.get('greeting');
-    g.style.display = show ? '' : 'none';
-    if (show) g.textContent = getGreeting();
-  } else if (g) {
-    g.textContent = getGreeting();
+  var now = new Date();
+  var is24h = Yiwei.customize ? Yiwei.customize.get('clockFormat') === '24h' : true;
+  // 表盘内时间
+  var clockEl = document.getElementById('clock');
+  if (clockEl) clockEl.textContent = now.toLocaleTimeString('zh-CN', { hour12: !is24h, hour:'2-digit', minute:'2-digit' });
+  // 表盘内日期
+  var dateEl = document.getElementById('date');
+  if (dateEl) {
+    var weekNames = ['日','一','二','三','四','五','六'];
+    dateEl.textContent = (now.getMonth()+1) + '/' + now.getDate() + ' 周' + weekNames[now.getDay()];
+  }
+  // 问候语（30秒随机变换）
+  if (!tick._lastGreet || now - tick._lastGreet > 30000) {
+    tick._lastGreet = now;
+    var g = document.getElementById('greeting');
+    if (g) {
+      var show = Yiwei.customize ? Yiwei.customize.get('greeting') : true;
+      g.style.display = show ? '' : 'none';
+      if (show) { g.textContent = getGreeting(); g.classList.add('greeting-pop'); setTimeout(function() { g.classList.remove('greeting-pop'); }, 500); }
+    }
   }
 }
 tick(); setInterval(tick, 1000);
@@ -315,44 +357,44 @@ function nextLinkId() { return 'l' + (++_linkCounter) + '_' + Date.now().toStrin
 var ICON_COLORS = ['#ff6b9d','#64f0ff','#ffd700','#c084fc','#ff8264','#44dd88','#fbbf24','#a78bfa','#ff5580','#38bdf8','#f472b6','#a3e635'];
 
 function renderBookmarks() {
+  var grid = document.getElementById('bookmarkGrid');
+  if (!grid) return;
   var colorIdx = 0;
-  BM.categories.forEach(function(cat) {
-    var grid = document.getElementById(cat.id);
-    if (!grid) return;
-    // 更新 section title（保留 icon）
-    var section = grid.closest('.section');
-    if (section) {
-      var title = section.querySelector('.section-title');
-      if (title) title.innerHTML = '<span class="mi">' + escHtml(cat.icon) + '</span> ' + escHtml(cat.name) +
-        (editMode ? ' <button class="bm-add-link" data-cat="' + cat.id + '" title="添加链接" style="cursor:pointer;font-size:.75rem;margin-left:.3rem;opacity:.6;">+</button>' +
-        ' <button class="bm-edit-cat" data-cat="' + cat.id + '" title="编辑分类" style="cursor:pointer;font-size:.7rem;opacity:.6;">✎</button>' +
-        (BM.categories.length > 1 ? ' <button class="bm-del-cat" data-cat="' + cat.id + '" title="删除分类" style="cursor:pointer;font-size:.7rem;opacity:.6;">✕</button>' : '') : '');
+  var allLinks = BM.links.slice();
+  // 随机打乱
+  if (!editMode) {
+    for (var i = allLinks.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = allLinks[i]; allLinks[i] = allLinks[j]; allLinks[j] = tmp;
     }
-    var links = BM.links.filter(function(l) { return l.catId === cat.id; });
-    grid.innerHTML = links.map(function(l) {
-      var href = editMode ? 'javascript:void(0)' : ('href="' + escHtml(l.url) + '" target="_blank" rel="noopener"');
-      return '<a class="link' + (editMode ? ' bm-link-edit' : '') + '" ' + href + ' data-id="' + l.id + '" draggable="' + editMode + '"' +
-        (editMode ? ' onclick="event.preventDefault();"' : '') + '>' +
-        '<span class="icon mi" style="color:' + ICON_COLORS[colorIdx++ % ICON_COLORS.length] + '">' + escHtml(l.icon) + '</span><span class="name">' + escHtml(l.name) + '</span>' +
-        (editMode ? '<span class="bm-link-actions"><button class="bm-edit-link" data-id="' + l.id + '" title="编辑">✎</button><button class="bm-del-link" data-id="' + l.id + '" title="删除">✕</button></span>' : '') +
-        '</a>';
-    }).join('');
-    if (editMode && links.length === 0) {
-      grid.innerHTML = '<div class="bm-empty-slot" data-cat="' + cat.id + '" style="min-height:40px;border:1px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:.75rem;">拖拽链接到这里</div>';
-    }
-  });
-  // 编辑模式下的添加分类按钮
-  var existing = document.getElementById('bmAddCat');
-  if (editMode && !existing) {
-    var panel = document.getElementById('panel-home');
-    var lastSection = panel.querySelector('.section:last-of-type');
-    var addCat = document.createElement('div');
-    addCat.id = 'bmAddCat';
-    addCat.style.cssText = 'text-align:center;margin-top:.8rem;';
-    addCat.innerHTML = '<button class="btn-sm" id="bmAddCatBtn">+ 添加分类</button>';
-    if (lastSection) lastSection.after(addCat);
   }
-  if (!editMode && existing) existing.remove();
+  grid.innerHTML = allLinks.map(function(l) {
+    var cat = BM.categories.find(function(c) { return c.id === l.catId; });
+    var href = editMode ? 'javascript:void(0)' : ('href="' + escHtml(l.url) + '" target="_blank" rel="noopener"');
+    // 可变高度尺寸
+    var size = l.size || 'm'; // s=small, m=medium, l=large
+    return '<a class="link bm-tile bm-size-' + size + (editMode ? ' bm-link-edit' : '') + '" ' + href + ' data-id="' + l.id + '" draggable="' + editMode + '"' +
+      (editMode ? ' onclick="event.preventDefault();"' : '') + '>' +
+      '<span class="icon mi" style="color:' + ICON_COLORS[colorIdx++ % ICON_COLORS.length] + '">' + escHtml(l.icon) + '</span>' +
+      '<span class="name">' + escHtml(l.name) + '</span>' +
+      (editMode ? '<span class="bm-link-actions"><button class="bm-edit-link" data-id="' + l.id + '" title="编辑">✎</button><button class="bm-del-link" data-id="' + l.id + '" title="删除">✕</button></span>' : '') +
+      '</a>';
+  }).join('');
+  if (editMode && allLinks.length === 0) {
+    grid.innerHTML = '<div class="bm-empty-state" style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--sub);border:1px dashed var(--border);border-radius:8px;">拖拽链接到此处 · 点击下方 + 添加</div>';
+  }
+  // 编辑模式下显示添加按钮
+  var existingAdd = document.getElementById('bmAddLinkBtn');
+  if (editMode && !existingAdd) {
+    var addBtn = document.createElement('button');
+    addBtn.id = 'bmAddLinkBtn';
+    addBtn.className = 'btn-sm';
+    addBtn.style.cssText = 'display:block;margin:1rem auto 0;';
+    addBtn.textContent = '+ 添加链接';
+    addBtn.onclick = function() { showLinkDialog(BM.categories[0] ? BM.categories[0].id : ''); };
+    grid.after(addBtn);
+  }
+  if (!editMode && existingAdd) existingAdd.remove();
 }
 
 // 编辑模式切换
@@ -363,8 +405,12 @@ function toggleEditMode() {
   if (editMode) bindEditEvents();
 }
 
-// 绑定编辑事件（拖拽、按钮）
+// 绑定编辑事件（拖拽、按钮）— 适配随机网格
 function bindEditEvents() {
+  var grid = document.getElementById('bookmarkGrid');
+  if (!grid) return;
+
+  // 拖拽排序
   var links = document.querySelectorAll('.bm-link-edit');
   links.forEach(function(el) {
     el.addEventListener('dragstart', function(e) {
@@ -375,61 +421,35 @@ function bindEditEvents() {
     el.addEventListener('dragend', function(e) { el.classList.remove('dragging'); });
   });
 
-  // Drop targets: grids and empty slots
-  var grids = document.querySelectorAll('#panel-home .grid');
-  grids.forEach(function(grid) {
-    grid.addEventListener('dragover', function(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
-    grid.addEventListener('drop', function(e) {
-      e.preventDefault();
-      var linkId = e.dataTransfer.getData('text/plain');
-      var link = BM.links.find(function(l) { return l.id === linkId; });
-      if (!link) return;
-      // 确定目标分类
-      var targetCat = grid.id;
-      var dragEl = document.querySelector('.bm-link-edit[data-id="' + linkId + '"]');
-      // 如果拖到空槽
-      if (e.target.closest('.bm-empty-slot')) targetCat = e.target.closest('.bm-empty-slot').dataset.cat;
-      link.catId = targetCat;
-      saveBookmarks(BM);
-      renderBookmarks();
-      bindEditEvents();
-    });
+  // Drop target
+  grid.addEventListener('dragover', function(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+  grid.addEventListener('drop', function(e) {
+    e.preventDefault();
+    var linkId = e.dataTransfer.getData('text/plain');
+    var link = BM.links.find(function(l) { return l.id === linkId; });
+    if (!link) return;
+    // 拖到网格中：随机改变排序位置
+    var idx = BM.links.indexOf(link);
+    if (idx >= 0) {
+      BM.links.splice(idx, 1);
+      BM.links.push(link); // 移到末尾，打乱顺序
+    }
+    saveBookmarks(BM); renderBookmarks(); bindEditEvents();
   });
 
-  // 添加链接按钮
-  document.querySelectorAll('.bm-add-link').forEach(function(btn) {
-    btn.onclick = function(e) { e.stopPropagation(); showLinkDialog(btn.dataset.cat); };
-  });
-  // 编辑分类
-  document.querySelectorAll('.bm-edit-cat').forEach(function(btn) {
-    btn.onclick = function(e) { e.stopPropagation(); showCatDialog(btn.dataset.cat); };
-  });
-  // 删除分类
-  document.querySelectorAll('.bm-del-cat').forEach(function(btn) {
-    btn.onclick = function(e) { e.stopPropagation();
-      if (!confirm('确定删除此分类及其所有链接？')) return;
-      var catId = btn.dataset.cat;
-      BM.links = BM.links.filter(function(l) { return l.catId !== catId; });
-      BM.categories = BM.categories.filter(function(c) { return c.id !== catId; });
-      saveBookmarks(BM); renderBookmarks(); bindEditEvents();
-    };
-  });
   // 编辑链接
   document.querySelectorAll('.bm-edit-link').forEach(function(btn) {
-    btn.onclick = function(e) { e.stopPropagation(); showLinkDialog(null, btn.dataset.id); };
+    btn.onclick = function(e) { e.stopPropagation(); Yiwei.sound.play('bookmark-edit'); showLinkDialog(null, btn.dataset.id); };
   });
   // 删除链接
   document.querySelectorAll('.bm-del-link').forEach(function(btn) {
     btn.onclick = function(e) { e.stopPropagation();
       if (!confirm('删除此链接？')) return;
+      Yiwei.sound.play('bookmark-del');
       BM.links = BM.links.filter(function(l) { return l.id !== btn.dataset.id; });
       saveBookmarks(BM); renderBookmarks(); bindEditEvents();
     };
   });
-
-  // 添加分类按钮
-  var addCatBtn = document.getElementById('bmAddCatBtn');
-  if (addCatBtn) addCatBtn.onclick = function() { showCatDialog(); };
 }
 
 // 链接编辑弹窗（简易 prompt）
@@ -451,29 +471,6 @@ function showLinkDialog(catId, linkId) {
 }
 
 // 分类编辑弹窗
-function showCatDialog(catId) {
-  var cat = catId ? BM.categories.find(function(c) { return c.id === catId; }) : null;
-  var name = prompt('分类名称', cat ? cat.name : '');
-  if (name === null) return;
-  var icon = prompt('Material 图标名（如 smart_toy, code, folder）', cat ? cat.icon : 'folder');
-  if (icon === null) return;
-
-  if (cat) {
-    cat.name = name; cat.icon = icon;
-  } else {
-    var id = 'cat_' + Date.now().toString(36);
-    BM.categories.push({ id: id, name: name, icon: icon });
-    // 确保 HTML 中有对应的 grid
-    var panel = document.getElementById('panel-home');
-    var section = document.createElement('div');
-    section.className = 'section';
-    section.innerHTML = '<div class="section-title"></div><div class="grid" id="' + id + '"></div>';
-    var addCatEl = document.getElementById('bmAddCat');
-    if (addCatEl) addCatEl.before(section); else panel.appendChild(section);
-  }
-  saveBookmarks(BM); renderBookmarks(); bindEditEvents();
-}
-
 // 右键菜单（编辑模式下也能用）
 document.addEventListener('contextmenu', function(e) {
   var linkEl = e.target.closest('.link');
@@ -925,12 +922,16 @@ document.addEventListener('DOMContentLoaded', function(){
 
 // ===== 全局音效事件委托 =====
 document.addEventListener('mouseenter', function(e) {
+  if (!e.target.closest) return;
   var card = e.target.closest('.link, .file-card, .file-row, .book-card, .scrape-card, .work-card, .note-list-item');
   if (card) Yiwei.sound.play('card-hover');
 }, true);
 document.addEventListener('click', function(e) {
+  if (!e.target.closest) return;
   var btn = e.target.closest('.btn, .btn-sm, .btn-new, .wp-fab, .cust-fab');
-  if (btn) Yiwei.sound.play('btn-click');
+  if (btn) { Yiwei.sound.play('btn-click'); return; }
+  var card = e.target.closest('.link, .file-card, .file-row, .book-card, .scrape-card, .work-card, .note-list-item, .tilt-card');
+  if (card) Yiwei.sound.play('card-click');
 }, true);
 
 // ===== 全局错误捕获 =====
@@ -1009,13 +1010,17 @@ document.addEventListener('change', e => {
   const key = e.target.id.replace('cfg-', '');
   if (key === 'greeting') {
     Yiwei.customize.set(key, e.target.checked);
+    Yiwei.sound.play(e.target.checked ? 'btn-toggle-on' : 'btn-toggle-off');
   } else if (key === 'pomodoro') {
     Yiwei.customize.set(key, e.target.checked);
+    Yiwei.sound.play(e.target.checked ? 'btn-toggle-on' : 'btn-toggle-off');
   } else if (key === 'music') {
     Yiwei.customize.set(key, e.target.checked);
+    Yiwei.sound.play(e.target.checked ? 'btn-toggle-on' : 'btn-toggle-off');
   } else if (key === 'sound') {
     Yiwei.sound.toggle();
     e.target.checked = Yiwei.sound.isEnabled(); // toggle 已翻转，同步 UI
+    Yiwei.sound.syncWidget();
     toast(Yiwei.sound.isEnabled() ? '🔊 音效已开启' : '🔇 音效已关闭', 'info');
   } else if (key === 'wpOpacity') {
     localStorage.setItem('wpOpacity', e.target.value);
@@ -1025,8 +1030,9 @@ document.addEventListener('change', e => {
     Yiwei.customize.set(key, e.target.value);
     document.getElementById('cfgPomodoOpacityVal').textContent = e.target.value + '%';
   } else {
-    // All select fields (font, particles, tilt, orbSpeed, density, cardRadius, glassBlur, animIntensity, clockFormat)
+    // All select fields — 保存并立即应用
     Yiwei.customize.set(key, e.target.value);
+    if (Yiwei.customize.apply) Yiwei.customize.apply(key, e.target.value);
   }
 });
 
@@ -1107,6 +1113,7 @@ document.addEventListener('keydown', e => {
 
   // Tab 切换
   window.switchApiTab = function (tab) {
+    Yiwei.sound.play('api-tab-sw');
     document.querySelectorAll('.api-tab').forEach(function(b) { b.classList.remove('active'); });
     var activeTab = document.querySelector('[data-api-tab="' + tab + '"]');
     if (activeTab) activeTab.classList.add('active');
@@ -1148,6 +1155,7 @@ document.addEventListener('keydown', e => {
 
   // 保存
   document.getElementById('apiSave').addEventListener('click', function() {
+    Yiwei.sound.play('api-save');
     var chatKey = document.getElementById('apiChatKey').value.trim();
     var chatModel = document.getElementById('apiChatModel').value.trim();
     var transKey = document.getElementById('apiTransKey').value.trim();
@@ -1162,6 +1170,7 @@ document.addEventListener('keydown', e => {
 
   // 清除
   document.getElementById('apiReset').addEventListener('click', function() {
+    Yiwei.sound.play('api-reset');
     document.getElementById('apiChatKey').value = '';
     document.getElementById('apiChatModel').value = '';
     document.getElementById('apiTransKey').value = '';

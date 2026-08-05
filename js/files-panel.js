@@ -4,7 +4,7 @@ const fileInput = document.getElementById('fileInput');
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); uploadFiles(e.dataTransfer.files); });
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); Yiwei.sound.play('file-drop'); uploadFiles(e.dataTransfer.files); });
 fileInput.addEventListener('change', () => { uploadFiles(fileInput.files); fileInput.value = ''; });
 
 function formatSpeed(bytesPerSec) {
@@ -142,9 +142,18 @@ async function loadFiles() {
       return sep + '<span ' + drag + ' ' + clickable + '>' + escHtml(c.name) + '</span>';
     }).join('');
 
-    // 搜索过滤
+    // 搜索过滤 — 碎片匹配（fuzzy）: 每个字符按顺序出现即可匹配
     const q = (document.getElementById('fileSearch')?.value || '').trim().toLowerCase();
-    let filtered = q ? files.filter(f => f.name.toLowerCase().includes(q)) : files;
+    let filtered = files;
+    if (q) {
+      filtered = files.filter(function(f) {
+        var name = f.name.toLowerCase(), qi = 0;
+        for (var i = 0; i < name.length && qi < q.length; i++) {
+          if (name[i] === q[qi]) qi++;
+        }
+        return qi === q.length;
+      });
+    }
 
     // 排序
     const sort = document.getElementById('fileSort')?.value || 'date-desc';
@@ -244,6 +253,7 @@ async function previewFile(name) {
   title.textContent = name;
   body.innerHTML = '<div class="file-info"><div class="fi-icon"><span class="mi" style="font-size:2rem;animation:spin 1s linear infinite;">refresh</span></div>加载中...</div>';
   modal.classList.add('show');
+  Yiwei.sound.play('modal-open');
 
   const ext = name.split('.').pop().toLowerCase();
   const imgExts = ['jpg','jpeg','png','gif','webp','svg','ico','bmp'];
@@ -322,6 +332,7 @@ async function previewFile(name) {
 }
 
 function closePreview() {
+  Yiwei.sound.play('modal-close');
   document.getElementById('previewModal').classList.remove('show');
 }
 
@@ -420,15 +431,20 @@ async function ocrImage(name) {
 let dragItems = [];
 window._lastFileClickIndex = -1;
 
-// 统一文件项点击：单击打开，Ctrl/Shift+点击多选
+// 文件项点击：点文件名→预览，点行→选中，Ctrl/Shift→多选
 function handleFileClick(event, row, actionType, path) {
   if (event.ctrlKey || event.metaKey || event.shiftKey) {
     handleFileRowClick(event, row);
     return;
   }
-  // 普通单击 → 打开
-  if (actionType === 'navigateTo') navigateTo(path);
-  else if (actionType === 'previewFile') previewFile(path);
+  // 点击文件名 → 预览/打开
+  if (event.target.closest('.fname-text')) {
+    if (actionType === 'navigateTo') { Yiwei.sound.play('file-select'); navigateTo(path); }
+    else if (actionType === 'previewFile') { Yiwei.sound.play('file-select'); previewFile(path); }
+    return;
+  }
+  // 点击行其他区域 → 选中/取消
+  handleFileRowClick(event, row);
 }
 
 function handleFileRowClick(event, row) {
@@ -742,3 +758,397 @@ function showFileMenu(e, name, isDir) {
   document.body.appendChild(menu);
   setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 0);
 }
+
+// ===== 自动清空废纸篓（30天过期，倒数3天提醒）=====
+(function() {
+  var TRASH_DAYS = 30;
+  var WARN_DAYS = 3;
+
+  async function checkTrashExpiry() {
+    try {
+      var items = await (await fetch('/api/trash')).json();
+      if (!items || !items.length) return;
+      var now = Date.now();
+      var expired = [];
+      var warning = [];
+
+      items.forEach(function(item) {
+        // 文件名格式: timestamp_originalname
+        var tsMatch = item.name.match(/^(\d+)_/);
+        if (!tsMatch) return;
+        var ts = parseInt(tsMatch[1]);
+        if (!ts) return;
+        var ageDays = (now - ts) / (1000 * 60 * 60 * 24);
+        if (ageDays >= TRASH_DAYS) {
+          expired.push(item);
+        } else if (ageDays >= TRASH_DAYS - WARN_DAYS) {
+          warning.push({ item: item, daysLeft: Math.ceil(TRASH_DAYS - ageDays) });
+        }
+      });
+
+      // 删除过期项
+      if (expired.length > 0) {
+        for (var i = 0; i < expired.length; i++) {
+          try {
+            await fetch('/api/trash/item/' + encodeURIComponent(expired[i].name), { method: 'DELETE' });
+          } catch(e) {}
+        }
+        if (typeof toast === 'function') {
+          toast('🗑️ 回收站已自动清理 ' + expired.length + ' 个过期文件（超过30天）', 'info');
+        }
+        if (typeof loadTrash === 'function') loadTrash();
+        if (typeof updateStorageBar === 'function') updateStorageBar();
+      }
+
+      // 警告即将过期
+      if (warning.length > 0) {
+        var msg = warning.map(function(w) {
+          var dn = w.item.name.replace(/^\d+_/, '');
+          return dn + '（' + w.daysLeft + '天后删除）';
+        }).join('、');
+        if (typeof toast === 'function') {
+          toast('⚠️ 以下文件即将过期：' + msg, 'warning');
+        }
+      }
+    } catch(e) { /* 静默 */ }
+  }
+
+  // 页面加载5秒后检查
+  setTimeout(checkTrashExpiry, 5000);
+  // 每天检查一次
+  setInterval(checkTrashExpiry, 86400000);
+})();
+
+// ===== 存储进度条游戏主题适配 =====
+(function() {
+  function themeStorageBar() {
+    var fill = document.getElementById('storageFill');
+    if (!fill) return;
+    // 读取当前百分比
+    var pct = parseFloat(fill.style.width) || 0;
+    fill.style.background = pct > 90 ? 'linear-gradient(90deg, var(--danger), #ff4444)' :
+                            pct > 70 ? 'linear-gradient(90deg, var(--warn), #ffaa00)' :
+                            'linear-gradient(90deg, var(--accent2), var(--accent))';
+    fill.style.boxShadow = pct > 90 ? '0 0 8px var(--danger)' :
+                           pct > 70 ? '0 0 8px var(--warn)' :
+                           '0 0 6px var(--accent2)';
+    fill.style.height = '100%';
+    fill.style.borderRadius = '2px';
+    fill.style.transition = 'width .3s, background .3s, box-shadow .3s';
+  }
+  // 在 updateStorageBar 之后调用
+  var origUpdate = window.updateStorageBar;
+  if (origUpdate) {
+    window.updateStorageBar = function() {
+      origUpdate();
+      setTimeout(themeStorageBar, 100);
+    };
+  }
+  // 初始应用
+  setTimeout(themeStorageBar, 500);
+})();
+
+// ===== 文件命令行终端 =====
+window.execFileCLI = function() {
+  var input = document.getElementById('fileCliInput');
+  if (!input) return;
+  var cmd = input.value.trim();
+  if (!cmd) return;
+  input.value = '';
+  try { Yiwei.sound.play('input-submit'); } catch(e) {}
+
+  var parts = cmd.split(/\s+/);
+  var op = parts[0].toLowerCase();
+  var args = parts.slice(1);
+  var dir = currentDir || '';
+
+  function cliOut(msg, type) { toast(msg, type || 'info'); }
+
+  // ls [path] — 列出文件
+  if (op === 'ls') {
+    var target = args[0] || dir || '';
+    fetch('/api/files?dir=' + encodeURIComponent(target)).then(function(r) { return r.json(); }).then(function(data) {
+      var files = data.files || [];
+      var lines = files.map(function(f) {
+        return (f.isDir ? '📁 ' : '📄 ') + f.name + (f.isDir ? '/' : '  ' + (f.size < 1024 ? f.size + 'B' : f.size < 1024*1024 ? (f.size/1024).toFixed(1)+'K' : (f.size/1024/1024).toFixed(1)+'M'));
+      });
+      cliOut((target || '/') + '\n' + (lines.length ? lines.join('\n') : '(空目录)'));
+    }).catch(function() { cliOut('ls: 无法读取目录', 'error'); });
+  }
+  // cd <dir>
+  else if (op === 'cd') {
+    var target = args[0] || '';
+    navigateTo(target);
+    setTimeout(function() { cliOut('📂 ' + (currentDir || '/')); }, 300);
+  }
+  // cat <file>
+  else if (op === 'cat' || op === 'open') {
+    if (!args[0]) { cliOut('用法: ' + op + ' <文件名>', 'warning'); return; }
+    previewFile(args[0]);
+  }
+  // touch <filename>
+  else if (op === 'touch') {
+    if (!args[0]) { cliOut('用法: touch <文件名>', 'warning'); return; }
+    fetch('/api/files/create', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name:args[0],content:'',dir:dir}) })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { if (d.error) { cliOut('touch: ' + d.error, 'error'); } else { cliOut('✅ ' + args[0]); loadFiles(); } })
+      .catch(function() { cliOut('touch: 创建失败', 'error'); });
+  }
+  // mkdir <name>
+  else if (op === 'mkdir') {
+    if (!args[0]) { cliOut('用法: mkdir <目录名>', 'warning'); return; }
+    var mkName = dir ? dir + '/' + args[0] : args[0];
+    fetch('/api/folders', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name:mkName}) })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { if (d.error) { cliOut('mkdir: ' + d.error, 'error'); } else { cliOut('✅ ' + args[0] + '/'); loadFiles(); } })
+      .catch(function() { cliOut('mkdir: 创建失败', 'error'); });
+  }
+  // rm <filename>
+  else if (op === 'rm') {
+    if (!args[0]) { cliOut('用法: rm <文件名>', 'warning'); return; }
+    if (!confirm('确定删除「' + args[0] + '」？')) return;
+    var rmPath = dir ? dir + '/' + args[0] : args[0];
+    fetch('/api/files/' + encodeURIComponent(rmPath), { method: 'DELETE' })
+      .then(function() { cliOut('🗑️ ' + args[0]); loadFiles(); try { updateStorageBar(); } catch(e) {} })
+      .catch(function() { cliOut('rm: 删除失败', 'error'); });
+  }
+  // rmdir <name>
+  else if (op === 'rmdir') {
+    if (!args[0]) { cliOut('用法: rmdir <目录名>', 'warning'); return; }
+    if (!confirm('删除目录「' + args[0] + '」？')) return;
+    var rdPath = dir ? dir + '/' + args[0] : args[0];
+    fetch('/api/folders/' + encodeURIComponent(rdPath), { method: 'DELETE' })
+      .then(function() { cliOut('🗑️ ' + args[0] + '/'); loadFiles(); try { updateStorageBar(); } catch(e) {} })
+      .catch(function() { cliOut('rmdir: 删除失败', 'error'); });
+  }
+  // pwd
+  else if (op === 'pwd') {
+    cliOut(dir || '/');
+  }
+  // help
+  else if (op === 'help' || op === '?') {
+    cliOut('📋 ls [dir] | cd <dir> | pwd | cat <file> | touch <name> | mkdir <name> | rm <file> | rmdir <dir> | help');
+  }
+  else {
+    cliOut('❓ ' + op + ' — 输入 help 查看帮助', 'warning');
+  }
+};
+
+// ===== 终端面板 =====
+(function() {
+  var panel = null, body = null, input = null, trigger = null;
+  var open = false, hoverTimer = null, cmdHistory = [], histIdx = -1;
+  var termDir = '';
+
+  function init() {
+    panel = document.getElementById('termPanel');
+    body = document.getElementById('termBody');
+    input = document.getElementById('termInput');
+    trigger = document.getElementById('termTrigger');
+    if (!panel || !trigger) return;
+
+    // 右边界悬停 0.6 秒展开
+    trigger.addEventListener('mouseenter', function() {
+      hoverTimer = setTimeout(function() { if (!open) openTerm(); }, 600);
+    });
+    trigger.addEventListener('mouseleave', function() {
+      if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
+    });
+    trigger.addEventListener('click', function() { if (!open) openTerm(); });
+
+    // 初始隐藏（默认首页，非文件面板）
+    trigger.style.display = 'none';
+
+    // Tab 补全文件名
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        var val = input.value;
+        var lastWord = val.split(/\s+/).pop() || '';
+        if (!lastWord) return;
+        // 获取当前目录文件列表用于补全
+        var dir = termDir || '';
+        fetch('/api/files?dir=' + encodeURIComponent(dir))
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var files = (data.files || []).map(function(f) { return f.name; });
+            var matches = files.filter(function(f) { return f.toLowerCase().indexOf(lastWord.toLowerCase()) === 0; });
+            if (matches.length === 1) {
+              var parts = val.split(/\s+/);
+              parts[parts.length - 1] = matches[0];
+              input.value = parts.join(' ');
+            } else if (matches.length > 1) {
+              termOut(matches.join('  '), 'info');
+            }
+          }).catch(function() {});
+      }
+    });
+
+    termOut('📟 文件管理终端 — 输入 help 查看命令 | Tab 补全 | ↑↓ 历史\n', 'info');
+  }
+
+  function openTerm() {
+    open = true; panel.classList.add('open');
+    if (trigger) trigger.classList.add('shifted');
+    setTimeout(function() { if (input) input.focus(); }, 300);
+    termDir = (typeof currentDir !== 'undefined') ? currentDir : '';
+    updateTermDirLabel();
+    try { Yiwei.sound.play('drawer-open'); } catch(e) {}
+  }
+
+  function closeTerm() {
+    open = false; panel.classList.remove('open');
+    if (trigger) trigger.classList.remove('shifted');
+    try { Yiwei.sound.play('drawer-close'); } catch(e) {}
+  }
+
+  // 公开：外部可关闭终端（切换面板时调用）
+  window.closeFileTerm = function() { if (open) closeTerm(); };
+
+  function updateTermDirLabel() {
+    var lbl = document.getElementById('termDirLabel');
+    if (lbl) lbl.textContent = termDir || '/';
+  }
+
+  window.termToggle = function() { if (open) closeTerm(); else openTerm(); };
+
+  function termOut(msg, cls) {
+    if (!body) return;
+    var line = document.createElement('div');
+    line.className = 'term-line ' + (cls || 'out');
+    line.textContent = msg;
+    body.appendChild(line);
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function termExec(raw) {
+    var cmd = raw.trim(); if (!cmd) return;
+    termOut('$ ' + cmd, 'cmd');
+    cmdHistory.push(cmd); histIdx = cmdHistory.length;
+
+    var parts = cmd.split(/\s+/);
+    var op = parts[0].toLowerCase();
+    var args = parts.slice(1);
+    var dir = termDir || '';
+
+    // ls — 列出文件
+    if (op === 'ls') {
+      var target = args[0] || dir;
+      fetch('/api/files?dir=' + encodeURIComponent(target)).then(function(r) { return r.json(); }).then(function(data) {
+        var files = data.files || [];
+        if (!files.length) { termOut('(空目录)', 'info'); return; }
+        var out = files.map(function(f) {
+          return (f.isDir ? '📁 ' : '📄 ') + f.name + (f.isDir ? '/' : '  ' + fmtSize(f.size));
+        }).join('\n');
+        termOut(out);
+      }).catch(function() { termOut('ls: 读取失败', 'err'); });
+    }
+    // cd
+    else if (op === 'cd') {
+      var target = args[0] || '';
+      if (typeof navigateTo === 'function') {
+        navigateTo(target);
+        setTimeout(function() {
+          termDir = (typeof currentDir !== 'undefined') ? currentDir : '';
+          termOut('📂 ' + (termDir || '/'), 'info');
+        }, 400);
+      } else { termOut('cd: 导航功能不可用', 'err'); }
+    }
+    // pwd
+    else if (op === 'pwd') {
+      termOut(dir || '/');
+    }
+    // cat / open
+    else if (op === 'cat' || op === 'open') {
+      if (!args[0]) { termOut('用法: ' + op + ' <文件名>', 'err'); return; }
+      if (typeof previewFile === 'function') previewFile(args[0]);
+      else termOut(op + ': 预览功能不可用', 'err');
+    }
+    // touch
+    else if (op === 'touch') {
+      if (!args[0]) { termOut('用法: touch <文件名>', 'err'); return; }
+      fetch('/api/files/create', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:args[0],content:'',dir:dir}) })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if(d.error){termOut('touch: '+d.error,'err');}else{termOut('✅ '+args[0],'info'); if(typeof loadFiles==='function')loadFiles();} })
+        .catch(function() { termOut('touch: 创建失败', 'err'); });
+    }
+    // mkdir
+    else if (op === 'mkdir') {
+      if (!args[0]) { termOut('用法: mkdir <目录名>', 'err'); return; }
+      var mkName = dir ? dir + '/' + args[0] : args[0];
+      fetch('/api/folders', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:mkName}) })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if(d.error){termOut('mkdir: '+d.error,'err');}else{termOut('✅ '+args[0]+'/', 'info'); if(typeof loadFiles==='function')loadFiles();} })
+        .catch(function() { termOut('mkdir: 创建失败', 'err'); });
+    }
+    // rm
+    else if (op === 'rm') {
+      if (!args[0]) { termOut('用法: rm <文件名>', 'err'); return; }
+      if (!confirm('确定删除「' + args[0] + '」？')) return;
+      var rmPath = dir ? dir + '/' + args[0] : args[0];
+      fetch('/api/files/' + encodeURIComponent(rmPath), { method:'DELETE' })
+        .then(function() { termOut('🗑️ ' + args[0], 'info'); if(typeof loadFiles==='function')loadFiles(); try{updateStorageBar();}catch(e){} })
+        .catch(function() { termOut('rm: 删除失败', 'err'); });
+    }
+    // rmdir
+    else if (op === 'rmdir') {
+      if (!args[0]) { termOut('用法: rmdir <目录名>', 'err'); return; }
+      if (!confirm('删除目录「' + args[0] + '」？内容移入回收站')) return;
+      var rdPath = dir ? dir + '/' + args[0] : args[0];
+      fetch('/api/folders/' + encodeURIComponent(rdPath), { method:'DELETE' })
+        .then(function() { termOut('🗑️ ' + args[0] + '/', 'info'); if(typeof loadFiles==='function')loadFiles(); try{updateStorageBar();}catch(e){} })
+        .catch(function() { termOut('rmdir: 删除失败', 'err'); });
+    }
+    // clear
+    else if (op === 'clear') { if (body) body.innerHTML = ''; }
+    // help
+    else if (op === 'help' || op === '?') {
+      termOut('命令列表:', 'info');
+      termOut('  ls [dir]    列出文件', 'info');
+      termOut('  cd <dir>    切换目录', 'info');
+      termOut('  pwd         当前路径', 'info');
+      termOut('  cat <file>  预览文件', 'info');
+      termOut('  touch <name> 创建空文件', 'info');
+      termOut('  mkdir <name> 创建目录', 'info');
+      termOut('  rm <file>   删除文件', 'info');
+      termOut('  rmdir <dir> 删除目录', 'info');
+      termOut('  clear       清屏', 'info');
+      termOut('  exit        关闭终端', 'info');
+    }
+    // exit
+    else if (op === 'exit') { closeTerm(); }
+    else { termOut('未知命令: ' + op + ' — 输入 help 查看帮助', 'err'); }
+  }
+
+  window.termKey = function(e) {
+    if (e.key === 'Enter') {
+      var cmd = input.value; input.value = '';
+      if (cmd.trim()) termExec(cmd);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (histIdx > 0) { histIdx--; input.value = cmdHistory[histIdx] || ''; }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (histIdx < cmdHistory.length - 1) { histIdx++; input.value = cmdHistory[histIdx] || ''; }
+      else { histIdx = cmdHistory.length; input.value = ''; }
+    } else if (e.key === 'Escape') {
+      closeTerm();
+    } else if (e.key === 'l' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (body) body.innerHTML = '';
+    } else if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+      if (input.value) { e.preventDefault(); input.value = ''; termOut('^C', 'info'); }
+    }
+  };
+
+  function fmtSize(b) {
+    return b < 1024 ? b + 'B' : b < 1024*1024 ? (b/1024).toFixed(1)+'K' : b < 1024*1024*1024 ? (b/1024/1024).toFixed(1)+'M' : (b/1024/1024/1024).toFixed(2)+'G';
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else { setTimeout(init, 200); }
+
+  // 暴露旧 execFileCLI 避免报错（兼容旧按钮引用）
+  window.execFileCLI = function() { openTerm(); if (input) { setTimeout(function() { input.focus(); }, 350); } };
+})();

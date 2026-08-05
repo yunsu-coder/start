@@ -138,6 +138,7 @@ window.Yiwei = window.Yiwei || {};
         save();
         render();
         playAlarm();
+        Yiwei.sound.play('pomo-done');
         if (typeof toast === 'function') toast('🍅 番茄钟结束！', 'success');
         return;
       }
@@ -164,7 +165,7 @@ window.Yiwei = window.Yiwei || {};
     if (timerId) { clearInterval(timerId); timerId = null; }
   }
 
-  function resetTimer() { Yiwei.sound.play("btn-click");
+  function resetTimer() { Yiwei.sound.play("pomo-mode");
     state.running = false;
     stopTimer();
     state.remaining = PRESETS[state.mode] || PRESETS.pomodoro;
@@ -172,7 +173,7 @@ window.Yiwei = window.Yiwei || {};
     render();
   }
 
-  function setMode(mode) { Yiwei.sound.play("btn-click");
+  function setMode(mode) { Yiwei.sound.play("pomo-mode");
     if (!PRESETS.hasOwnProperty(mode)) return;
     if (state.mode === mode && state.remaining > 0) return;
     state.running = false;
@@ -318,4 +319,125 @@ window.Yiwei = window.Yiwei || {};
   } else {
     init();
   }
+})();
+
+// ===== 番茄钟小鸡动画 =====
+(function() {
+  var chickEl = null, speechEl = null;
+  var chickPanelVisible = false; // 仅笔记面板可见
+  var SPEECHES = [
+    '加油加油！🐤','专注中...✨','好认真呀！','写得好！👏','番茄+1！🍅',
+    '休息一下吧~','喝口水💧','棒棒哒！','冲冲冲！','你是最棒的⭐',
+    '键盘在唱歌🎵','灵感迸发💡','文思泉涌📝','渐入佳境🌊'
+  ];
+  var lastSpeech = 0;
+
+  function getChickStage(sessions) {
+    if (sessions >= 30) return 'boss';
+    if (sessions >= 15) return 'adult';
+    if (sessions >= 5) return 'young';
+    return 'chick';
+  }
+
+  function getChickEmoji(stage) {
+    return { chick: '🐤', young: '🐥', adult: '🐔', boss: '👑🐔' }[stage] || '🐤';
+  }
+
+  // 外部调用：控制小鸡面板可见性
+  window.setChickPanelVisible = function(visible) {
+    chickPanelVisible = visible;
+    if (chickEl) updateChickVisibility();
+  };
+
+  function createChick() {
+    if (chickEl) return;
+    chickEl = document.createElement('div');
+    chickEl.className = 'pomo-chick stage-chick';
+    chickEl.textContent = '🐤';
+    document.body.appendChild(chickEl);
+
+    speechEl = document.createElement('div');
+    speechEl.className = 'pomo-chick-speech';
+    document.body.appendChild(speechEl);
+
+    updateChick();
+    setInterval(updateChick, 10000);
+    // 更频繁地检查可见性
+    setInterval(updateChickVisibility, 500);
+  }
+
+  function updateChickVisibility() {
+    if (!chickEl) return;
+    var state = window.Yiwei && window.Yiwei.pomodoro ? window.Yiwei.pomodoro.getState() : null;
+    var shouldShow = chickPanelVisible && state && state.running;
+    if (shouldShow) {
+      chickEl.style.display = '';
+      chickEl.style.opacity = '1';
+    } else {
+      chickEl.style.opacity = '0';
+      setTimeout(function() { if (chickEl && chickEl.style.opacity === '0') chickEl.style.display = 'none'; }, 300);
+    }
+  }
+
+  function updateChick() {
+    if (!chickEl) return;
+    var state = window.Yiwei && window.Yiwei.pomodoro ? window.Yiwei.pomodoro.getState() : null;
+    var sessions = state ? (state.sessions || 0) : 0;
+    try {
+      var saved = JSON.parse(localStorage.getItem('yiwei_pomodo') || '{}');
+      if (saved.sessions > sessions) sessions = saved.sessions;
+    } catch(e) {}
+    var stage = getChickStage(sessions);
+    chickEl.className = 'pomo-chick stage-' + stage;
+    chickEl.textContent = getChickEmoji(stage);
+    if (stage === 'adult' || stage === 'boss') chickEl.style.bottom = '8px';
+    else chickEl.style.bottom = '16px';
+    updateChickVisibility();
+  }
+
+  function showSpeech() {
+    if (!speechEl || !chickEl || !chickPanelVisible || chickEl.style.display === 'none') return;
+    var now = Date.now();
+    if (now - lastSpeech < 15000) return;
+    lastSpeech = now;
+    var msg = SPEECHES[Math.floor(Math.random() * SPEECHES.length)];
+    speechEl.textContent = msg;
+    var cr = chickEl.getBoundingClientRect();
+    speechEl.style.left = (cr.left + cr.width / 2 - 40) + 'px';
+    speechEl.style.bottom = (window.innerHeight - cr.top + 10) + 'px';
+    speechEl.classList.add('show');
+    setTimeout(function() { speechEl.classList.remove('show'); }, 3000);
+  }
+
+  // 鸡仔定时说话
+  setInterval(function() {
+    var state = window.Yiwei && window.Yiwei.pomodoro ? window.Yiwei.pomodoro.getState() : null;
+    if (state && state.running && chickPanelVisible) showSpeech();
+  }, 20000);
+
+  // 页面加载 3 秒后创建小鸡
+  setTimeout(createChick, 3000);
+
+  // 番茄完成时小鸡庆祝
+  var origTick = null;
+  // 轮询检测番茄完成
+  var lastSessions = 0;
+  setInterval(function() {
+    var state = window.Yiwei && window.Yiwei.pomodoro ? window.Yiwei.pomodoro.getState() : null;
+    if (!state) return;
+    if (state.sessions > lastSessions) {
+      lastSessions = state.sessions;
+      updateChick();
+      if (speechEl) {
+        speechEl.textContent = '🍅 又一个番茄！';
+        if (chickEl && chickEl.style.display !== 'none') {
+          var cr = chickEl.getBoundingClientRect();
+          speechEl.style.left = (cr.left + cr.width / 2 - 40) + 'px';
+          speechEl.style.bottom = (window.innerHeight - cr.top + 10) + 'px';
+        }
+        speechEl.classList.add('show');
+        setTimeout(function() { speechEl.classList.remove('show'); }, 3000);
+      }
+    }
+  }, 3000);
 })();

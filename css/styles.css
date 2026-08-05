@@ -2445,36 +2445,30 @@ pre[data-lang]::before { content:attr(data-lang); position:absolute; top:0; left
 }
 .pomodo-panel-sessions strong { color: var(--accent); }
 
-/* ===== 番茄钟小鸡动画 ===== */
+/* ===== 番茄钟小鸡动画 — 仅笔记面板可见 ===== */
 .pomo-chick {
-  position: fixed; bottom: 16px; left: 20px; z-index: 95;
+  position: fixed; bottom: 20px; left: 20px; z-index: 95;
   pointer-events: none; user-select: none;
   font-size: 24px;
-  animation: chickBounce .4s ease-in-out infinite, chickWalk 3s ease-in-out infinite;
-  transition: font-size .5s var(--ease-spring), opacity .5s;
+  opacity: 1;
+  transition: font-size .6s var(--ease-spring), opacity .3s, filter .6s;
+  animation: chickHop .55s ease-in-out infinite;
 }
-.pomo-chick.stage-chick  { font-size: 20px; opacity: .7; }
-.pomo-chick.stage-young  { font-size: 30px; opacity: .85; }
-.pomo-chick.stage-adult  { font-size: 42px; opacity: 1; }
-.pomo-chick.stage-boss   { font-size: 52px; opacity: 1; filter: drop-shadow(0 0 10px gold); }
-/* 弹跳 — 模拟走路上下颠簸 */
-@keyframes chickBounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
+.pomo-chick.stage-chick  { font-size: 22px; }
+.pomo-chick.stage-young  { font-size: 32px; }
+.pomo-chick.stage-adult  { font-size: 44px; }
+.pomo-chick.stage-boss   { font-size: 56px; filter: drop-shadow(0 0 12px rgba(255,215,0,0.5)) drop-shadow(0 0 24px rgba(255,215,0,0.2)); }
+/* 活泼弹跳 — 模拟小鸡啄米式上下浮动 */
+@keyframes chickHop {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  15% { transform: translateY(-8px) scale(1.05, 0.95); }
+  30% { transform: translateY(0) scale(0.95, 1.05); }
+  45% { transform: translateY(-4px) scale(1.02, 0.98); }
+  60% { transform: translateY(0) scale(1, 1); }
+  75% { transform: translateY(-2px) scale(1.01, 0.99); }
 }
-/* 左右踱步 */
-@keyframes chickWalk {
-  0%   { left: 20px; }
-  15%  { left: 40px; }
-  30%  { left: 55px; }
-  45%  { left: 48px; }
-  55%  { left: 32px; }
-  70%  { left: 15px; }
-  85%  { left: 28px; }
-  100% { left: 20px; }
-}
-.pomo-chick.stage-adult { animation-duration: .35s, 3.5s; }
-.pomo-chick.stage-boss { animation-duration: .3s, 4s; }
+.pomo-chick.stage-adult { animation-duration: .5s; }
+.pomo-chick.stage-boss { animation-duration: .45s; }
 .pomo-chick-speech {
   position: fixed; pointer-events: none; z-index: 96;
   background: var(--card); border: 2px solid var(--accent);
