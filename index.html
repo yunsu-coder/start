@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
-<link rel="stylesheet" href="/css/styles.css?v=1785234567">
+<link rel="stylesheet" href="/css/styles.css?v=2">
 <script src="/lib/jszip/dist/jszip.min.js" defer></script>
 </head>
 <body>
@@ -50,9 +50,19 @@
 
 <!-- 首页 -->
 <div class="panel active" id="panel-home">
-  <div class="hero">
-    <div class="time" id="clock">00:00</div>
-    <div class="date"><span id="date">--</span> · <span id="weather">--</span></div>
+  <div class="hero" id="heroBlock">
+    <div class="hero-clock-wrap" id="heroClockWrap">
+      <div class="hero-clock-face">
+        <div class="hero-clock-inner">
+          <div class="hero-clock-date" id="date">--</div>
+          <div class="hero-clock-time" id="clock">00:00</div>
+          <div class="hero-clock-sec-dot"></div>
+        </div>
+      </div>
+      <div class="hero-date-weather">
+        <span id="weather">--</span>
+      </div>
+    </div>
     <div class="greeting" id="greeting"></div>
   </div>
   <div class="search">
@@ -61,10 +71,7 @@
       <button type="submit"><span class="mi">search</span> 搜索</button>
     </form>
   </div>
-  <div class="section"><div class="section-title"><span class="mi">smart_toy</span> AI</div><div class="grid" id="ai"></div></div>
-  <div class="section"><div class="section-title"><span class="mi">language</span> 常用</div><div class="grid" id="common"></div></div>
-  <div class="section"><div class="section-title"><span class="mi">code</span> 开发</div><div class="grid" id="dev"></div></div>
-  <div class="section"><div class="section-title"><span class="mi">build</span> 工具</div><div class="grid" id="tools"></div></div>
+  <div id="bookmarkGrid" class="bm-random-grid"></div>
   <!-- 壁纸入口浮窗 -->
   <button class="wp-fab mi" id="wpFab" onclick="openWallpaperModal()" title="壁纸设置">wallpaper</button>
   <button class="cust-fab mi" id="custFab" onclick="openCustomizeModal()" title="自定义">tune</button>
@@ -174,16 +181,19 @@
         </span>
       </div>
       <div class="toolbar">
-        <button class="btn-sm btn-save-note" onclick="saveNote()" title="保存 Ctrl+S"><span class="mi">save</span></button>
-        <button class="btn-sm" id="btnTogglePreview" onclick="togglePreview()" title="切换预览 Ctrl+\"><span class="mi">visibility</span></button>
-        <button class="btn-sm" onclick="openNoteImport()" title="从文件导入"><span class="mi">file_open</span></button>
-        <button class="btn-sm" onclick="exportNote('md')" title="导出 Markdown"><span class="mi">download</span></button>
-        <button class="btn-sm" onclick="exportNote('txt')" title="导出 TXT"><span class="mi">description</span></button>
-        <button class="btn-sm" onclick="exportNote('pdf')" title="导出 PDF"><span class="mi">picture_as_pdf</span></button>
-        <button class="btn-sm" onclick="exportNote('docx')" title="导出 Word"><span class="mi">article</span></button>
+        <button class="btn-sm btn-save-note" onclick="saveNote()" title="保存笔记 · Ctrl+S"><span class="mi">save</span></button>
+        <button class="btn-sm" id="btnTogglePreview" onclick="togglePreview()" title="切换预览面板 · Ctrl+\"><span class="mi">visibility</span></button>
+        <button class="btn-sm" id="btnPomoNote" onclick="startNotePomodoro()" title="设置番茄钟专注此笔记"><span class="mi">timer</span></button>
+        <button class="btn-sm" id="btnTypeSound" onclick="toggleTypeSound()" title="打字音效 · 机械键盘伴乐"><span class="mi">keyboard</span></button>
+        <button class="btn-sm" onclick="toggleDrawing()" title="手绘画图 · 插入草图到笔记"><span class="mi">draw</span></button>
+        <button class="btn-sm" onclick="openNoteImport()" title="从文件中转站导入文本"><span class="mi">file_open</span></button>
+        <button class="btn-sm" onclick="exportNote('md')" title="导出为 Markdown 文件"><span class="mi">download</span></button>
+        <button class="btn-sm" onclick="exportNote('txt')" title="导出为纯文本 TXT"><span class="mi">description</span></button>
+        <button class="btn-sm" onclick="exportNote('pdf')" title="导出为 PDF 文档"><span class="mi">picture_as_pdf</span></button>
+        <button class="btn-sm" onclick="exportNote('docx')" title="导出为 Word 文档"><span class="mi">article</span></button>
       </div>
       <div class="split-pane">
-        <div class="pane"><div class="pane-header">编辑</div><textarea id="noteContent" placeholder="开始写作…" oninput="renderLive();updateWordCount()"></textarea></div>
+        <div class="pane"><div class="pane-header">编辑</div><textarea id="noteContent" placeholder="开始写作…" oninput="renderLive();updateWordCount()" onkeydown="if(window._typeSoundEnabled){var n=Date.now();if(!this._tsLast||n-this._tsLast>70){this._tsLast=n;try{Yiwei.sound.play(event.key==='Enter'?'type-enter':'type-click')}catch(e){}}}"></textarea></div>
         <div class="resize-handle resize-handle-pane" id="resizePane"></div>
         <div class="pane"><div class="pane-header">预览</div><div class="preview" id="notePreview"></div></div>
       </div>
@@ -416,6 +426,11 @@
     </datalist>
     <input type="text" id="taskStartInput" placeholder="开始时间" data-flatpickr title="点击选择日期和时间" style="max-width:155px;" readonly>
     <input type="text" id="taskDeadlineInput" placeholder="截止时间" data-flatpickr title="点击选择日期和时间" style="max-width:155px;" readonly>
+    <select id="taskPriorityInput" style="max-width:70px;">
+      <option value="p1">P1</option>
+      <option value="p0">P0</option>
+      <option value="p2">P2</option>
+    </select>
     <select id="taskStatusInput" style="max-width:100px;">
       <option value="todo">待开始</option>
       <option value="doing">进行中</option>
@@ -465,15 +480,25 @@
             <input type="text" id="taskEditCat" placeholder="如：开发、生活、学习" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
           </div>
           <div style="flex:1;">
-            <label class="cfg-label">开始时间</label>
-            <input type="datetime-local" id="taskEditStartTime" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
+            <label class="cfg-label">优先级</label>
+            <select id="taskEditPriority" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;">
+              <option value="p0">🔴 P0 紧急</option>
+              <option value="p1" selected>🟡 P1 重要</option>
+              <option value="p2">⚪ P2 普通</option>
+            </select>
           </div>
         </div>
         <div style="display:flex;gap:.5rem;">
           <div style="flex:1;">
+            <label class="cfg-label">开始时间</label>
+            <input type="datetime-local" id="taskEditStartTime" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
+          </div>
+          <div style="flex:1;">
             <label class="cfg-label">截止时间</label>
             <input type="datetime-local" id="taskEditDeadline" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
           </div>
+        </div>
+        <div style="display:flex;gap:.5rem;">
           <div style="flex:1;">
             <label class="cfg-label">状态</label>
             <select id="taskEditStatus" style="width:100%;padding:.5rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:.8rem;">
@@ -556,6 +581,11 @@
       <div class="analytics-card-title"><span class="mi">menu_book</span> 阅读统计</div>
       <div class="analytics-chart-wrap"><canvas id="chartReading"></canvas></div>
       <div class="analytics-card-detail"></div>
+    </div>
+    <!-- AI 点评卡片 -->
+    <div class="analytics-card analytics-ai-card" id="cardAI">
+      <div class="analytics-card-title"><span class="mi">psychology</span> AI 点评</div>
+      <div class="analytics-ai-content" id="aiCommentaryContent">点击数据分析面板自动加载...</div>
     </div>
   </div>
 </div>
@@ -818,7 +848,7 @@
 </div>
 
 <!-- app.js → 分拆为 5 个模块 -->
-<script src="/js/sound.js?v=1" defer></script>
+<script src="/js/sound.js?v=3" defer></script>
 <script src="/js/core.js?v=1783190030" defer></script>
 <script src="/js/pomodoro.js?v=1783190030" defer></script>
 <script src="/js/files-panel.js?v=1780652200" defer></script>
@@ -828,9 +858,11 @@
 <script src="/js/scrape.js?v=1777704498" defer></script>
 <script src="/js/wallpaper.js?v=1783050000" defer></script>
 <script src="/js/translate-panel.js?v=1780450482" defer></script>
-<script src="/js/tasks-panel.js?v=1785144062"1783190060" defer></script>
+<script src="/js/tasks-panel.js?v=1785144063" defer></script>
 <link rel="stylesheet" href="/public/vendor/highlight.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script src="/public/vendor/highlight.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" defer></script>
 <script src="/public/vendor/markdown-it.min.js" defer></script>
 <script src="/public/vendor/markdown-it-emoji.min.js" defer></script>
 <script src="/public/vendor/markdown-it-sub.min.js" defer></script>
@@ -889,6 +921,79 @@ window.ensureMermaid = function(cb) {
     <div class="modal-body">
       <div id="ambientFileCrumbs" style="margin-bottom:.5rem;font-size:.78rem;"></div>
       <div id="ambientFileList" style="max-height:50vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 终端面板 — 右侧滑出 -->
+<div class="term-trigger" id="termTrigger" title="悬停打开终端"><span class="term-tab">▶</span></div>
+<div class="term-panel" id="termPanel">
+  <div class="term-header">
+    <span class="term-title">⚡ 终端</span>
+    <span style="font-size:.6rem;color:#484f58;">当前: <span id="termDirLabel">/</span></span>
+    <button class="term-close" onclick="termToggle()">✕</button>
+  </div>
+  <div class="term-body" id="termBody">
+    <div class="term-welcome">📟 文件管理终端 v1.0 — 输入 help 查看命令</div>
+  </div>
+  <div class="term-input-line">
+    <span class="term-prompt">$</span>
+    <input type="text" class="term-input" id="termInput" placeholder="输入命令..." autofocus onkeydown="termKey(event)" autocomplete="off" spellcheck="false">
+  </div>
+</div>
+
+<!-- 音效控制面板 — 复古游戏风格 -->
+<div class="sound-widget" id="soundWidget">
+  <button class="sound-toggle" id="soundToggle" title="音效设置">
+    <span class="sound-toggle-icon mi">volume_up</span>
+    <span class="sound-toggle-ring"></span>
+  </button>
+  <div class="sound-panel" id="soundPanel">
+    <div class="sound-panel-frame">
+      <div class="sound-panel-scanline"></div>
+      <div class="sound-panel-header">
+        <span class="sound-panel-deco">▲</span>
+        <span class="sound-panel-title">音 效 控 制</span>
+        <span class="sound-panel-deco">▲</span>
+      </div>
+      <div class="sound-panel-body">
+        <!-- 电源开关 -->
+        <div class="sound-power-row">
+          <span class="sound-power-label">POWER</span>
+          <button class="sound-power-btn on" id="soundPowerBtn" title="开关音效">
+            <span class="sound-power-knob"></span>
+          </button>
+        </div>
+        <!-- 音量控制 -->
+        <div class="sound-vol-section">
+          <div class="sound-vol-header">
+            <span class="sound-vol-label">VOL</span>
+            <span class="sound-vol-num" id="soundVolNum">28</span>
+          </div>
+          <div class="sound-vol-bar-outer">
+            <div class="sound-vol-bar-track" id="soundVolTrack">
+              <div class="sound-vol-bar-fill" id="soundVolFill"></div>
+              <div class="sound-vol-bar-notch"></div>
+            </div>
+          </div>
+          <div class="sound-vol-btns">
+            <button class="sound-vol-btn" data-dir="-1">◀</button>
+            <button class="sound-vol-btn" data-dir="+1">▶</button>
+          </div>
+        </div>
+        <!-- 试听按钮 -->
+        <div class="sound-test-section">
+          <div class="sound-test-label">SOUND TEST</div>
+          <div class="sound-test-grid">
+            <button class="sound-test-btn" data-sound="btn-click">按钮</button>
+            <button class="sound-test-btn" data-sound="toast-ok">通知</button>
+            <button class="sound-test-btn" data-sound="task-done">完成</button>
+            <button class="sound-test-btn" data-sound="modal-open">弹窗</button>
+            <button class="sound-test-btn" data-sound="startup">启动</button>
+            <button class="sound-test-btn" data-sound="danger">警告</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
