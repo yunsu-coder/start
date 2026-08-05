@@ -136,6 +136,43 @@ function renderLive() {
       });
     });
   }
+  // 标题折叠功能：点击 h1-h4 标题折叠下方内容
+  preview.querySelectorAll('h1, h2, h3, h4').forEach(function(h) {
+    h.style.cursor = 'pointer';
+    h.style.userSelect = 'none';
+    h.title = '点击折叠/展开';
+    var indicator = document.createElement('span');
+    indicator.className = 'fold-indicator';
+    indicator.style.cssText = 'display:inline-block;margin-right:6px;font-size:.7em;opacity:.4;transition:transform .2s;';
+    indicator.textContent = '▼';
+    h.insertBefore(indicator, h.firstChild);
+    h.addEventListener('click', function() {
+      var level = parseInt(this.tagName.charAt(1));
+      var next = this.nextElementSibling;
+      var hiding = !this.classList.contains('folded');
+      while (next) {
+        var nextTag = next.tagName;
+        var isHeading = nextTag && /^H[1-6]$/.test(nextTag);
+        var nextLevel = isHeading ? parseInt(nextTag.charAt(1)) : 0;
+        if (isHeading && nextLevel <= level) break;
+        if (hiding) {
+          if (!next.dataset.foldedBy) next.dataset.foldedBy = 'h' + level;
+          next.style.display = 'none';
+        } else if (next.dataset.foldedBy === 'h' + level) {
+          next.style.display = '';
+          delete next.dataset.foldedBy;
+        }
+        next = next.nextElementSibling;
+      }
+      if (hiding) {
+        this.classList.add('folded');
+        indicator.textContent = '▶';
+      } else {
+        this.classList.remove('folded');
+        indicator.textContent = '▼';
+      }
+    });
+  });
   markDirty();
 }
 
@@ -1057,20 +1094,23 @@ window.startNotePomodoro = function() {
     ov.onclick = function(e) { if (e.target === ov) closeDraw(); };
 
     var tb = document.createElement('div');
-    tb.style.cssText = 'display:flex;gap:4px;align-items:center;padding:6px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px 8px 0 0;flex-wrap:wrap;';
+    tb.id = 'drawToolbar';
+    tb.style.cssText = 'display:flex;gap:4px;align-items:center;padding:5px 8px;background:var(--card);border:1px solid var(--border);border-radius:8px 8px 0 0;flex-wrap:wrap;max-height:200px;overflow:hidden;transition:max-height .3s var(--ease-smooth),padding .3s;';
     tb.innerHTML =
-      '<span style="font-size:.65rem;color:var(--sub);">工具</span>' +
-      [{v:'select',l:'🖱️',t:'选择/移动'},{v:'pen',l:'✏️',t:'画笔'},{v:'rect',l:'⬜',t:'矩形'},{v:'circle',l:'⭕',t:'圆形'},{v:'line',l:'📏',t:'直线'},{v:'text',l:'📝',t:'文字'}].map(function(tl) {
+      '<button class="btn-sm draw-collapse-btn" title="折叠工具栏" style="flex-shrink:0;min-width:22px;padding:1px 3px;font-size:.6rem;">▾</button>' +
+      '<span class="draw-tool-label" style="font-size:.65rem;color:var(--sub);">工具</span>' +
+      [{v:'select',l:'🖱️',t:'选择/移动 — 点击选中元素，拖拽移动位置'},{v:'pen',l:'✏️',t:'画笔 — 自由绘制线条'},{v:'rect',l:'⬜',t:'矩形 — 拖拽绘制矩形框'},{v:'circle',l:'⭕',t:'圆形 — 拖拽绘制圆形'},{v:'line',l:'📏',t:'直线 — 拖拽绘制直线'},{v:'text',l:'📝',t:'文字 — 点击画布输入文字，回车确认'}].map(function(tl) {
         return '<button class="draw-tool-btn" style="padding:2px 5px;font-size:.7rem;border:2px solid '+(dTool===tl.v?'var(--accent)':'var(--border)')+';background:'+(dTool===tl.v?'var(--nav-active-bg)':'var(--bg)')+';color:var(--text);cursor:pointer;border-radius:3px;" data-tool="'+tl.v+'" title="'+tl.t+'">'+tl.l+'</button>';
       }).join('') +
-      '<span style="font-size:.65rem;color:var(--sub);margin-left:4px;">色</span>' +
-      ['#ff6b9d','#64f0ff','#ffbb44','#44dd88','#ffffff','#ff4444','#4488ff','#000000'].map(function(c){return '<button style="width:18px;height:18px;border-radius:50%;background:'+c+';border:2px solid '+(c===dColor?'var(--text)':'var(--border)')+';cursor:pointer;flex-shrink:0;" onclick="window._drawSetColor(\''+c+'\',this)"></button>';}).join('') +
-      '<span style="font-size:.65rem;color:var(--sub);margin-left:4px;">粗</span>' +
-      [1,3,5,8].map(function(s){return '<button style="padding:1px 4px;font-size:.6rem;border:2px solid '+(s===dSize?'var(--accent)':'var(--border)')+';background:'+(s===dSize?'var(--nav-active-bg)':'var(--bg)')+';color:var(--text);cursor:pointer;border-radius:3px;" onclick="window._drawSetSize('+s+');var bs=this.parentElement.querySelectorAll(\'button\');" title="'+s+'px">'+s+'</button>';}).join('') +
-      '<button class="btn-sm" onclick="window._drawUndo()" style="margin-left:auto;" title="撤销最后一个元素">↩</button>' +
-      '<button class="btn-sm" onclick="window._drawClear()">清空</button>' +
-      '<button class="btn accent" onclick="window._drawInsert()">插入</button>' +
-      '<button class="btn-sm" onclick="window._drawClose()">✕</button>';
+      '<span class="draw-tool-label" style="font-size:.65rem;color:var(--sub);margin-left:4px;">色</span>' +
+      ['#ff6b9d','#64f0ff','#ffbb44','#44dd88','#ffffff','#ff4444','#4488ff','#000000'].map(function(c){return '<button style="width:18px;height:18px;border-radius:50%;background:'+c+';border:2px solid '+(c===dColor?'var(--text)':'var(--border)')+';cursor:pointer;flex-shrink:0;" title="选择颜色 '+c+'" onclick="window._drawSetColor(\''+c+'\',this)"></button>';}).join('') +
+      '<span class="draw-tool-label" style="font-size:.65rem;color:var(--sub);margin-left:4px;">粗</span>' +
+      [1,3,5,8].map(function(s){return '<button style="padding:1px 4px;font-size:.6rem;border:2px solid '+(s===dSize?'var(--accent)':'var(--border)')+';background:'+(s===dSize?'var(--nav-active-bg)':'var(--bg)')+';color:var(--text);cursor:pointer;border-radius:3px;" title="线条粗细 '+s+'px" onclick="window._drawSetSize('+s+');var bs=this.parentElement.querySelectorAll(\'button\');">'+s+'</button>';}).join('') +
+      '<button class="btn-sm" onclick="window._drawUndo()" style="margin-left:auto;" title="撤销 (Ctrl+Z)">↩</button>' +
+      '<button class="btn-sm" onclick="window._drawRedo()" title="恢复 (Ctrl+Y)">↪</button>' +
+      '<button class="btn-sm" onclick="window._drawClear()" title="清空画布">🗑</button>' +
+      '<button class="btn accent" onclick="window._drawInsert()" title="插入到笔记">📥 插入</button>' +
+      '<button class="btn-sm" onclick="window._drawClose()" title="关闭 (Esc)">✕</button>';
 
     dCanvas = document.createElement('canvas');
     dCanvas.width = Math.min(800, window.innerWidth - 40);
@@ -1086,14 +1126,40 @@ window.startNotePomodoro = function() {
     // 工具栏按钮事件委托
     tb.addEventListener('click', function(e) {
       var btn = e.target.closest('.draw-tool-btn');
-      if (!btn) return;
-      var tool = btn.dataset.tool;
-      window._drawSetTool(tool);
-      tb.querySelectorAll('.draw-tool-btn').forEach(function(b) {
-        b.style.borderColor = 'var(--border)'; b.style.background = 'var(--bg)';
-      });
-      btn.style.borderColor = 'var(--accent)'; btn.style.background = 'var(--nav-active-bg)';
+      if (btn) {
+        var tool = btn.dataset.tool;
+        window._drawSetTool(tool);
+        tb.querySelectorAll('.draw-tool-btn').forEach(function(b) {
+          b.style.borderColor = 'var(--border)'; b.style.background = 'var(--bg)';
+        });
+        btn.style.borderColor = 'var(--accent)'; btn.style.background = 'var(--nav-active-bg)';
+        return;
+      }
+      // 折叠按钮
+      if (e.target.closest('.draw-collapse-btn')) {
+        var labels = tb.querySelectorAll('.draw-tool-label, .draw-tool-btn, .btn-sm:not(.draw-collapse-btn), .btn.accent');
+        var btn2 = e.target.closest('.draw-collapse-btn');
+        if (tb.classList.contains('collapsed')) {
+          tb.classList.remove('collapsed');
+          tb.style.maxHeight = '200px'; tb.style.padding = '5px 8px';
+          btn2.textContent = '▾';
+        } else {
+          tb.classList.add('collapsed');
+          tb.style.maxHeight = '28px'; tb.style.padding = '2px 8px';
+          btn2.textContent = '▸';
+        }
+      }
     });
+
+    // 键盘快捷键
+    var keyHandler = function(e) {
+      if (e.key === 'Escape') { closeDraw(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); window._drawUndo(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); window._drawRedo(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); window._drawInsert(); return; }
+    };
+    document.addEventListener('keydown', keyHandler);
+    ov._keyHandler = keyHandler;
 
     dCanvas.addEventListener('mousedown', drawDown);
     dCanvas.addEventListener('mousemove', drawMove);
@@ -1130,13 +1196,17 @@ window.startNotePomodoro = function() {
 
     // 文字模式
     if (dTool === 'text') {
+      // 先关闭之前的文字输入框
+      var prev = document.querySelector('.draw-text-input');
+      if (prev) { prev.remove(); }
       var ti = document.createElement('input');
-      ti.type = 'text'; ti.placeholder = '输入文字后回车...';
-      var cr = dCanvas.getBoundingClientRect();
+      ti.type = 'text'; ti.className = 'draw-text-input';
+      ti.placeholder = '输入文字后回车...';
       ti.style.cssText = 'position:fixed;left:' + e.clientX + 'px;top:' + (e.clientY - 18) + 'px;min-width:80px;padding:3px 6px;font-size:' + (dSize*3) + 'px;border:2px dashed ' + dColor + ';background:rgba(0,0,0,.75);color:' + dColor + ';outline:none;z-index:2005;font-family:sans-serif;border-radius:3px;';
       document.body.appendChild(ti);
-      ti.focus();
-      var done = function() {
+      // 延迟 focus 避免事件冲突
+      setTimeout(function() { ti.focus(); ti.select(); }, 50);
+      var commit = function() {
         var txt = ti.value; ti.remove();
         if (txt) {
           dElements.push({ type: 'text', text: txt, x: x, y: y, color: dColor, size: dSize });
@@ -1144,10 +1214,14 @@ window.startNotePomodoro = function() {
         }
       };
       ti.addEventListener('keydown', function(ev) {
-        if (ev.key === 'Enter') done();
-        if (ev.key === 'Escape') { ti.remove(); }
+        if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); ti.remove(); }
       });
-      ti.addEventListener('blur', function() { setTimeout(function() { if (ti.parentNode) done(); }, 100); });
+      // 点击画布其他地方时提交文字
+      dCanvas.addEventListener('mousedown', function cleanup() {
+        if (ti.parentNode) commit();
+        dCanvas.removeEventListener('mousedown', cleanup);
+      }, { once: true });
       return;
     }
 
@@ -1242,14 +1316,12 @@ window.startNotePomodoro = function() {
   };
   window._drawSetColor = function(c, btn) { dColor = c; };
   window._drawSetSize = function(s) { dSize = parseInt(s); };
-  window._drawClear = function() { dElements = []; dSelected = -1; redrawAll(); };
-  window._drawUndo = function() { dElements.pop(); dSelected = -1; redrawAll(); };
   window._drawInsert = function() {
     var ta = document.getElementById('noteContent');
     if (!ta) { closeDraw(); return; }
     dCanvas.toBlob(function(blob) {
       var form = new FormData(); form.append('file', blob, 'drawing_' + Date.now() + '.png');
-      fetch('/api/files', { method: 'POST', body: form }).then(function(r) { return r.json(); }).then(function(d) {
+      fetch('/api/files?dir=drawings', { method: 'POST', body: form }).then(function(r) { return r.json(); }).then(function(d) {
         if (d.uploaded && d.uploaded[0]) {
           var ref = '\n![](/api/view/' + encodeURIComponent(d.uploaded[0].name) + ')\n';
           ta.value = ta.value.slice(0, ta.selectionStart) + ref + ta.value.slice(ta.selectionEnd);
@@ -1265,12 +1337,29 @@ window.startNotePomodoro = function() {
       });
     }, 'image/png');
   };
+  // 恢复栈
+  var dRedoStack = [];
+  window._drawUndo = function() {
+    if (!dElements.length) return;
+    dRedoStack.push(dElements.pop());
+    dSelected = -1; redrawAll();
+  };
+  window._drawRedo = function() {
+    if (!dRedoStack.length) return;
+    dElements.push(dRedoStack.pop());
+    redrawAll();
+  };
+  window._drawClear = function() { dRedoStack = []; dElements = []; dSelected = -1; redrawAll(); };
   window._drawClose = function() { closeDraw(); };
 
   function closeDraw() {
     dActive = false;
     var ov = document.getElementById('drawOverlay');
-    if (ov) ov.remove();
+    if (ov) {
+      if (ov._keyHandler) document.removeEventListener('keydown', ov._keyHandler);
+      ov.remove();
+    }
+    dRedoStack = [];
     try { Yiwei.sound.play('modal-close'); } catch(e) {}
   }
 })();

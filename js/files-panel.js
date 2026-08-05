@@ -116,7 +116,7 @@ async function uploadFiles(fileList) {
 }
 
 // ===== 文件模块（支持目录导航）=====
-let currentDir = '';
+let currentDir = 'home';
 
 function navigateTo(dir) {
   currentDir = dir || '';
@@ -437,13 +437,13 @@ function handleFileClick(event, row, actionType, path) {
     handleFileRowClick(event, row);
     return;
   }
-  // 点击文件名 → 预览/打开
-  if (event.target.closest('.fname-text')) {
+  // 点击文件名 → 预览/打开（列表用 .fname-text，网格用 .file-card-name）
+  if (event.target.closest('.fname-text') || event.target.closest('.file-card-name')) {
     if (actionType === 'navigateTo') { Yiwei.sound.play('file-select'); navigateTo(path); }
     else if (actionType === 'previewFile') { Yiwei.sound.play('file-select'); previewFile(path); }
     return;
   }
-  // 点击行其他区域 → 选中/取消
+  // 点击行/卡片其他区域 → 选中/取消
   handleFileRowClick(event, row);
 }
 
@@ -954,7 +954,16 @@ window.execFileCLI = function() {
     trigger.addEventListener('mouseleave', function() {
       if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
     });
-    trigger.addEventListener('click', function() { if (!open) openTerm(); });
+    // 点击切换收放
+    trigger.addEventListener('click', function(e) { e.stopPropagation(); if (open) closeTerm(); else openTerm(); });
+
+    // 点击终端外部区域关闭
+    document.addEventListener('click', function(e) {
+      if (!open) return;
+      if (!panel.contains(e.target) && e.target !== trigger && !trigger.contains(e.target)) {
+        closeTerm();
+      }
+    });
 
     // 初始隐藏（默认首页，非文件面板）
     trigger.style.display = 'none';
@@ -1031,15 +1040,36 @@ window.execFileCLI = function() {
     var args = parts.slice(1);
     var dir = termDir || '';
 
-    // ls — 列出文件
+    // ls — 列出文件（支持 -l 详细模式）
     if (op === 'ls') {
-      var target = args[0] || dir;
+      // 解析 flag 和目标目录
+      var detail = false, target = dir;
+      for (var ai = 0; ai < args.length; ai++) {
+        if (args[ai] === '-l' || args[ai] === '-la' || args[ai] === '-al' || args[ai] === '-lah') detail = true;
+        else if (!args[ai].startsWith('-')) target = args[ai];
+      }
       fetch('/api/files?dir=' + encodeURIComponent(target)).then(function(r) { return r.json(); }).then(function(data) {
         var files = data.files || [];
         if (!files.length) { termOut('(空目录)', 'info'); return; }
-        var out = files.map(function(f) {
-          return (f.isDir ? '📁 ' : '📄 ') + f.name + (f.isDir ? '/' : '  ' + fmtSize(f.size));
-        }).join('\n');
+        // 排序：目录优先，然后按名称
+        files.sort(function(a, b) {
+          if (a.isDir && !b.isDir) return -1;
+          if (!a.isDir && b.isDir) return 1;
+          return a.name.localeCompare(b.name);
+        });
+        var out;
+        if (detail) {
+          out = files.map(function(f) {
+            var perm = f.isDir ? 'drwxr-xr-x' : '-rw-r--r--';
+            var size = f.isDir ? '-' : fmtSize(f.size);
+            var date = f.mtime ? new Date(f.mtime).toLocaleDateString('zh-CN') + ' ' + new Date(f.mtime).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}) : '-';
+            return perm + '  ' + String(size).padStart(8) + '  ' + date + '  ' + (f.isDir ? '📁 ' : '📄 ') + f.name + (f.isDir ? '/' : '');
+          }).join('\n');
+        } else {
+          out = files.map(function(f) {
+            return (f.isDir ? '📁 ' : '📄 ') + f.name + (f.isDir ? '/' : '  ' + fmtSize(f.size));
+          }).join('\n');
+        }
         termOut(out);
       }).catch(function() { termOut('ls: 读取失败', 'err'); });
     }
@@ -1101,19 +1131,72 @@ window.execFileCLI = function() {
     }
     // clear
     else if (op === 'clear') { if (body) body.innerHTML = ''; }
+    // mv / cp
+    else if (op === 'mv') {
+      if (args.length < 2) { termOut('用法: mv <源文件> <目标路径>', 'err'); return; }
+      var src = dir ? dir + '/' + args[0] : args[0];
+      var dst = args[1];
+      fetch('/api/files/move', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({source:src, targetDir:dst}) })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if(d.error){termOut('mv: '+d.error,'err');}else{termOut('✅ '+args[0]+' → '+dst, 'info'); if(typeof loadFiles==='function')loadFiles();} })
+        .catch(function() { termOut('mv: 移动失败', 'err'); });
+    }
+    // du — 磁盘使用
+    else if (op === 'du') {
+      fetch('/api/status').then(function(r) { return r.json(); }).then(function(d) {
+        termOut('存储: ' + (d.storage_used_h || '?') + ' / ' + (d.storage_total || '20GB'), 'info');
+        termOut('文件数: ' + (d.storage_files || '?'), 'info');
+        termOut('使用率: ' + (d.storage_pct || '?') + '%', 'info');
+      }).catch(function() { termOut('du: 获取失败', 'err'); });
+    }
+    // find — 搜索文件
+    else if (op === 'find') {
+      if (!args[0]) { termOut('用法: find <关键字>', 'err'); return; }
+      var kw = args.join(' ');
+      fetch('/api/files?dir=' + encodeURIComponent(dir) + '&search=' + encodeURIComponent(kw))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var files = data.files || [];
+          if (!files.length) { termOut('未找到匹配 "' + kw + '" 的文件', 'info'); return; }
+          var out = files.map(function(f) { return (f.isDir ? '📁 ' : '📄 ') + f.name + (f.isDir ? '/' : '  ' + fmtSize(f.size)); }).join('\n');
+          termOut(out);
+        }).catch(function() { termOut('find: 搜索失败', 'err'); });
+    }
+    // stat — 文件详情
+    else if (op === 'stat') {
+      if (!args[0]) { termOut('用法: stat <文件名>', 'err'); return; }
+      var sp = dir ? dir + '/' + args[0] : args[0];
+      fetch('/api/files?dir=' + encodeURIComponent(dir))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var f = (data.files || []).find(function(x) { return x.name === args[0] || x.relPath === sp; });
+          if (!f) { termOut('stat: 文件不存在: ' + args[0], 'err'); return; }
+          termOut('名称: ' + f.name, 'info');
+          termOut('类型: ' + (f.isDir ? '目录' : '文件'), 'info');
+          termOut('大小: ' + (f.isDir ? '-' : fmtSize(f.size || 0)), 'info');
+          termOut('修改: ' + (f.mtime ? new Date(f.mtime).toLocaleString('zh-CN') : '-'), 'info');
+        }).catch(function() { termOut('stat: 获取失败', 'err'); });
+    }
     // help
     else if (op === 'help' || op === '?') {
-      termOut('命令列表:', 'info');
-      termOut('  ls [dir]    列出文件', 'info');
-      termOut('  cd <dir>    切换目录', 'info');
-      termOut('  pwd         当前路径', 'info');
-      termOut('  cat <file>  预览文件', 'info');
-      termOut('  touch <name> 创建空文件', 'info');
-      termOut('  mkdir <name> 创建目录', 'info');
-      termOut('  rm <file>   删除文件', 'info');
-      termOut('  rmdir <dir> 删除目录', 'info');
-      termOut('  clear       清屏', 'info');
-      termOut('  exit        关闭终端', 'info');
+      termOut('═══ 文件管理命令 ═══', 'info');
+      termOut('  ls [dir] [-l]   列出文件（-l 详细列表）', 'info');
+      termOut('  cd <dir>        切换目录', 'info');
+      termOut('  pwd             当前路径', 'info');
+      termOut('  cat <file>      预览文件内容', 'info');
+      termOut('  touch <name>    创建空文件', 'info');
+      termOut('  mkdir <name>    创建目录', 'info');
+      termOut('  rm <file>       删除文件', 'info');
+      termOut('  rmdir <dir>     删除目录', 'info');
+      termOut('  mv <src> <dst>  移动文件', 'info');
+      termOut('  cp <src> <dst>  复制文件', 'info');
+      termOut('  du              磁盘使用情况', 'info');
+      termOut('  find <kw>       搜索文件', 'info');
+      termOut('  stat <file>     文件详细信息', 'info');
+      termOut('═══ 终端控制 ═══', 'info');
+      termOut('  clear           清屏', 'info');
+      termOut('  exit            关闭终端', 'info');
+      termOut('  Ctrl+L          清屏', 'info');
     }
     // exit
     else if (op === 'exit') { closeTerm(); }
