@@ -4,7 +4,7 @@ const path = require('path');
 const https = require('https');
 const { getStatus, getFilePath } = require('../lib/storage');
 const analytics = require('../lib/analytics');
-const { sendJSON, readBody, parseJSON, AUTH_ENABLED } = require('../lib/http');
+const { sendJSON, readBody, parseJSON, isAuthEnabled } = require('../lib/http');
 
 module.exports = {
   name: 'misc',
@@ -15,7 +15,7 @@ module.exports = {
     // --- 配置状态（只返回有无，不泄露密钥）---
     if (p === '/api/config/status') {
       sendJSON(res, 200, {
-        auth: AUTH_ENABLED,
+        auth: isAuthEnabled(),
         chat: { hasServerKey: !!(process.env.CHAT_API_KEY || process.env.DEEPSEEK_API_KEY), model: process.env.CHAT_MODEL || '' },
         trans: { hasServerKey: !!process.env.TRANS_API_KEY, model: process.env.TRANS_MODEL || '' },
       });

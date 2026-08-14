@@ -5,11 +5,7 @@ const path = require('path');
 const zlib = require('zlib');
 const { URL } = require('url');
 
-const { safeJoin, safeDecode } = require('./lib/safePath');
-const { sendJSON, authOK, rateLimitOK } = require('./lib/http');
-const rag = require('./lib/rag');
-
-// ===== 加载环境变量 =====
+// ===== 加载环境变量（必须最先执行，确保各模块 require 时能读到 .env）=====
 const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
   fs.readFileSync(envPath, 'utf8').split('\n').forEach(line => {
@@ -28,6 +24,10 @@ if (fs.existsSync(envPath)) {
 
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
+
+const { safeJoin, safeDecode } = require('./lib/safePath');
+const { sendJSON, authOK, rateLimitOK } = require('./lib/http');
+const rag = require('./lib/rag');
 
 // ===== 静态文件 =====
 
