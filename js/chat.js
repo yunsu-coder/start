@@ -156,10 +156,12 @@ async function deleteConversation(id) {
 
 async function handleConvClick(id) {
   if (chatStreaming) return;
+  Yiwei.sound.play('chat-conv-sw');
   switchConversation(id);
 }
 
 function handleDeleteConv(id) {
+  Yiwei.sound.play('chat-conv-del');
   deleteConversation(id);
 }
 
@@ -922,6 +924,7 @@ function toggleImmersive() {
   if (!layout) return;
   layout.classList.toggle('immersive');
   const isImmersive = layout.classList.contains('immersive');
+  Yiwei.sound.play(isImmersive ? 'chat-immersive' : 'modal-close');
   localStorage.setItem('yiwei_chat_immersive', isImmersive ? '1' : '');
   const btn = document.getElementById('chatImmersiveBtn');
   if (btn) {

@@ -722,7 +722,7 @@
   .notes-topbar { display:flex; gap:.5rem; align-items:center; margin-bottom:.8rem; flex-wrap:wrap; }
   .notes-topbar .auto-save { font-size:.72rem; color:var(--ok); margin-left:auto; }
   .notes-layout { display:flex; gap:0; height:calc(100vh - 155px); }
-  .notes-sidebar { width:var(--sidebar-w, 180px); min-width:0; border-right:1px solid var(--border); flex-shrink:0; overflow-y:auto; padding-right:.2rem;
+  .notes-sidebar { width:var(--sidebar-w, 170px); min-width:0; border-right:1px solid var(--border); flex-shrink:0; overflow-y:auto; padding-right:.2rem;
     backdrop-filter:blur(var(--glass-blur)); -webkit-backdrop-filter:blur(var(--glass-blur));
     position: relative; z-index: 5; }
   /* dock 动画过渡独立，避免干扰拖拽 */
@@ -756,7 +756,7 @@
     pointer-events: none;
   }
   .notes-layout.dock-hidden .notes-sidebar::after { opacity: .4; }
-  .notes-layout.dock-hidden .notes-sidebar:hover { width: var(--sidebar-w, 180px); min-width: var(--sidebar-w, 180px); }
+  .notes-layout.dock-hidden .notes-sidebar:hover { width: var(--sidebar-w, 170px); min-width: var(--sidebar-w, 170px); }
   .notes-layout.dock-hidden .notes-sidebar:hover > * { opacity: 1; pointer-events: auto; }
   .notes-layout.dock-hidden .notes-sidebar:hover::after { opacity: 0; }
   /* 笔记 vs 小说侧栏视觉隔离 */
@@ -777,8 +777,11 @@
   .note-list-item .ntitle { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .note-list-item .ndate { font-size:.62rem; color:var(--sub); }
   .note-editor { flex:1; display:flex; flex-direction:column; gap:.4rem; min-width:0; }
-  .note-editor .toolbar { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
+  .note-editor .toolbar { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; transition: max-height .25s var(--ease-smooth), padding .25s; overflow:hidden; }
+  .note-editor .toolbar.collapsed .toolbar-collapsible { display:none; }
   .note-editor .toolbar .tl-sep { width:1px; height:20px; background:var(--border); margin:0 .2rem; }
+  .note-editor .toolbar .btn-collapse-toolbar { transition: transform .25s; }
+  .note-editor .toolbar.collapsed .btn-collapse-toolbar { transform: rotate(180deg); }
   .btn-save-note { color: var(--accent); font-weight: 600; }
   .note-editor input.title { padding:.4rem .6rem; border:1px solid var(--border); border-radius:7px; background:var(--card); color:var(--text); font-size:.95rem; outline:none;
     backdrop-filter:blur(var(--glass-blur)); -webkit-backdrop-filter:blur(var(--glass-blur)); transition:border-color .3s,box-shadow .3s; }
@@ -3903,13 +3906,19 @@ pre, .split-pane .preview pre {
 }
 
 /* ── Tooltip 通用悬停提示 ── */
+.note-editor .toolbar .btn-sm,
+.notes-topbar .btn-sm,
+#drawToolbar button,
+#drawToolbar .btn-sm,
+#drawToolbar .btn {
+  position: relative;
+}
 @media (hover: hover) {
   .notes-topbar [title]:hover::after,
   .note-editor .toolbar [title]:hover::after,
   #drawToolbar [title]:hover::after,
-  .toolbar [title]:hover::after,
-  .btn[title]:hover::after,
-  .btn-sm[title]:hover::after {
+  .note-editor .toolbar [data-tooltip]:hover::after,
+  #drawToolbar [data-tooltip]:hover::after {
     content: attr(title);
     position: absolute; bottom: calc(100% + 8px); left: 50%;
     transform: translateX(-50%);
@@ -3918,12 +3927,21 @@ pre, .split-pane .preview pre {
     padding: 4px 10px; font-size: .68rem; white-space: nowrap;
     z-index: 9999; pointer-events: none;
     box-shadow: 0 4px 14px rgba(0,0,0,0.35);
-    animation: tipIn .2s var(--ease-out-back);
     font-weight: 400; letter-spacing: 0;
+    transition: opacity .08s;
   }
-  @keyframes tipIn {
-    from { opacity: 0; transform: translateX(-50%) translateY(4px); }
-    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  /* data-tooltip 回退（当 title 被 JS 暂时移除时） */
+  .note-editor .toolbar [data-_title]:hover::after,
+  #drawToolbar [data-_title]:hover::after {
+    content: attr(data-_title);
+    position: absolute; bottom: calc(100% + 8px); left: 50%;
+    transform: translateX(-50%);
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 10px; font-size: .68rem; white-space: nowrap;
+    z-index: 9999; pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    font-weight: 400; letter-spacing: 0;
   }
 }
 

@@ -293,6 +293,7 @@ tlSpeakTgt.addEventListener('click', () => speak(tlFinalTranslated));
 
 // ===== 存笔记 =====
 tlSaveNote.addEventListener('click', async () => {
+  Yiwei.sound.play('translate-save');
   const original = tlInput.value.trim();
   const translated = tlFinalTranslated;
   if (!original) { toast('⚠️ 没有内容', 'warning'); return; }
@@ -315,6 +316,7 @@ tlSaveNote.addEventListener('click', async () => {
 
 // ===== 语言互换 =====
 tlSwap.addEventListener('click', () => {
+  Yiwei.sound.play('translate-swap');
   const fromVal = tlFrom.value;
   const toVal = tlTo.value;
   if (fromVal === 'auto') { toast('⚠️ 自动检测不能设为目标语言', 'warning'); return; }

@@ -26,3 +26,12 @@ js/ort-wasm*
 js/ort.all.min.mjs
 js/upscalejs.es.js
 js/upscale-engine.js
+
+# macOS
+.DS_Store
+
+# 个人 AI 工具配置
+.hermes/
+
+# 根目录壁纸大文件（已由 wallpapers/ 管理）
+【哲风壁纸】*

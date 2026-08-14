@@ -270,6 +270,8 @@ window.Yiwei = window.Yiwei || {};
     renderTranslateChart(stats);
     renderChatChart(chat);
     renderReadingChart(stats);
+    // 触发 AI 点评
+    setTimeout(function() { if (typeof loadAICommentary === 'function') loadAICommentary(); }, 1500);
   }
 
   function initButtons() {
@@ -298,3 +300,80 @@ window.Yiwei = window.Yiwei || {};
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); }
   else { init(); }
 })();
+
+// ===== AI 智能点评 =====
+var aiCommentaryCache = null, aiCommentaryLoading = false;
+
+async function loadAICommentary() {
+  var el = document.getElementById('aiCommentaryContent');
+  if (!el) return;
+  if (aiCommentaryCache) { el.textContent = aiCommentaryCache; el.style.opacity = '1'; return; }
+  if (aiCommentaryLoading) return;
+  aiCommentaryLoading = true;
+  el.textContent = '🤔 AI 正在分析你的使用数据...';
+  el.style.opacity = '0.7';
+
+  try {
+    // 收集简要统计
+    var stats = await (await fetch('/api/analytics/stats?range=week')).json();
+    var chatStats = typeof ChatDB !== 'undefined' ? await ChatDB.getAll() : [];
+    var pomoState = JSON.parse(localStorage.getItem('yiwei_pomodo') || '{}');
+    var tasksState = JSON.parse(localStorage.getItem('yiwei_tasks') || '[]');
+
+    var summary = {
+      onlineTime: stats.onlineTime?.total || 0,
+      topModule: Object.entries(stats.onlineTime?.byPanel || {}).sort(function(a,b){return b[1]-a[1];})[0] || ['未知',0],
+      files: stats.files?.total || 0,
+      notes: stats.notes?.total || 0, words: stats.notes?.totalWords || 0,
+      conversations: chatStats.length,
+      messages: chatStats.reduce(function(s,c){return s+(c.messages||[]).length;}, 0),
+      pomoSessions: pomoState.sessions || 0,
+      tasks: Array.isArray(tasksState) ? tasksState.length : 0,
+      tasksDone: Array.isArray(tasksState) ? tasksState.filter(function(t){return t.status==='done';}).length : 0,
+    };
+
+    // 通过对话 API 获取点评
+    var apiKey = localStorage.getItem('yiwei_chat_apikey') || localStorage.getItem('yiwei_apikey');
+    if (!apiKey) {
+      el.textContent = genLocalCommentary(summary);
+      el.style.opacity = '1';
+      aiCommentaryCache = el.textContent;
+      aiCommentaryLoading = false;
+      return;
+    }
+
+    var prompt = '你是一个数据分析助手。以下是用户过去一周的使用数据，请用2-3句话点评，语气轻松幽默，中文，不超过150字。数据：在线' + summary.onlineTime + '分钟，最常用「' + summary.topModule[0] + '」，文件' + summary.files + '个，笔记' + summary.notes + '篇' + summary.words + '字，对话' + summary.conversations + '个' + summary.messages + '条，番茄钟' + summary.pomoSessions + '个，任务完成' + summary.tasksDone + '/' + summary.tasks + '。';
+
+    var resp = await fetch('https://vip.apiyi.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({
+        model: localStorage.getItem('yiwei_chat_model') || 'grok-4.3',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 200, temperature: 0.9
+      })
+    });
+    var data = await resp.json();
+    var comment = data.choices?.[0]?.message?.content || genLocalCommentary(summary);
+    el.textContent = comment;
+    el.style.opacity = '1';
+    aiCommentaryCache = comment;
+  } catch(e) {
+    el.textContent = '💫 数据看起来不错，继续保持！（AI 点评暂不可用）';
+    el.style.opacity = '1';
+  }
+  aiCommentaryLoading = false;
+}
+
+function genLocalCommentary(summary) {
+  var lines = [];
+  if (summary.pomoSessions > 5) lines.push('🍅 ' + summary.pomoSessions + '个番茄钟，专注力爆表！');
+  if (summary.words > 1000) lines.push('✍️ 写了' + summary.words + '字，创作之魂在燃烧。');
+  if (summary.files > 20) lines.push('📁 文件管理井井有条，归档达人。');
+  if (summary.tasksDone > summary.tasks * 0.6 && summary.tasks > 0) lines.push('✅ 任务完成率很高，执行力满分。');
+  if (summary.onlineTime > 300) lines.push('⏰ 在线' + summary.onlineTime + '分钟，今天也是充实的一天。');
+  if (!lines.length) lines.push('🚀 刚刚起步，未来可期！多用用数据会更丰富。');
+  return lines.join(' ');
+}
+
+// AI 点评由 renderAll() 自动调用

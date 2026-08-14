@@ -119,7 +119,18 @@ async function uploadFiles(fileList) {
 let currentDir = 'home';
 
 function navigateTo(dir) {
-  currentDir = dir || '';
+  // 根目录是 home，不允许导航到 home 以上
+  if (dir === '' || dir === '.' || dir === '..' && !currentDir) {
+    currentDir = 'home';
+  } else if (dir === '..' && currentDir === 'home') {
+    // 禁止从 home 向上
+    currentDir = 'home';
+  } else if (dir === '..' && currentDir && currentDir !== 'home') {
+    // 正常向上
+    currentDir = currentDir.split('/').slice(0, -1).join('') || 'home';
+  } else {
+    currentDir = dir || '';
+  }
   loadFiles();
 }
 
@@ -848,6 +859,221 @@ function showFileMenu(e, name, isDir) {
   setTimeout(themeStorageBar, 500);
 })();
 
+// ===== 批量重命名 =====
+var renameMode = 'replace';
+var renameFiles = [];
+var renamePreviewData = [];
+
+function batchRename() {
+  var checked = getActiveCheckboxes(true);
+  if (!checked.length) { toast('请先选择文件', 'warning'); return; }
+  renameFiles = Array.from(checked).map(function(cb) { return cb.dataset.name; });
+  renamePreviewData = [];
+  document.getElementById('renameFileCount').textContent = '已选 ' + renameFiles.length + ' 个文件';
+  document.getElementById('renamePreview').innerHTML = '<span style="color:var(--sub);">点击预览查看重命名结果</span>';
+  document.getElementById('renamePreviewCount').textContent = '';
+  document.getElementById('renameModal').classList.add('show');
+  Yiwei.sound.play('modal-open');
+  switchRenameMode('replace');
+}
+
+function closeRenameModal() {
+  Yiwei.sound.play('modal-close');
+  document.getElementById('renameModal').classList.remove('show');
+}
+
+function switchRenameMode(mode) {
+  renameMode = mode;
+  document.querySelectorAll('.rename-mode-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  ['Replace','Prefix','Seq','Ai'].forEach(function(m) {
+    var panel = document.getElementById('renamePanel' + m);
+    if (panel) panel.style.display = m === mode.charAt(0).toUpperCase() + mode.slice(1) ? '' : 'none';
+  });
+  renamePreviewData = [];
+  document.getElementById('renamePreview').innerHTML = '<span style="color:var(--sub);">点击预览查看重命名结果</span>';
+}
+
+function dirOf(name) {
+  var i = name.lastIndexOf('/');
+  return i >= 0 ? name.slice(0, i) : '';
+}
+
+function nameOf(name) {
+  var i = name.lastIndexOf('/');
+  return i >= 0 ? name.slice(i + 1) : name;
+}
+
+function getExt(name) {
+  var i = name.lastIndexOf('.');
+  return i > 0 ? name.slice(i) : '';
+}
+
+function getBase(name) {
+  var i = name.lastIndexOf('.');
+  return i > 0 ? name.slice(0, i) : name;
+}
+
+function previewRename() {
+  renamePreviewData = [];
+  if (!renameFiles.length) return;
+  var lines = [];
+
+  if (renameMode === 'replace') {
+    var find = document.getElementById('renameFind').value;
+    var replace = document.getElementById('renameReplace').value;
+    if (!find) { toast('请输入查找文本', 'warning'); return; }
+    renameFiles.forEach(function(f) {
+      var dir = dirOf(f), fname = nameOf(f);
+      var base = getBase(fname), ext = getExt(fname);
+      var newFname = base.split(find).join(replace) + ext;
+      var display = (dir ? dir + '/' : '') + fname + '  →  ' + (dir ? dir + '/' : '') + newFname;
+      lines.push(display);
+      renamePreviewData.push({ old: f, new: newFname });
+    });
+  } else if (renameMode === 'prefix') {
+    var prefix = document.getElementById('renamePrefix').value;
+    var suffix = document.getElementById('renameSuffix').value;
+    renameFiles.forEach(function(f) {
+      var dir = dirOf(f), fname = nameOf(f);
+      var base = getBase(fname), ext = getExt(fname);
+      var newFname = prefix + base + suffix + ext;
+      var display = (dir ? dir + '/' : '') + fname + '  →  ' + (dir ? dir + '/' : '') + newFname;
+      lines.push(display);
+      renamePreviewData.push({ old: f, new: newFname });
+    });
+  } else if (renameMode === 'seq') {
+    var seqName = document.getElementById('renameSeqName').value || 'file';
+    var start = parseInt(document.getElementById('renameSeqStart').value) || 1;
+    var pad = parseInt(document.getElementById('renameSeqPad').value) || 3;
+    renameFiles.forEach(function(f, i) {
+      var dir = dirOf(f), fname = nameOf(f);
+      var ext = getExt(fname);
+      var num = String(start + i).padStart(pad, '0');
+      var newFname = seqName + '_' + num + ext;
+      var display = (dir ? dir + '/' : '') + fname + '  →  ' + (dir ? dir + '/' : '') + newFname;
+      lines.push(display);
+      renamePreviewData.push({ old: f, new: newFname });
+    });
+  } else if (renameMode === 'ai') {
+    document.getElementById('renamePreview').innerHTML = '<span style="color:var(--accent);">点击 🤖 开始分析 生成 AI 命名预览</span>';
+    return;
+  }
+
+  document.getElementById('renamePreview').innerHTML = lines.map(function(l) {
+    return '<div style="padding:1px 0;border-bottom:1px solid var(--border);">' + escHtml(l) + '</div>';
+  }).join('') || '<span style="color:var(--sub);">无变化</span>';
+  document.getElementById('renamePreviewCount').textContent = renamePreviewData.length + ' 个文件待重命名';
+}
+
+async function executeRename() {
+  if (!renamePreviewData.length) { toast('请先预览重命名结果', 'warning'); return; }
+  var ok = 0, fail = 0;
+  for (var i = 0; i < renamePreviewData.length; i++) {
+    var item = renamePreviewData[i];
+    if (nameOf(item.old) === item.new) { ok++; continue; }
+    try {
+      var r = await fetch('/api/files/rename', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: item.old, newName: item.new })
+      });
+      if (r.ok) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+  toast('✅ ' + ok + ' 个已重命名' + (fail ? '，' + fail + ' 个失败' : ''));
+  closeRenameModal();
+  loadFiles();
+}
+
+async function executeAiRename() {
+  var apiKey = localStorage.getItem('yiwei_apikey');
+  if (!apiKey) { toast('请先在 AK 设置中配置 API Key', 'error'); return; }
+  var baseUrl = localStorage.getItem('yiwei_baseurl') || 'https://vip.apiyi.com/v1/chat/completions';
+  var model = localStorage.getItem('yiwei_model') || 'grok-4.3';
+
+  var statusEl = document.getElementById('renameAiStatus');
+  var btn = document.getElementById('btnAiRename');
+  btn.disabled = true; btn.textContent = '⏳ 分析中...';
+  statusEl.textContent = '⏳ 正在分析文件内容...';
+  renamePreviewData = [];
+  var lines = [];
+
+  for (var i = 0; i < renameFiles.length; i++) {
+    var f = renameFiles[i];
+    var dir = dirOf(f), fname = nameOf(f);
+    statusEl.textContent = '⏳ 分析中 (' + (i+1) + '/' + renameFiles.length + '): ' + fname;
+    try {
+      // 读取文件内容（取前 2000 字符）
+      var contentSample = '';
+      try {
+        var cr = await fetch('/api/preview/' + encodeURIComponent(f));
+        if (cr.ok) { var ct = await cr.text(); contentSample = ct.slice(0, 2000); }
+      } catch(e) {}
+
+      var prompt = document.getElementById('renameAiPrompt').value || '';
+      var ext = getExt(fname);
+      var aiPrompt = '你是一个文件命名助手。根据文件名和内容片段，生成一个简洁描述性的文件名（保留原扩展名 ' + ext + '）。' +
+        '只返回新文件名，不要解释，不要引号。' + (prompt ? ' 额外要求：' + prompt : '') +
+        '\n\n原文件名: ' + fname + '\n内容片段: ' + (contentSample || '(无法读取)');
+
+      var resp = await fetch('/api/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: apiKey, baseUrl: baseUrl, model: model,
+          messages: [{ role: 'user', content: aiPrompt }],
+          compress: false
+        })
+      });
+
+      if (resp.ok) {
+        var fullText = '';
+        var reader = resp.body.getReader();
+        var decoder = new TextDecoder();
+        while (true) {
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          var text = decoder.decode(chunk.value, { stream: true });
+          // 解析 SSE
+          var events = text.split('\n');
+          events.forEach(function(line) {
+            if (line.startsWith('data: ')) {
+              try {
+                var d = JSON.parse(line.slice(6));
+                if (d.delta) fullText += d.delta;
+                if (d.text) fullText += d.text;
+              } catch(e) {}
+            }
+          });
+        }
+        var aiName = fullText.trim().replace(/[\\/:*?"<>|]/g, '_').slice(0, 100);
+        if (aiName && !aiName.endsWith(ext)) aiName += ext;
+        var display = (dir ? dir + '/' : '') + fname;
+        if (aiName && aiName !== fname) {
+          lines.push(display + '  →  ' + (dir ? dir + '/' : '') + aiName);
+          renamePreviewData.push({ old: f, new: aiName });
+        } else {
+          lines.push(display + '  →  (保持原名)');
+          renamePreviewData.push({ old: f, new: fname });
+        }
+      } else {
+        lines.push((dir ? dir + '/' : '') + fname + '  →  ❌ API 错误');
+        renamePreviewData.push({ old: f, new: fname });
+      }
+    } catch(e) {
+      lines.push((dir ? dir + '/' : '') + fname + '  →  ❌ ' + e.message);
+      renamePreviewData.push({ old: f, new: nameOf(f) });
+    }
+  }
+
+  btn.disabled = false; btn.textContent = '🤖 开始分析';
+  statusEl.textContent = '✅ 分析完成，请检查预览后执行重命名';
+  document.getElementById('renamePreview').innerHTML = lines.map(function(l) {
+    return '<div style="padding:1px 0;border-bottom:1px solid var(--border);">' + escHtml(l) + '</div>';
+  }).join('');
+  document.getElementById('renamePreviewCount').textContent = renamePreviewData.filter(function(d) { return d.old !== d.new; }).length + ' 个文件待重命名';
+}
+
 // ===== 文件命令行终端 =====
 window.execFileCLI = function() {
   var input = document.getElementById('fileCliInput');
@@ -884,7 +1110,8 @@ window.execFileCLI = function() {
   // cat <file>
   else if (op === 'cat' || op === 'open') {
     if (!args[0]) { cliOut('用法: ' + op + ' <文件名>', 'warning'); return; }
-    previewFile(args[0]);
+    var catPath = dir ? dir + '/' + args[0] : args[0];
+    previewFile(catPath);
   }
   // touch <filename>
   else if (op === 'touch') {
@@ -1077,21 +1304,31 @@ window.execFileCLI = function() {
     else if (op === 'cd') {
       var target = args[0] || '';
       if (typeof navigateTo === 'function') {
-        navigateTo(target);
+        if (target === '..') {
+          navigateTo('..');
+        } else if (target.startsWith('/')) {
+          navigateTo(target.slice(1));
+        } else if (target) {
+          navigateTo(dir ? dir + '/' + target : target);
+        } else {
+          navigateTo('home');
+        }
         setTimeout(function() {
-          termDir = (typeof currentDir !== 'undefined') ? currentDir : '';
-          termOut('📂 ' + (termDir || '/'), 'info');
+          termDir = (typeof currentDir !== 'undefined') ? currentDir : 'home';
+          updateTermDirLabel();
+          termOut('📂 ' + (termDir || 'home'), 'info');
         }, 400);
       } else { termOut('cd: 导航功能不可用', 'err'); }
     }
     // pwd
     else if (op === 'pwd') {
-      termOut(dir || '/');
+      termOut(dir || 'home');
     }
     // cat / open
     else if (op === 'cat' || op === 'open') {
       if (!args[0]) { termOut('用法: ' + op + ' <文件名>', 'err'); return; }
-      if (typeof previewFile === 'function') previewFile(args[0]);
+      var catPath = dir ? dir + '/' + args[0] : args[0];
+      if (typeof previewFile === 'function') previewFile(catPath);
       else termOut(op + ': 预览功能不可用', 'err');
     }
     // touch
@@ -1136,10 +1373,19 @@ window.execFileCLI = function() {
       if (args.length < 2) { termOut('用法: mv <源文件> <目标路径>', 'err'); return; }
       var src = dir ? dir + '/' + args[0] : args[0];
       var dst = args[1];
-      fetch('/api/files/move', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({source:src, targetDir:dst}) })
+      fetch('/api/files/move', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:src, targetDir:dst}) })
         .then(function(r) { return r.json(); })
         .then(function(d) { if(d.error){termOut('mv: '+d.error,'err');}else{termOut('✅ '+args[0]+' → '+dst, 'info'); if(typeof loadFiles==='function')loadFiles();} })
         .catch(function() { termOut('mv: 移动失败', 'err'); });
+    }
+    else if (op === 'cp') {
+      if (args.length < 2) { termOut('用法: cp <源文件> <目标路径>', 'err'); return; }
+      var cpSrc = dir ? dir + '/' + args[0] : args[0];
+      var cpDst = args[1];
+      fetch('/api/files/copy', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:cpSrc, targetDir:cpDst}) })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if(d.error){termOut('cp: '+d.error,'err');}else{termOut('✅ '+args[0]+' → '+cpDst, 'info'); if(typeof loadFiles==='function')loadFiles();} })
+        .catch(function() { termOut('cp: 复制失败', 'err'); });
     }
     // du — 磁盘使用
     else if (op === 'du') {
@@ -1149,18 +1395,36 @@ window.execFileCLI = function() {
         termOut('使用率: ' + (d.storage_pct || '?') + '%', 'info');
       }).catch(function() { termOut('du: 获取失败', 'err'); });
     }
-    // find — 搜索文件
+    // find — 搜索文件（递归搜索当前目录及子目录）
     else if (op === 'find') {
       if (!args[0]) { termOut('用法: find <关键字>', 'err'); return; }
-      var kw = args.join(' ');
-      fetch('/api/files?dir=' + encodeURIComponent(dir) + '&search=' + encodeURIComponent(kw))
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          var files = data.files || [];
-          if (!files.length) { termOut('未找到匹配 "' + kw + '" 的文件', 'info'); return; }
-          var out = files.map(function(f) { return (f.isDir ? '📁 ' : '📄 ') + f.name + (f.isDir ? '/' : '  ' + fmtSize(f.size)); }).join('\n');
-          termOut(out);
-        }).catch(function() { termOut('find: 搜索失败', 'err'); });
+      var kw = args.join(' ').toLowerCase();
+      // 递归获取所有文件
+      function fetchRecursive(fetchDir) {
+        return fetch('/api/files?dir=' + encodeURIComponent(fetchDir))
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var results = [];
+            var dirs = [];
+            (data.files || []).forEach(function(f) {
+              if (f.isDir) {
+                dirs.push(f.relPath);
+              } else if (f.name.toLowerCase().indexOf(kw) !== -1) {
+                results.push({ name: f.relPath || f.name, size: f.size, isDir: false });
+              }
+            });
+            // 递归子目录
+            return Promise.all(dirs.map(function(d) { return fetchRecursive(d); }))
+              .then(function(childResults) {
+                childResults.forEach(function(cr) { results = results.concat(cr); });
+                return results;
+              });
+          });
+      }
+      fetchRecursive(dir).then(function(found) {
+        if (!found.length) { termOut('未找到匹配 "' + kw + '" 的文件', 'info'); return; }
+        termOut(found.map(function(f) { return '📄 ' + f.name + '  ' + fmtSize(f.size); }).join('\n'));
+      }).catch(function() { termOut('find: 搜索失败', 'err'); });
     }
     // stat — 文件详情
     else if (op === 'stat') {
@@ -1177,6 +1441,165 @@ window.execFileCLI = function() {
           termOut('修改: ' + (f.mtime ? new Date(f.mtime).toLocaleString('zh-CN') : '-'), 'info');
         }).catch(function() { termOut('stat: 获取失败', 'err'); });
     }
+    // echo — 写入/追加文本到文件
+    else if (op === 'echo') {
+      // 解析 echo "text" > file 或 echo "text" >> file
+      var raw2 = cmd.slice(5).trim(); // 跳过 "echo "
+      var append = raw2.indexOf('>>') > -1;
+      var redirect = append ? '>>' : (raw2.indexOf('>') > -1 ? '>' : '');
+      if (!redirect) {
+        // 没有重定向，直接输出文本
+        var txtOut = raw2.replace(/^["']|["']$/g, '');
+        termOut(txtOut);
+        return;
+      }
+      var redirectIdx = raw2.indexOf(redirect);
+      var text = raw2.slice(0, redirectIdx).trim().replace(/^["']|["']$/g, '');
+      var fileName = raw2.slice(redirectIdx + redirect.length).trim();
+      if (!fileName) { termOut('echo: 用法: echo "text" > file', 'err'); return; }
+      var echoPath = dir ? dir + '/' + fileName : fileName;
+      fetch('/api/files/write', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:echoPath, content:text + '\n', append:append}) })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if(d.error){termOut('echo: '+d.error,'err');}else{termOut('✅ 已写入 ' + fileName + ' (' + fmtSize(d.size) + ')', 'info'); if(typeof loadFiles==='function')loadFiles();} })
+        .catch(function() { termOut('echo: 写入失败', 'err'); });
+    }
+    // head — 查看文件前 N 行
+    else if (op === 'head') {
+      var n = 10; var headFile = '';
+      for (var hi = 0; hi < args.length; hi++) {
+        if (args[hi] === '-n' && args[hi+1]) { n = parseInt(args[hi+1]); hi++; }
+        else if (!args[hi].startsWith('-')) headFile = args[hi];
+      }
+      if (!headFile) { termOut('用法: head [-n N] <文件名>', 'err'); return; }
+      var headPath = dir ? dir + '/' + headFile : headFile;
+      fetch('/api/preview/' + encodeURIComponent(headPath)).then(function(r) {
+        if (!r.ok) { termOut('head: 文件不存在或不可读: ' + headFile, 'err'); return; }
+        return r.text();
+      }).then(function(text) {
+        if (!text && text !== '') return;
+        var lines = text.split('\n').slice(0, n);
+        termOut(lines.join('\n'));
+      }).catch(function() { termOut('head: 读取失败', 'err'); });
+    }
+    // tail — 查看文件后 N 行
+    else if (op === 'tail') {
+      var n = 10; var tailFile = '';
+      for (var ti = 0; ti < args.length; ti++) {
+        if (args[ti] === '-n' && args[ti+1]) { n = parseInt(args[ti+1]); ti++; }
+        else if (!args[ti].startsWith('-')) tailFile = args[ti];
+      }
+      if (!tailFile) { termOut('用法: tail [-n N] <文件名>', 'err'); return; }
+      var tailPath = dir ? dir + '/' + tailFile : tailFile;
+      fetch('/api/preview/' + encodeURIComponent(tailPath)).then(function(r) {
+        if (!r.ok) { termOut('tail: 文件不存在或不可读: ' + tailFile, 'err'); return; }
+        return r.text();
+      }).then(function(text) {
+        if (!text && text !== '') return;
+        var lines = text.split('\n').slice(-n);
+        termOut(lines.join('\n'));
+      }).catch(function() { termOut('tail: 读取失败', 'err'); });
+    }
+    // wc — 统计行数、词数、字符数
+    else if (op === 'wc') {
+      if (!args[0]) { termOut('用法: wc <文件名>', 'err'); return; }
+      var wcPath = dir ? dir + '/' + args[0] : args[0];
+      fetch('/api/preview/' + encodeURIComponent(wcPath)).then(function(r) {
+        if (!r.ok) { termOut('wc: 文件不存在: ' + args[0], 'err'); return; }
+        return r.text();
+      }).then(function(text) {
+        if (!text && text !== '') return;
+        var lines = text.split('\n').length;
+        var words = text.split(/\s+/).filter(function(w) { return w.length > 0; }).length;
+        var chars = text.length;
+        termOut('  ' + lines + ' 行  ' + words + ' 词  ' + chars + ' 字符  ' + args[0]);
+      }).catch(function() { termOut('wc: 读取失败', 'err'); });
+    }
+    // grep — 在文件内容中搜索
+    else if (op === 'grep') {
+      if (args.length < 2) { termOut('用法: grep <模式> <文件名>', 'err'); return; }
+      var pattern = args[0]; var grepFile = args[1];
+      var grepPath = dir ? dir + '/' + grepFile : grepFile;
+      fetch('/api/preview/' + encodeURIComponent(grepPath)).then(function(r) {
+        if (!r.ok) { termOut('grep: 文件不存在: ' + grepFile, 'err'); return; }
+        return r.text();
+      }).then(function(text) {
+        if (!text && text !== '') return;
+        var lines = text.split('\n');
+        var matches = [];
+        for (var gi = 0; gi < lines.length; gi++) {
+          if (lines[gi].indexOf(pattern) !== -1) matches.push((gi + 1) + ': ' + lines[gi].slice(0, 200));
+        }
+        if (!matches.length) { termOut('(无匹配)', 'info'); return; }
+        termOut(matches.join('\n'));
+      }).catch(function() { termOut('grep: 读取失败', 'err'); });
+    }
+    // edit — 在笔记编辑器中打开文件
+    else if (op === 'edit') {
+      if (!args[0]) { termOut('用法: edit <文件名>', 'err'); return; }
+      var editPath = dir ? dir + '/' + args[0] : args[0];
+      if (typeof importNoteFromFile === 'function') {
+        importNoteFromFile(editPath, args[0]);
+        termOut('📝 已在笔记编辑器中打开: ' + args[0], 'info');
+      } else {
+        termOut('edit: 编辑器不可用，请先切换到笔记面板', 'err');
+      }
+    }
+    // ai — AI 辅助文件管理
+    else if (op === 'ai') {
+      var aiPrompt = args.join(' ').trim();
+      if (!aiPrompt) { termOut('用法: ai <自然语言指令>\n示例: ai 把图片文件移到 images 目录', 'err'); return; }
+      var apiKey = localStorage.getItem('yiwei_apikey');
+      if (!apiKey) { termOut('❌ 请先在 AK 设置中配置 API Key', 'err'); return; }
+      var baseUrl = localStorage.getItem('yiwei_baseurl') || 'https://vip.apiyi.com/v1/chat/completions';
+      var model = localStorage.getItem('yiwei_model') || 'grok-4.3';
+      termOut('🤖 AI 思考中...', 'info');
+      // 收集当前目录信息
+      fetch('/api/files?dir=' + encodeURIComponent(dir)).then(function(r) { return r.json(); }).then(function(data) {
+        var files = (data.files || []).map(function(f) {
+          return (f.isDir ? '📁 ' : '📄 ') + f.name + (f.isDir ? '/' : '  ' + fmtSize(f.size || 0));
+        }).join('\n');
+        var cwdInfo = '当前工作目录: ' + (dir || 'home') + '\n文件列表:\n' + (files || '(空)');
+        var sysPrompt = '你是文件管理助手。用户会用自然语言描述需求，你给出具体可执行的终端命令。\n' +
+          '可用命令: ls, cd, pwd, cat, touch, mkdir, rm, rmdir, mv, cp, echo, head, tail, wc, grep, find, stat, edit, du, clear, exit\n' +
+          '回复格式:\n' +
+          '1. 先简要说明方案（1-2句）\n' +
+          '2. 用 ```sh 代码块给出命令\n' +
+          '根目录是 home，路径相对于 home。';
+        return fetch('/api/chat', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey: apiKey, baseUrl: baseUrl, model: model,
+            messages: [
+              { role: 'system', content: sysPrompt },
+              { role: 'user', content: cwdInfo + '\n\n用户需求: ' + aiPrompt }
+            ],
+            compress: false, keepRecent: 6
+          })
+        });
+      }).then(function(resp) {
+        if (!resp || !resp.ok) { termOut('❌ AI 请求失败', 'err'); return; }
+        var fullText = '';
+        var reader = resp.body.getReader();
+        var decoder = new TextDecoder();
+        function pump() {
+          return reader.read().then(function(chunk) {
+            if (chunk.done) { if (fullText.trim()) termOut(fullText.trim()); return; }
+            var text = decoder.decode(chunk.value, { stream: true });
+            var events = text.split('\n');
+            events.forEach(function(line) {
+              if (line.startsWith('data: ')) {
+                try {
+                  var d = JSON.parse(line.slice(6));
+                  if (d.delta) fullText += d.delta;
+                } catch(e) {}
+              }
+            });
+            return pump();
+          });
+        }
+        return pump();
+      }).catch(function(e) { termOut('❌ AI 错误: ' + e.message, 'err'); });
+    }
     // help
     else if (op === 'help' || op === '?') {
       termOut('═══ 文件管理命令 ═══', 'info');
@@ -1184,19 +1607,27 @@ window.execFileCLI = function() {
       termOut('  cd <dir>        切换目录', 'info');
       termOut('  pwd             当前路径', 'info');
       termOut('  cat <file>      预览文件内容', 'info');
+      termOut('  edit <file>     在编辑器中打开文件', 'info');
       termOut('  touch <name>    创建空文件', 'info');
+      termOut('  echo "txt">file 写入文本到文件', 'info');
       termOut('  mkdir <name>    创建目录', 'info');
       termOut('  rm <file>       删除文件', 'info');
       termOut('  rmdir <dir>     删除目录', 'info');
       termOut('  mv <src> <dst>  移动文件', 'info');
       termOut('  cp <src> <dst>  复制文件', 'info');
-      termOut('  du              磁盘使用情况', 'info');
-      termOut('  find <kw>       搜索文件', 'info');
+      termOut('═══ 查看与搜索 ═══', 'info');
+      termOut('  head [-n N] <f> 查看文件前 N 行', 'info');
+      termOut('  tail [-n N] <f> 查看文件后 N 行', 'info');
+      termOut('  wc <file>       统计行数/词数/字符', 'info');
+      termOut('  grep <pat> <f>  搜索文件内容', 'info');
+      termOut('  find <kw>       按名称搜索文件', 'info');
       termOut('  stat <file>     文件详细信息', 'info');
-      termOut('═══ 终端控制 ═══', 'info');
+      termOut('═══ AI 与终端 ═══', 'info');
+      termOut('  ai <指令>       AI 辅助文件管理（自然语言）', 'info');
+      termOut('  du              磁盘使用情况', 'info');
       termOut('  clear           清屏', 'info');
       termOut('  exit            关闭终端', 'info');
-      termOut('  Ctrl+L          清屏', 'info');
+      termOut('  Ctrl+L          清屏 · Ctrl+C 中断', 'info');
     }
     // exit
     else if (op === 'exit') { closeTerm(); }

@@ -100,6 +100,7 @@ async function loadReaderBooks() {
 
 // 打开书籍
 async function openBook(name, type) {
+  Yiwei.sound.play('reader-open');
   if (type === 'file') {
     await openFileBook(name);
   } else if (type === 'note') {

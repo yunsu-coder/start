@@ -32,22 +32,25 @@ window.Yiwei = window.Yiwei || {};
 
   function playPause() {
     if (!audio.src && state.playlist.length) { loadTrack(0); return; }
-    if (audio.paused) audio.play().catch(function(){});
-    else audio.pause();
+    if (audio.paused) { Yiwei.sound.play('music-play'); audio.play().catch(function(){}); }
+    else { Yiwei.sound.play('music-pause'); audio.pause(); }
   }
 
   function nextTrack() {
     if (!state.playlist.length) return;
+    Yiwei.sound.play('music-skip');
     loadTrack((state.current + 1) % state.playlist.length);
   }
   function prevTrack() {
     if (!state.playlist.length) return;
+    Yiwei.sound.play('music-skip');
     loadTrack(state.current <= 0 ? state.playlist.length - 1 : state.current - 1);
   }
 
   function setVolume(val) {
     state.volume = parseInt(val);
     audio.volume = state.volume / 100;
+    Yiwei.sound.play('music-vol');
     save();
   }
 

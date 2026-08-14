@@ -1078,7 +1078,7 @@ document.addEventListener('keydown', e => {
 (function () {
   const CHAT_KEY = 'yiwei_api_v2';
   const TRANS_KEY = 'yiwei_trans_api';
-  const CHAT_BASE = 'https://api.yunwu.ai/v1/chat/completions';
+  const CHAT_BASE = 'https://vip.apiyi.com/v1/chat/completions';
   const CHAT_MODEL = 'grok-4.3';
   const TRANS_BASE = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
   const TRANS_MODEL = 'glm-4-flash';

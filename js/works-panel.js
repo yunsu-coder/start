@@ -104,6 +104,7 @@ async function loadWorkDropdowns() {
 
 async function deleteWorkConfirm(id) {
   if (!confirm('确定删除这个作品？（笔记不会被删除）')) return;
+  Yiwei.sound.play('note-delete');
   await fetch('/api/works/' + id, { method: 'DELETE' });
   toast('🗑️ 已删除');
   loadWorks();
@@ -405,6 +406,7 @@ loadNotesList = async function() {
 
 // ===== 导出函数 =====
 async function exportNote(format) { Yiwei.sound.play("note-export");
+  if (typeof ensureEditorUnfolded === 'function') ensureEditorUnfolded();
   const title = document.getElementById('noteTitle')?.value.trim();
   const content = document.getElementById('noteContent')?.value;
   if (!title && !content) { toast('⚠️ 没有可导出的内容', 'warning'); return; }

@@ -4,6 +4,18 @@ let taskKanbanMode = 0; // 0=list, 1=status kanban, 2=category kanban
 let editingTaskId = null;
 let allTasks = [];
 
+// 分类颜色映射（用于标签和看板）
+var CAT_COLORS = {
+  '工作-开发': '#3b82f6', '工作-会议': '#6366f1', '工作-文档': '#8b5cf6',
+  '学习-技术': '#06b6d4', '学习-阅读': '#0ea5e9', '学习-写作': '#0891b2',
+  '生活-健康': '#10b981', '生活-购物': '#f59e0b', '生活-出行': '#f97316',
+  '生活-饮食': '#ef4444', '生活-家务': '#78716c',
+  '个人-项目': '#ec4899', '个人-财务': '#84cc16', '个人-社交': '#a855f7',
+  '娱乐-游戏': '#e11d48', '娱乐-影视': '#dc2626', '娱乐-音乐': '#7c3aed',
+  '其他': '#6b7280'
+};
+var PRIORITY = { p0: { label: 'P0', color: '#ef4444', icon: '🔴' }, p1: { label: 'P1', color: '#f59e0b', icon: '🟡' }, p2: { label: 'P2', color: '#6b7280', icon: '⚪' } };
+
 // ===== 切换列表/状态看板/分类看板 =====
 function toggleTaskView() { Yiwei.sound.play('btn-click');
   taskKanbanMode = (taskKanbanMode + 1) % 3;
@@ -53,13 +65,8 @@ function updateTaskCount() {
   }
 }
 
-// ===== 便利签颜色 + 旋转 =====
+// ===== 便利签颜色 =====
 var NOTE_COLORS = ['#fef9e7','#fef0f0','#f0faf0','#f0f4fa','#f5f0fa','#fefce8','#fff7ed','#fdf2f8'];
-function noteStyle(idx) {
-  var rot = ((idx * 137) % 7 - 3) * 0.5; // -1.5 ~ +1.5 deg
-  var bg = NOTE_COLORS[idx % NOTE_COLORS.length];
-  return 'style="transform:rotate(' + rot.toFixed(1) + 'deg);--note-bg:' + bg + '"';
-}
 
 // ===== 渲染列表 =====
 function renderTaskList() {
@@ -77,7 +84,10 @@ function renderTaskList() {
     var deadlineStr = t.deadline ? fmtTime(t.deadline) : '';
     var overdueCls = t.overdue ? ' todo-overdue' : '';
     var notStartedCls = t.notStarted ? ' todo-not-started' : '';
-    var catHtml = t.category ? '<span class="todo-cat-badge">' + escHtml(t.category) + '</span>' : '';
+    var catColor = CAT_COLORS[t.category] || '#6b7280';
+    var catHtml = t.category ? '<span class="todo-cat-badge" style="background:' + catColor + '18;color:' + catColor + '">' + escHtml(t.category) + '</span>' : '';
+    var prio = PRIORITY[t.priority] || PRIORITY['p1'];
+    var prioHtml = '<span class="todo-prio-badge" style="color:' + prio.color + '" title="' + prio.label + '">' + prio.icon + '</span>';
     var notesHtml = t.notes ? '<div class="todo-notes-preview">' + escHtml(t.notes).slice(0, 120) + '</div>' : '';
 
     // 时间行
@@ -91,13 +101,16 @@ function renderTaskList() {
     if (t.overdue) metaHtml += '<span class="todo-overdue-badge">逾期</span>';
     metaHtml += '</div>';
 
-    return '<div class="todo-item' + overdueCls + notStartedCls + '" ' + noteStyle(i) +
+    var rot = ((i * 137) % 7 - 3) * 0.5;
+    var bg = NOTE_COLORS[i % NOTE_COLORS.length];
+    return '<div class="todo-item' + overdueCls + notStartedCls + '" ' +
+      'style="border-left:3px solid ' + prio.color + ';--note-bg:' + bg + ';transform:rotate(' + rot.toFixed(1) + 'deg)" ' +
       ' onclick="openTaskEdit(\'' + t.id + '\')">' +
       '<button class="todo-check ' + sc + '" onclick="event.stopPropagation();cycleTaskStatus(\'' + t.id + '\')" title="切换状态">' +
         '<span class="mi">' + statusIcon[t.status] + '</span>' +
       '</button>' +
       '<div class="todo-body">' +
-        '<div class="todo-desc">' + escHtml(t.description) + catHtml + '</div>' +
+        '<div class="todo-desc">' + prioHtml + escHtml(t.description) + catHtml + '</div>' +
         metaHtml + notesHtml +
       '</div>' +
       '<button class="todo-del" onclick="event.stopPropagation();deleteTaskConfirm(\'' + t.id + '\')" title="删除"><span class="mi">close</span></button>' +
@@ -172,7 +185,10 @@ function renderKanbanCard(t) {
   var startStr = t.startTime ? fmtTime(t.startTime) : '';
   var deadlineStr = t.deadline ? fmtTime(t.deadline) : '';
   var overdueClass = t.overdue ? ' kanban-card-overdue' : '';
-  var catHtml = t.category ? '<span class="todo-cat-badge">' + escHtml(t.category) + '</span>' : '';
+  var prio = PRIORITY[t.priority] || PRIORITY['p1'];
+  var catColor = CAT_COLORS[t.category] || '#6b7280';
+  var catHtml = t.category ? '<span class="todo-cat-badge" style="background:' + catColor + '18;color:' + catColor + '">' + escHtml(t.category) + '</span>' : '';
+  var prioHtml = '<span style="font-size:.7rem;color:' + prio.color + ';margin-right:2px;" title="' + prio.label + '">' + prio.icon + '</span>';
   var statusBadge = '';
   if (t.overdue) statusBadge = '<span class="todo-overdue-badge">逾期</span>';
   else if (t.status === 'done') statusBadge = '<span class="kanban-done-badge">✓</span>';
@@ -196,7 +212,7 @@ function renderKanbanCard(t) {
     ' ondrop="kanbanDrop(event,\'' + t.id + '\')"' +
     ' ondragend="kanbanDragEnd(event)"' +
     ' onclick="openTaskEdit(\'' + t.id + '\')">' +
-    '<div class="kanban-card-desc">' + escHtml(t.description) + catHtml + statusBadge + '</div>' +
+    '<div class="kanban-card-desc">' + prioHtml + escHtml(t.description) + catHtml + statusBadge + '</div>' +
     metaHtml +
     (t.notes ? '<div class="kanban-card-notes">' + escHtml(t.notes).slice(0, 60) + '</div>' : '') +
   '</div>';
@@ -228,6 +244,7 @@ function kanbanDrop(e) {
   if (!newStatus) return;
   const task = allTasks.find(t => t.id === kanbanDragId);
   if (!task || task.status === newStatus) return;
+  Yiwei.sound.play(newStatus === 'done' ? 'task-done' : 'task-drag');
   updateTaskStatus(kanbanDragId, newStatus);
   kanbanDragId = null;
 }
@@ -245,6 +262,7 @@ async function addTask() { Yiwei.sound.play('task-add');
   var startEl = document.getElementById('taskStartInput');
   var deadlineEl = document.getElementById('taskDeadlineInput');
   var statusEl = document.getElementById('taskStatusInput');
+  var prioEl = document.getElementById('taskPriorityInput');
   var desc = descEl.value.trim();
   if (!desc) return;
   try {
@@ -254,6 +272,7 @@ async function addTask() { Yiwei.sound.play('task-add');
       body: JSON.stringify({
         description: desc,
         category: catEl.value.trim(),
+        priority: prioEl ? prioEl.value : 'p1',
         startTime: startEl && startEl.value ? new Date(startEl.value).toISOString() : '',
         deadline: deadlineEl && deadlineEl.value ? new Date(deadlineEl.value).toISOString() : '',
         status: statusEl.value,
@@ -285,6 +304,7 @@ async function cycleTaskStatus(id) {
   if (!task) return;
   const order = ['todo', 'doing', 'done', 'todo'];
   const next = order[order.indexOf(task.status) + 1];
+  Yiwei.sound.play(next === 'done' ? 'task-done' : 'task-status');
   await updateTaskStatus(id, next);
 }
 
@@ -313,6 +333,8 @@ function openTaskEdit(id) { Yiwei.sound.play("modal-open");
   document.getElementById('taskEditTitle').textContent = '编辑任务';
   document.getElementById('taskEditDesc').value = task.description;
   document.getElementById('taskEditCat').value = task.category || '';
+  var prioEl = document.getElementById('taskEditPriority');
+  if (prioEl) prioEl.value = task.priority || 'p1';
   document.getElementById('taskEditStartTime').value = task.startTime ? task.startTime.slice(0, 16) : '';
   document.getElementById('taskEditDeadline').value = task.deadline ? task.deadline.slice(0, 16) : '';
   document.getElementById('taskEditStatus').value = task.status;
@@ -337,6 +359,7 @@ async function saveTaskEdit() { Yiwei.sound.play("task-add");
       body: JSON.stringify({
         description: document.getElementById('taskEditDesc').value.trim(),
         category: document.getElementById('taskEditCat').value.trim(),
+        priority: document.getElementById('taskEditPriority')?.value || 'p1',
         startTime: startVal ? new Date(startVal).toISOString() : '',
         deadline: deadlineVal ? new Date(deadlineVal).toISOString() : '',
         status: document.getElementById('taskEditStatus').value,

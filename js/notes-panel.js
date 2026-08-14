@@ -276,6 +276,7 @@ async function openNote(id) {
 document.addEventListener('DOMContentLoaded', () => { const t = document.getElementById('noteTitle'); if (t) t.addEventListener('input', markDirty); });
 
 async function saveNote() { Yiwei.sound.play("note-save");
+  ensureEditorUnfolded();
   const title = document.getElementById('noteTitle').value.trim();
   const content = document.getElementById('noteContent').value;
   if (!title && !content) { toast('⚠️ 标题和内容不能都为空', 'warning'); return; }
@@ -557,6 +558,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // 打开/新建笔记时的 dock 隐藏逻辑已整合到 works-panel.js 的 openNote/newNote 覆写中
 
 async function saveNoteSilent() {
+  ensureEditorUnfolded();
   const title = document.getElementById('noteTitle').value.trim();
   const content = document.getElementById('noteContent').value;
   if (!title && !content) return;
@@ -956,6 +958,39 @@ window.toggleTypeSound = function() {
 
 (function() { var b = document.getElementById('btnTypeSound'); if (b && window._typeSoundEnabled) { b.style.color = 'var(--accent2)'; b.style.background = 'var(--nav-active-bg)'; } })();
 
+// ===== 工具栏 tooltip 改进：鼠标悬停时抑制原生 title，使用 CSS 自定义 tooltip =====
+(function() {
+  function suppressNativeTooltip(el) {
+    var title = el.getAttribute('title');
+    if (title) { el.dataset._title = title; el.removeAttribute('title'); }
+  }
+  function restoreNativeTooltip(el) {
+    var title = el.dataset._title;
+    if (title) { el.setAttribute('title', title); delete el.dataset._title; }
+  }
+  document.addEventListener('mouseover', function(e) {
+    var target = e.target.closest('.note-editor .toolbar [data-tooltip], .note-editor .toolbar [title], #drawToolbar [title], #drawToolbar [data-tooltip]');
+    if (target) suppressNativeTooltip(target);
+  }, true);
+  document.addEventListener('mouseout', function(e) {
+    var target = e.target.closest('.note-editor .toolbar [data-_title], #drawToolbar [data-_title]');
+    if (target) restoreNativeTooltip(target);
+  }, true);
+})();
+
+// ===== 笔记工具栏折叠 =====
+var toolbarCollapsed = false;
+window.toggleNoteToolbar = function() {
+  toolbarCollapsed = !toolbarCollapsed;
+  var tb = document.getElementById('noteToolbar');
+  var btn = document.getElementById('btnCollapseToolbar');
+  if (tb) {
+    tb.classList.toggle('collapsed', toolbarCollapsed);
+    try { Yiwei.sound.play(toolbarCollapsed ? 'btn-toggle-on' : 'btn-toggle-off'); } catch(e) {}
+  }
+  if (btn) { btn.textContent = toolbarCollapsed ? '▸' : '▾'; btn.title = toolbarCollapsed ? '展开工具栏' : '折叠工具栏'; }
+};
+
 // ===== 笔记番茄钟联动 =====
 window.startNotePomodoro = function() {
   if (!window.Yiwei || !window.Yiwei.pomodoro) { toast('⚠️ 番茄钟模块未加载', 'warning'); return; }
@@ -972,7 +1007,149 @@ window.startNotePomodoro = function() {
   toast('🍅「' + title + '」· 专注 25 分钟', 'info');
 };
 
-// ===== 批量修复: 打字音效 + 番茄钟鸡仔 + 画图占位符 + 首页 =====
+// ===== 编辑器折叠块机制 =====
+var editorFoldedMap = {}; // { headingLine: { originalContent, headingText } }
+var editorFoldEnabled = true;
+
+// 解析 textarea 中的标题行位置
+function findEditorSections(text) {
+  var lines = text.split('\n');
+  var sections = []; // [{ lineIndex, level, headingText, contentStart, contentEnd }]
+  for (var i = 0; i < lines.length; i++) {
+    var m = lines[i].match(/^(#{1,4})\s+(.+)/);
+    if (m) {
+      var prev = sections[sections.length - 1];
+      if (prev) prev.contentEnd = i - 1;
+      sections.push({ lineIndex: i, level: m[1].length, headingText: m[2], contentStart: i + 1, contentEnd: lines.length - 1 });
+    }
+  }
+  return sections;
+}
+
+window.toggleEditorFold = function() {
+  var ta = document.getElementById('noteContent');
+  if (!ta) return;
+  var text = ta.value;
+  var sections = findEditorSections(text);
+  var hasFolds = Object.keys(editorFoldedMap).length > 0;
+
+  if (hasFolds) {
+    // 展开所有折叠
+    var lines = text.split('\n');
+    var keys = Object.keys(editorFoldedMap).sort(function(a,b) { return parseInt(b) - parseInt(a); }); // 从后往前恢复
+    keys.forEach(function(key) {
+      var fold = editorFoldedMap[key];
+      var idx = parseInt(key);
+      // 找到折叠标记行
+      for (var i = idx + 1; i < lines.length; i++) {
+        if (lines[i] && lines[i].indexOf('▶ 折叠段') === 0) {
+          lines.splice(i, 1, fold.originalContent.split('\n'));
+          break;
+        }
+      }
+    });
+    ta.value = lines.join('\n');
+    editorFoldedMap = {};
+    toast('📖 已展开所有折叠段');
+  } else {
+    // 折叠所有 h3+ 级别的内容
+    var lines = text.split('\n');
+    var newLines = [];
+    var skipUntil = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (i <= skipUntil) continue;
+      var m = lines[i].match(/^(#{1,4})\s+(.+)/);
+      if (m && parseInt(m[1]) >= 2) {
+        var level = parseInt(m[1]);
+        // 找到下一个同级或更高级标题
+        var endLine = lines.length - 1;
+        for (var j = i + 1; j < lines.length; j++) {
+          var m2 = lines[j].match(/^(#{1,4})\s+/);
+          if (m2 && parseInt(m2[1]) <= level) { endLine = j - 1; break; }
+        }
+        if (endLine > i) {
+          var sectionLines = lines.slice(i + 1, endLine + 1);
+          var original = sectionLines.join('\n');
+          newLines.push(lines[i]); // 保留标题
+          var placeholder = '▶ 折叠段 (' + sectionLines.length + ' 行) — 点击工具栏 📖 展开';
+          newLines.push(placeholder);
+          editorFoldedMap[i] = { originalContent: original, headingText: m[2] };
+          skipUntil = endLine;
+          continue;
+        }
+      }
+      newLines.push(lines[i]);
+    }
+    ta.value = newLines.join('\n');
+    toast('📁 已折叠 ' + Object.keys(editorFoldedMap).length + ' 个段落（标题保留）');
+  }
+  markDirty();
+};
+
+// 保存前自动展开所有折叠
+function ensureEditorUnfolded() {
+  if (Object.keys(editorFoldedMap).length === 0) return;
+  var ta = document.getElementById('noteContent');
+  if (!ta) return;
+  var lines = ta.value.split('\n');
+  var keys = Object.keys(editorFoldedMap).sort(function(a,b) { return parseInt(b) - parseInt(a); });
+  keys.forEach(function(key) {
+    var fold = editorFoldedMap[key];
+    var idx = parseInt(key);
+    for (var i = idx + 1; i < lines.length; i++) {
+      if (lines[i] && lines[i].indexOf('▶ 折叠段') === 0) {
+        lines.splice(i, 1, fold.originalContent.split('\n'));
+        break;
+      }
+    }
+  });
+  ta.value = lines.join('\n');
+  editorFoldedMap = {};
+}
+
+// 包装 saveNote 和 saveNoteSilent 以自动展开折叠
+// 延迟到所有脚本加载完成后执行（works-panel.js 会覆盖 saveNote）
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    var _sn = window.saveNote;
+    var _ss = window.saveNoteSilent;
+    if (_sn) {
+      window.saveNote = function() {
+        ensureEditorUnfolded();
+        return _sn();
+      };
+    }
+    if (_ss) {
+      window.saveNoteSilent = function() {
+        ensureEditorUnfolded();
+        return _ss();
+      };
+    }
+  }, 500);
+});
+
+// 初始化编辑器折叠状态
+function initEditorFold() {
+  var toolbar = document.getElementById('noteToolbar');
+  if (!toolbar) return;
+  var existingBtn = document.getElementById('btnFoldSections');
+  if (!existingBtn) {
+    var btn = document.createElement('button');
+    btn.id = 'btnFoldSections';
+    btn.className = 'btn-sm toolbar-collapsible';
+    btn.title = '折叠段落 — 隐藏标题下方的正文内容，再次点击展开';
+    btn.innerHTML = '<span class="mi">unfold_less</span>';
+    btn.onclick = function() { window.toggleEditorFold(); };
+    // 插入在折叠按钮前面
+    var collapseBtn = document.getElementById('btnCollapseToolbar');
+    if (collapseBtn) {
+      toolbar.insertBefore(btn, collapseBtn);
+    } else {
+      toolbar.appendChild(btn);
+    }
+  }
+}
+setTimeout(initEditorFold, 400);
 
 // --- 1. 打字音效：简化且鲁棒 ---
 (function() {
@@ -1095,9 +1272,8 @@ window.startNotePomodoro = function() {
 
     var tb = document.createElement('div');
     tb.id = 'drawToolbar';
-    tb.style.cssText = 'display:flex;gap:4px;align-items:center;padding:5px 8px;background:var(--card);border:1px solid var(--border);border-radius:8px 8px 0 0;flex-wrap:wrap;max-height:200px;overflow:hidden;transition:max-height .3s var(--ease-smooth),padding .3s;';
+    tb.style.cssText = 'display:flex;gap:4px;align-items:center;padding:5px 8px;background:var(--card);border:1px solid var(--border);border-radius:8px 8px 0 0;flex-wrap:wrap;';
     tb.innerHTML =
-      '<button class="btn-sm draw-collapse-btn" title="折叠工具栏" style="flex-shrink:0;min-width:22px;padding:1px 3px;font-size:.6rem;">▾</button>' +
       '<span class="draw-tool-label" style="font-size:.65rem;color:var(--sub);">工具</span>' +
       [{v:'select',l:'🖱️',t:'选择/移动 — 点击选中元素，拖拽移动位置'},{v:'pen',l:'✏️',t:'画笔 — 自由绘制线条'},{v:'rect',l:'⬜',t:'矩形 — 拖拽绘制矩形框'},{v:'circle',l:'⭕',t:'圆形 — 拖拽绘制圆形'},{v:'line',l:'📏',t:'直线 — 拖拽绘制直线'},{v:'text',l:'📝',t:'文字 — 点击画布输入文字，回车确认'}].map(function(tl) {
         return '<button class="draw-tool-btn" style="padding:2px 5px;font-size:.7rem;border:2px solid '+(dTool===tl.v?'var(--accent)':'var(--border)')+';background:'+(dTool===tl.v?'var(--nav-active-bg)':'var(--bg)')+';color:var(--text);cursor:pointer;border-radius:3px;" data-tool="'+tl.v+'" title="'+tl.t+'">'+tl.l+'</button>';
@@ -1134,20 +1310,6 @@ window.startNotePomodoro = function() {
         });
         btn.style.borderColor = 'var(--accent)'; btn.style.background = 'var(--nav-active-bg)';
         return;
-      }
-      // 折叠按钮
-      if (e.target.closest('.draw-collapse-btn')) {
-        var labels = tb.querySelectorAll('.draw-tool-label, .draw-tool-btn, .btn-sm:not(.draw-collapse-btn), .btn.accent');
-        var btn2 = e.target.closest('.draw-collapse-btn');
-        if (tb.classList.contains('collapsed')) {
-          tb.classList.remove('collapsed');
-          tb.style.maxHeight = '200px'; tb.style.padding = '5px 8px';
-          btn2.textContent = '▾';
-        } else {
-          tb.classList.add('collapsed');
-          tb.style.maxHeight = '28px'; tb.style.padding = '2px 8px';
-          btn2.textContent = '▸';
-        }
       }
     });
 

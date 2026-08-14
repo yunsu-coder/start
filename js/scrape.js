@@ -199,6 +199,7 @@ async function startScrape() { Yiwei.sound.play("scrape-start");
     <div style="font-size:.7rem;color:var(--sub);margin-top:.2rem;">${totalImgs}图 · ${totalTxts}文本 · ${totalErrs}失败</div>`;
   btn.disabled = false; btn.textContent = '🚀 开始采集';
 
+  Yiwei.sound.play(done > 0 ? 'scrape-done' : 'toast-err');
   if (done > 0) {
     const labels = type === 'video' ? '个视频' : type === 'music' ? '个音频' : '张图片';
     const parts = [];
@@ -384,6 +385,7 @@ async function batchTransferScrape() {
 }
 
 async function batchDelScrape() {
+  Yiwei.sound.play('file-delete');
   const checked = document.querySelectorAll('.scrape-check:checked');
   if (!checked.length) { toast('⚠️ 请先勾选', 'warning'); return; }
   if (!confirm('确定删除选中的 ' + checked.length + ' 条采集记录？')) return;

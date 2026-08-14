@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="stylesheet" href="/public/fonts/material-icons.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
-<link rel="stylesheet" href="/css/styles.css?v=2">
+<link rel="stylesheet" href="/css/styles.css?v=3">
 <script src="/lib/jszip/dist/jszip.min.js" defer></script>
 </head>
 <body>
@@ -120,6 +120,7 @@
     <span id="selectedCount" style="color:var(--accent);"></span>
     <span style="color:var(--sub);font-size:.7rem;">· <kbd>Ctrl</kbd>+A 全选 · Shift+点击 范围 · <kbd>Ctrl</kbd>+点击 多选</span>
     <div class="batch-actions">
+      <button class="btn-sm" onclick="batchRename()"><span class="mi">drive_file_rename_outline</span> 重命名</button>
       <button class="btn-sm" onclick="batchMove()"><span class="mi">drive_file_move</span> 移动</button>
       <button class="btn-sm" onclick="batchDownload()"><span class="mi">download</span> 下载</button>
       <button class="btn-sm danger" onclick="batchDelete()"><span class="mi">delete</span> 删除</button>
@@ -153,9 +154,9 @@
         </select>
       </div>
       <!-- 搜索 + 新建（默认显示笔记模式） -->
-      <div style="display:flex;gap:.3rem;margin-bottom:.3rem;">
-        <input type="search" id="noteSearch" placeholder="搜索标题..." oninput="loadNotesList()" readonly onfocus="this.removeAttribute('readonly')" style="flex:1;padding:.4rem .6rem;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.8rem;outline:none;">
-        <button class="btn-sm" id="btnQuickNew" onclick="newNote()" style="white-space:nowrap;">＋</button>
+      <div style="display:flex;gap:.25rem;margin-bottom:.3rem;">
+        <input type="search" id="noteSearch" placeholder="搜索..." oninput="loadNotesList()" readonly onfocus="this.removeAttribute('readonly')" style="flex:1;min-width:0;padding:.35rem .45rem;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);font-size:.75rem;outline:none;">
+        <button class="btn-sm" id="btnQuickNew" onclick="newNote()" style="white-space:nowrap;padding:.25rem .4rem;flex-shrink:0;">＋</button>
         <button id="btnNewChapter" onclick="newNote()" style="display:none;border:none;border-radius:7px;background:var(--accent);color:#fff;font-size:.9rem;cursor:pointer;width:30px;height:30px;align-items:center;justify-content:center;flex-shrink:0;">
           <span class="mi" style="vertical-align:middle;font-size:1rem;">add</span>
         </button>
@@ -180,17 +181,18 @@
         <input type="number" id="noteChapterOrder" value="0" min="0" step="1" onchange="markDirty()" style="width:40px;padding:.2rem;border:1px solid var(--border);border-radius:5px;background:var(--card);color:var(--text);font-size:.72rem;outline:none;">
         </span>
       </div>
-      <div class="toolbar">
+      <div class="toolbar" id="noteToolbar">
         <button class="btn-sm btn-save-note" onclick="saveNote()" title="保存笔记 · Ctrl+S"><span class="mi">save</span></button>
         <button class="btn-sm" id="btnTogglePreview" onclick="togglePreview()" title="切换预览面板 · Ctrl+\"><span class="mi">visibility</span></button>
-        <button class="btn-sm" id="btnPomoNote" onclick="startNotePomodoro()" title="设置番茄钟专注此笔记"><span class="mi">timer</span></button>
-        <button class="btn-sm" id="btnTypeSound" onclick="toggleTypeSound()" title="打字音效 · 机械键盘伴乐"><span class="mi">keyboard</span></button>
-        <button class="btn-sm" onclick="toggleDrawing()" title="手绘画图 · 插入草图到笔记"><span class="mi">draw</span></button>
-        <button class="btn-sm" onclick="openNoteImport()" title="从文件中转站导入文本"><span class="mi">file_open</span></button>
-        <button class="btn-sm" onclick="exportNote('md')" title="导出为 Markdown 文件"><span class="mi">download</span></button>
-        <button class="btn-sm" onclick="exportNote('txt')" title="导出为纯文本 TXT"><span class="mi">description</span></button>
-        <button class="btn-sm" onclick="exportNote('pdf')" title="导出为 PDF 文档"><span class="mi">picture_as_pdf</span></button>
-        <button class="btn-sm" onclick="exportNote('docx')" title="导出为 Word 文档"><span class="mi">article</span></button>
+        <button class="btn-sm toolbar-collapsible" id="btnPomoNote" onclick="startNotePomodoro()" title="设置番茄钟专注此笔记"><span class="mi">timer</span></button>
+        <button class="btn-sm toolbar-collapsible" id="btnTypeSound" onclick="toggleTypeSound()" title="打字音效 · 机械键盘伴乐"><span class="mi">keyboard</span></button>
+        <button class="btn-sm toolbar-collapsible" onclick="toggleDrawing()" title="手绘画图 · 插入草图到笔记"><span class="mi">draw</span></button>
+        <button class="btn-sm toolbar-collapsible" onclick="openNoteImport()" title="从文件中转站导入文本"><span class="mi">file_open</span></button>
+        <button class="btn-sm toolbar-collapsible" onclick="exportNote('md')" title="导出为 Markdown 文件"><span class="mi">download</span></button>
+        <button class="btn-sm toolbar-collapsible" onclick="exportNote('txt')" title="导出为纯文本 TXT"><span class="mi">description</span></button>
+        <button class="btn-sm toolbar-collapsible" onclick="exportNote('pdf')" title="导出为 PDF 文档"><span class="mi">picture_as_pdf</span></button>
+        <button class="btn-sm toolbar-collapsible" onclick="exportNote('docx')" title="导出为 Word 文档"><span class="mi">article</span></button>
+        <button class="btn-sm" id="btnCollapseToolbar" onclick="toggleNoteToolbar()" title="折叠工具栏" style="margin-left:auto;font-size:.65rem;">▾</button>
       </div>
       <div class="split-pane">
         <div class="pane"><div class="pane-header">编辑</div><textarea id="noteContent" placeholder="开始写作…" oninput="renderLive();updateWordCount()" onkeydown="if(window._typeSoundEnabled){var n=Date.now();if(!this._tsLast||n-this._tsLast>70){this._tsLast=n;try{Yiwei.sound.play(event.key==='Enter'?'type-enter':'type-click')}catch(e){}}}"></textarea></div>
@@ -614,7 +616,7 @@
           <input type="text" id="apiChatModel" placeholder="grok-4.3">
           <div style="margin-top:.25rem;font-size:.72rem;color:var(--sub);">默认 Grok-4.3，需要图片识别填 <code>claude-sonnet-4-20250514</code></div>
         </div>
-        <div class="api-hint"><span class="mi">info</span><span><a href="https://yunwu.ai" target="_blank">云雾 yunwu.ai →</a> 支付宝/微信 1 元起，Grok + Claude 中转</span></div>
+        <div class="api-hint"><span class="mi">info</span><span><a href="https://apiyi.com" target="_blank">API易 apiyi.com →</a> 支付宝/微信 1 元起，Grok + Claude 中转</span></div>
       </div>
       <!-- 翻译 Tab -->
       <div id="apiTabTranslate" style="display:none;">
@@ -851,10 +853,10 @@
 <script src="/js/sound.js?v=3" defer></script>
 <script src="/js/core.js?v=1783190030" defer></script>
 <script src="/js/pomodoro.js?v=1783190030" defer></script>
-<script src="/js/files-panel.js?v=1780652200" defer></script>
-<script src="/js/notes-panel.js?v=1783190026" defer></script>
+<script src="/js/files-panel.js?v=1780652230" defer></script>
+<script src="/js/notes-panel.js?v=1783190036" defer></script>
 <script src="/js/reader-panel.js?v=1783190002" defer></script>
-<script src="/js/works-panel.js?v=1783190022" defer></script>
+<script src="/js/works-panel.js?v=1783190032" defer></script>
 <script src="/js/scrape.js?v=1777704498" defer></script>
 <script src="/js/wallpaper.js?v=1783050000" defer></script>
 <script src="/js/translate-panel.js?v=1780450482" defer></script>
@@ -925,12 +927,73 @@ window.ensureMermaid = function(cb) {
   </div>
 </div>
 
+<!-- 批量重命名弹窗 -->
+<div class="modal-overlay" id="renameModal" onclick="if(event.target===this)closeRenameModal()">
+  <div class="modal">
+    <div class="modal-header"><span class="m-title"><span class="mi">drive_file_rename_outline</span> 批量重命名</span><button class="m-close" onclick="closeRenameModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="margin-bottom:.8rem;font-size:.8rem;color:var(--sub);" id="renameFileCount"></div>
+    <div style="display:flex;gap:.4rem;margin-bottom:.8rem;flex-wrap:wrap;">
+      <button class="btn-sm rename-mode-btn active" data-mode="replace" onclick="switchRenameMode('replace')">查找替换</button>
+      <button class="btn-sm rename-mode-btn" data-mode="prefix" onclick="switchRenameMode('prefix')">前缀/后缀</button>
+      <button class="btn-sm rename-mode-btn" data-mode="seq" onclick="switchRenameMode('seq')">序号命名</button>
+      <button class="btn-sm rename-mode-btn" data-mode="ai" onclick="switchRenameMode('ai')" style="background:var(--accent);color:#fff;border-color:var(--accent);">🤖 AI 取名</button>
+    </div>
+    <!-- 查找替换 -->
+    <div class="rename-panel" id="renamePanelReplace">
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+        <input type="text" id="renameFind" placeholder="查找文本" style="flex:1;min-width:120px;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.82rem;">
+        <input type="text" id="renameReplace" placeholder="替换为（留空则删除）" style="flex:1;min-width:120px;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.82rem;">
+      </div>
+    </div>
+    <!-- 前缀后缀 -->
+    <div class="rename-panel" id="renamePanelPrefix" style="display:none;">
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+        <input type="text" id="renamePrefix" placeholder="添加前缀" style="flex:1;min-width:120px;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.82rem;">
+        <input type="text" id="renameSuffix" placeholder="添加后缀（不含扩展名）" style="flex:1;min-width:120px;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.82rem;">
+      </div>
+    </div>
+    <!-- 序号 -->
+    <div class="rename-panel" id="renamePanelSeq" style="display:none;">
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="renameSeqName" placeholder="基础名（如 photo）" style="flex:1;min-width:120px;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.82rem;">
+        <span style="font-size:.78rem;color:var(--sub);">起始</span>
+        <input type="number" id="renameSeqStart" value="1" min="0" style="width:60px;padding:.4rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.82rem;">
+        <span style="font-size:.78rem;color:var(--sub);">位数</span>
+        <input type="number" id="renameSeqPad" value="3" min="1" max="6" style="width:55px;padding:.4rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.82rem;">
+      </div>
+    </div>
+    <!-- AI -->
+    <div class="rename-panel" id="renamePanelAi" style="display:none;">
+      <div style="font-size:.78rem;color:var(--sub);margin-bottom:.5rem;">AI 会根据文件内容分析生成描述性文件名（需要已配置 API Key）</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="renameAiPrompt" placeholder="额外要求，如：用英文命名" style="flex:1;min-width:150px;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:.82rem;">
+        <button class="btn accent" onclick="executeAiRename()" id="btnAiRename">🤖 开始分析</button>
+      </div>
+      <div id="renameAiStatus" style="margin-top:.5rem;font-size:.78rem;"></div>
+    </div>
+    <!-- 预览 -->
+    <div style="margin-top:.8rem;">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;">
+        <span style="font-weight:600;font-size:.82rem;">预览</span>
+        <span style="font-size:.72rem;color:var(--sub);" id="renamePreviewCount"></span>
+      </div>
+      <div id="renamePreview" style="max-height:200px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.4rem;font-size:.78rem;font-family:monospace;"></div>
+    </div>
+    <div style="display:flex;gap:.5rem;margin-top:.8rem;justify-content:flex-end;">
+      <button class="btn" onclick="previewRename()">👁 预览</button>
+      <button class="btn accent" onclick="executeRename()" id="btnExecuteRename">✅ 执行重命名</button>
+    </div>
+  </div>
+</div>
+</div>
+
 <!-- 终端面板 — 右侧滑出 -->
 <div class="term-trigger" id="termTrigger" title="悬停打开终端"><span class="term-tab">▶</span></div>
 <div class="term-panel" id="termPanel">
   <div class="term-header">
     <span class="term-title">⚡ 终端</span>
-    <span style="font-size:.6rem;color:#484f58;">当前: <span id="termDirLabel">/</span></span>
+    <span style="font-size:.6rem;color:#484f58;">当前: <span id="termDirLabel">home</span></span>
     <button class="term-close" onclick="termToggle()">✕</button>
   </div>
   <div class="term-body" id="termBody">
