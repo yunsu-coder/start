@@ -38,7 +38,7 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
 
 // ===== 小启系统提示词 =====
@@ -279,6 +279,58 @@ function serveStatic(urlPath, res, req) {
   });
 }
 
+// ===== 认证与限流 =====
+
+// Basic Auth：.env 配置 AUTH_USER/AUTH_PASS 后全站启用（未配置则保持免认证，便于本地开发）
+const AUTH_USER = process.env.AUTH_USER || '';
+const AUTH_PASS = process.env.AUTH_PASS || '';
+const AUTH_ENABLED = !!(AUTH_USER && AUTH_PASS);
+
+function authOK(req) {
+  if (!AUTH_ENABLED) return true;
+  const h = req.headers['authorization'] || '';
+  const m = /^Basic\s+(.+)$/i.exec(h);
+  if (!m) return false;
+  let decoded = '';
+  try { decoded = Buffer.from(m[1], 'base64').toString('utf8'); } catch { return false; }
+  const idx = decoded.indexOf(':');
+  if (idx === -1) return false;
+  const a = Buffer.from(decoded.slice(0, idx));
+  const b = Buffer.from(AUTH_USER);
+  const c = Buffer.from(decoded.slice(idx + 1));
+  const d = Buffer.from(AUTH_PASS);
+  return a.length === b.length && c.length === d.length &&
+    crypto.timingSafeEqual(a, b) && crypto.timingSafeEqual(c, d);
+}
+
+// 敏感接口限流（每 IP 每分钟次数；X-Forwarded-For 由 Nginx 设置）
+const RATE_LIMITS = {
+  '/api/chat': 20,
+  '/api/scrape': 8,
+  '/api/tts': 20,
+  '/api/ocr': 10,
+  '/api/translate': 30,
+  '/api/translate/grammar': 20,
+  '/api/translate/detect': 30,
+  '/api/wallpaper/upscale': 10,
+  '/api/chat/upload-doc': 20,
+};
+const rateBuckets = new Map();
+function rateLimitOK(p, req) {
+  const limit = RATE_LIMITS[p];
+  if (!limit) return true;
+  const now = Date.now();
+  // 顺带清理过期桶，防止内存增长
+  if (rateBuckets.size > 500) {
+    for (const [k, v] of rateBuckets) if (now > v.reset) rateBuckets.delete(k);
+  }
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+  let rec = rateBuckets.get(ip);
+  if (!rec || now > rec.reset) { rec = { count: 0, reset: now + 60000 }; rateBuckets.set(ip, rec); }
+  rec.count++;
+  return rec.count <= limit;
+}
+
 // ===== 路由 =====
 
 const server = http.createServer(async (req, res) => {
@@ -288,6 +340,26 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const p = url.pathname;
   const m = req.method;
+
+  // --- 认证：未通过直接 401（浏览器会弹出 Basic Auth 登录框）---
+  if (!authOK(req)) {
+    res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Yiwei"', 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('401 Unauthorized');
+  }
+
+  // --- 限流：敏感接口每 IP 每分钟次数限制 ---
+  if (!rateLimitOK(p, req)) {
+    return sendJSON(res, 429, { error: '请求过于频繁，请稍后再试' });
+  }
+
+  // --- 配置状态（只返回有无，不泄露密钥）---
+  if (p === '/api/config/status') {
+    return sendJSON(res, 200, {
+      auth: AUTH_ENABLED,
+      chat: { hasServerKey: !!(process.env.CHAT_API_KEY || process.env.DEEPSEEK_API_KEY), model: process.env.CHAT_MODEL || '' },
+      trans: { hasServerKey: !!process.env.TRANS_API_KEY, model: process.env.TRANS_MODEL || '' },
+    });
+  }
 
   // --- 状态 ---
   if (p === '/api/status') return sendJSON(res, 200, getStatus());
