@@ -4034,3 +4034,11 @@ body[data-theme="light"] select {
 @media (max-width: 500px) {
   .term-panel { width: 100vw; right: -100vw; }
 }
+
+/* ===== 笔记历史版本 ===== */
+.history-item{display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.6rem .8rem;border-radius:var(--radius);background:var(--card);border:1px solid var(--border);margin-bottom:.4rem;transition:background .15s}
+.history-item:hover{background:var(--card-hover)}
+.history-info{min-width:0}
+.history-title{font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-time{font-size:.72rem;color:var(--sub)}
+.history-actions{display:flex;gap:.4rem;flex-shrink:0}

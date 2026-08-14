@@ -991,6 +991,83 @@ window.toggleNoteToolbar = function() {
   if (btn) { btn.textContent = toolbarCollapsed ? '▸' : '▾'; btn.title = toolbarCollapsed ? '展开工具栏' : '折叠工具栏'; }
 };
 
+// ===== 笔记历史版本 =====
+function escHtml(str) {
+  return String(str == null ? '' : str).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+window.openNoteHistory = async function() {
+  if (!currentNoteId) { toast('⚠️ 先保存笔记才能查看历史版本', 'warning'); return; }
+  try {
+    const resp = await fetch('/api/notes/' + currentNoteId + '/versions');
+    const list = await resp.json();
+    if (!list || !list.length) { toast('📭 暂无历史版本（下次保存后自动快照）', 'info'); return; }
+    renderHistoryModal(list);
+  } catch (e) { toast('❌ 加载历史版本失败', 'warning'); }
+};
+
+function renderHistoryModal(list) {
+  closeHistoryModal();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay show';
+  overlay.id = 'noteHistoryModal';
+  overlay.onclick = function(e) { if (e.target === overlay) closeHistoryModal(); };
+  const items = list.map(function(v) {
+    return '<div class="history-item" data-ts="' + v.ts + '">' +
+      '<div class="history-info">' +
+        '<div class="history-title">' + (escHtml(v.title) || '(未命名)') + '</div>' +
+        '<div class="history-time">' + new Date(v.time).toLocaleString() + ' · ' + (v.size > 1024 ? (v.size / 1024).toFixed(1) + 'K' : v.size + 'B') + '</div>' +
+      '</div>' +
+      '<div class="history-actions">' +
+        '<button class="btn-sm" onclick="viewHistoryVersion(\'' + v.ts + '\')">查看</button>' +
+        '<button class="btn-sm accent" onclick="restoreHistoryVersion(\'' + v.ts + '\')">恢复</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  overlay.innerHTML = '<div class="modal" style="max-width:560px;max-height:70vh;display:flex;flex-direction:column;">' +
+    '<div class="modal-header"><span class="m-title"><span class="mi">history</span> 历史版本（' + list.length + ' 份）</span>' +
+    '<button class="m-close" onclick="closeHistoryModal()">✕</button></div>' +
+    '<div class="modal-body" style="overflow:auto;flex:1;">' + items + '</div>' +
+    '<div class="modal-footer"><span style="font-size:.72rem;color:var(--sub);">每次保存自动快照，保留最近 10 份 · 查看后点「恢复」生效</span></div>' +
+  '</div>';
+  document.body.appendChild(overlay);
+}
+
+window.closeHistoryModal = function() {
+  const m = document.getElementById('noteHistoryModal');
+  if (m) m.remove();
+};
+
+window.viewHistoryVersion = async function(ts) {
+  if (!currentNoteId) return;
+  try {
+    const resp = await fetch('/api/notes/' + currentNoteId + '/versions/' + ts);
+    const note = await resp.json();
+    if (!note || note.error) { toast('❌ 版本不存在', 'warning'); return; }
+    const preview = document.getElementById('notePreview');
+    if (preview) {
+      preview.innerHTML = md2html(note.content || '');
+      toast('👀 正在预览 ' + (new Date(note.updated).toLocaleString()) + ' 的版本，点「恢复」生效', 'info');
+    }
+  } catch (e) { toast('❌ 加载版本失败', 'warning'); }
+};
+
+window.restoreHistoryVersion = async function(ts) {
+  if (!currentNoteId) return;
+  if (!confirm('确定恢复到该版本？当前内容将被覆盖（可再次从历史恢复）')) return;
+  try {
+    const resp = await fetch('/api/notes/' + currentNoteId + '/restore/' + ts, { method: 'POST' });
+    const data = await resp.json();
+    if (!data.ok) { toast('❌ 恢复失败: ' + (data.error || ''), 'warning'); return; }
+    await openNote(currentNoteId);
+    closeHistoryModal();
+    toast('✅ 已恢复到历史版本', 'info');
+  } catch (e) { toast('❌ 恢复失败', 'warning'); }
+};
+
+
 // ===== 笔记番茄钟联动 =====
 window.startNotePomodoro = function() {
   if (!window.Yiwei || !window.Yiwei.pomodoro) { toast('⚠️ 番茄钟模块未加载', 'warning'); return; }

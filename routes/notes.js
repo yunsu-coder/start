@@ -2,7 +2,8 @@
 const fs = require('fs');
 const path = require('path');
 const { listNotes, saveNote, getNote, deleteNote,
-        listWorks, saveWork, getWork, deleteWork, exportWork, WORKS_DIR } = require('../lib/storage');
+        listWorks, saveWork, getWork, deleteWork, exportWork, WORKS_DIR,
+        listNoteVersions, getNoteVersion, restoreNoteVersion } = require('../lib/storage');
 const rag = require('../lib/rag');
 const { sendJSON, readBody, parseJSON } = require('../lib/http');
 const { safeJoin } = require('../lib/safePath');
@@ -43,6 +44,33 @@ module.exports = {
       try {
         rag.indexDoc('note_' + result.id, 'note', result.id, body.title || '', body.content || '', '', result.updated || '');
       } catch (e) { console.error('[rag] 笔记索引更新失败:', e.message); }
+      sendJSON(res, 200, result);
+      return true;
+    }
+
+    // --- 笔记历史版本（须在通用 GET 之前匹配）---
+    if (p.startsWith('/api/notes/') && p.endsWith('/versions') && m === 'GET') {
+      const id = p.slice('/api/notes/'.length, -'/versions'.length);
+      sendJSON(res, 200, listNoteVersions(id));
+      return true;
+    }
+    if (p.match(/^\/api\/notes\/[^/]+\/versions\/[^/]+$/) && m === 'GET') {
+      const parts = p.slice('/api/notes/'.length).split('/versions/');
+      const id = parts[0], ts = parts[1].replace(/\.json$/, '');
+      const note = getNoteVersion(id, ts);
+      if (!note) { sendJSON(res, 404, { error: '版本不存在' }); return true; }
+      sendJSON(res, 200, note);
+      return true;
+    }
+    if (p.match(/^\/api\/notes\/[^/]+\/restore\/[^/]+$/) && m === 'POST') {
+      const parts = p.slice('/api/notes/'.length).split('/restore/');
+      const id = parts[0], ts = parts[1];
+      const result = restoreNoteVersion(id, ts);
+      if (result.error) { sendJSON(res, 404, result); return true; }
+      // 恢复后同步 RAG 索引
+      try {
+        rag.indexDoc('note_' + id, 'note', id, result.note.title || '', result.note.content || '', '', result.note.updated || '');
+      } catch (e) { console.error('[rag] 笔记恢复索引更新失败:', e.message); }
       sendJSON(res, 200, result);
       return true;
     }
