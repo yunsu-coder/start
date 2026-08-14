@@ -2,6 +2,7 @@
 # scripts/install-backup-launchd.sh — 安装每日 03:00 自动备份的 launchd 任务
 # 用法：bash scripts/install-backup-launchd.sh
 set -euo pipefail
+HOME="${HOME:-/Users/gzhysu}"
 
 PLIST="$HOME/Library/LaunchAgents/com.yiwei.backup.plist"
 SCRIPT="$(cd "$(dirname "$0")/.." && pwd)/scripts/backup.sh"

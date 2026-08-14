@@ -6,6 +6,7 @@
 #   - 每次运行生成一份完整快照，重复文件通过硬链接共享，占用极小
 #   - 恢复：把 ~/dashboard-backups/<日期>/ 下的目录拷回服务器对应位置
 set -uo pipefail
+HOME="${HOME:-/Users/gzhysu}"
 
 SERVER="ubuntu@152.32.254.202"
 DEST="/home/ubuntu/dashboard"
