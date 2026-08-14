@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { URL } = require('url');
+const { safeJoin, safeDecode } = require('./lib/safePath');
 
 const { getStatus, listFiles, uploadFiles, deleteFile, getFilePath, getFilePreview,
         listNotes, saveNote, getNote, deleteNote, parseMultipart, invalidateSizeCache, MAX_STORAGE,
@@ -247,9 +248,9 @@ function parseJSON(raw) { try { return JSON.parse(raw.toString()); } catch { ret
 // ===== 静态文件 =====
 
 function serveStatic(urlPath, res, req) {
-  const filePath = urlPath === '/' ? '/index.html' : decodeURIComponent(urlPath);
-  const fullPath = path.join(ROOT, filePath);
-  if (!fullPath.startsWith(ROOT)) { res.writeHead(403); return res.end(); }
+  const filePath = urlPath === '/' ? '/index.html' : safeDecode(urlPath);
+  const fullPath = safeJoin(ROOT, filePath.replace(/^\/+/, ''));
+  if (!fullPath) { res.writeHead(403); return res.end(); }
   const ext = path.extname(fullPath);
   const mime = {
     '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript',
@@ -379,13 +380,13 @@ const server = http.createServer(async (req, res) => {
     return sendJSON(res, 200, result);
   }
   if (p.startsWith('/api/files/') && m === 'DELETE') {
-    const name = decodeURIComponent(p.slice('/api/files/'.length));
+    const name = safeDecode(p.slice('/api/files/'.length));
     const result = deleteFile(name);
     if (result.error) return sendJSON(res, 404, result);
     return sendJSON(res, 200, result);
   }
   if (p.startsWith('/api/dl/')) {
-    const name = decodeURIComponent(p.slice('/api/dl/'.length));
+    const name = safeDecode(p.slice('/api/dl/'.length));
     const fp = getFilePath(name);
     if (!fp) { res.writeHead(404); return res.end('404'); }
     const stat = fs.statSync(fp);
@@ -402,7 +403,7 @@ const server = http.createServer(async (req, res) => {
 
   // 内联预览（支持 Range 请求——视频拖动/PDF 翻页的基础）
   if (p.startsWith('/api/view/')) {
-    const name = decodeURIComponent(p.slice('/api/view/'.length));
+    const name = safeDecode(p.slice('/api/view/'.length));
     const fp = getFilePath(name);
     if (!fp) { res.writeHead(404); return res.end('404'); }
     const ext = path.extname(name).toLowerCase();
@@ -444,7 +445,7 @@ const server = http.createServer(async (req, res) => {
 
   // M3U 播放列表（点击自动用 VLC/系统播放器打开）
   if (p.startsWith('/api/m3u/')) {
-    const name = decodeURIComponent(p.slice('/api/m3u/'.length));
+    const name = safeDecode(p.slice('/api/m3u/'.length));
     const fp = getFilePath(name);
     if (!fp) { res.writeHead(404); return res.end('404'); }
     const fileUrl = `https://${req.headers.host}/api/view/${encodeURIComponent(name)}`;
@@ -604,7 +605,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (p.startsWith('/api/preview/')) {
-    const name = decodeURIComponent(p.slice('/api/preview/'.length));
+    const name = safeDecode(p.slice('/api/preview/'.length));
     const preview = getFilePreview(name);
     if (!preview) { res.writeHead(404); return res.end('404'); }
     if (preview.redirect) { res.writeHead(302, { Location: preview.redirect }); return res.end(); }
@@ -623,7 +624,8 @@ const server = http.createServer(async (req, res) => {
     if (!['.mp4','.webm','.mov','.mkv','.avi','.flv','.wmv','.m4v'].includes(ext))
       return sendJSON(res, 400, { error: '仅支持视频文件' });
     const outName = body.name.replace(ext, '.m4a');
-    const outPath = path.join(FILES_DIR, outName);
+    const outPath = safeJoin(FILES_DIR, outName);
+    if (!outPath) return sendJSON(res, 403, { error: '非法路径' });
     // 已有则直接返回
     if (fs.existsSync(outPath))
       return sendJSON(res, 200, { name: outName, cached: true });
@@ -646,7 +648,8 @@ const server = http.createServer(async (req, res) => {
     if (!name) return sendJSON(res, 400, { error: 'name required' });
     const subDir = body.dir || '';
     const relPath = subDir ? subDir + '/' + name : name;
-    const fp = path.join(FILES_DIR, relPath);
+    const fp = safeJoin(FILES_DIR, relPath);
+    if (!fp) return sendJSON(res, 403, { error: '非法路径' });
     if (fs.existsSync(fp)) return sendJSON(res, 409, { error: 'file exists' });
     const dir = path.dirname(fp);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -660,9 +663,9 @@ const server = http.createServer(async (req, res) => {
     const body = parseJSON(await readBody(req));
     const name = (body.name || '').trim();
     if (!name) return sendJSON(res, 400, { error: 'name required' });
-    const fp = path.join(FILES_DIR, name);
+    const fp = safeJoin(FILES_DIR, name);
     // 安全检查：确保路径在 FILES_DIR 内
-    if (!fp.startsWith(FILES_DIR)) return sendJSON(res, 403, { error: 'forbidden' });
+    if (!fp) return sendJSON(res, 403, { error: 'forbidden' });
     const fileDir = path.dirname(fp);
     if (!fs.existsSync(fileDir)) fs.mkdirSync(fileDir, { recursive: true });
     if (body.append && fs.existsSync(fp)) {
@@ -678,10 +681,11 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/files/rename' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body?.name || !body?.newName) return sendJSON(res, 400, { error: '缺少参数' });
-    const srcPath = path.join(FILES_DIR, body.name);
-    if (!srcPath.startsWith(FILES_DIR)) return sendJSON(res, 403, { error: 'forbidden' });
+    const srcPath = safeJoin(FILES_DIR, body.name);
+    if (!srcPath) return sendJSON(res, 403, { error: 'forbidden' });
     if (!fs.existsSync(srcPath)) return sendJSON(res, 404, { error: '文件不存在' });
-    const destPath = path.join(path.dirname(srcPath), body.newName);
+    const destPath = safeJoin(path.dirname(srcPath), body.newName);
+    if (!destPath) return sendJSON(res, 403, { error: 'forbidden' });
     if (fs.existsSync(destPath)) return sendJSON(res, 409, { error: '目标文件已存在' });
     fs.renameSync(srcPath, destPath);
     invalidateSizeCache();
@@ -695,9 +699,10 @@ const server = http.createServer(async (req, res) => {
     if (!body?.name || body.targetDir === undefined) return sendJSON(res, 400, { error: '缺少参数' });
     const srcPath = getFilePath(body.name);
     if (!srcPath) return sendJSON(res, 404, { error: '文件不存在' });
-    const targetDir = path.join(FILES_DIR, body.targetDir || '');
+    const targetDir = safeJoin(FILES_DIR, body.targetDir || '');
+    if (!targetDir) return sendJSON(res, 403, { error: '非法路径' });
     if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-    const destPath = path.join(targetDir, path.basename(srcPath));
+    const destPath = safeJoin(targetDir, path.basename(srcPath));
     if (fs.existsSync(destPath) && !body.overwrite)
       return sendJSON(res, 409, { error: '目标位置已存在同名文件' });
     fs.renameSync(srcPath, destPath);
@@ -709,9 +714,10 @@ const server = http.createServer(async (req, res) => {
     if (!body?.name || body.targetDir === undefined) return sendJSON(res, 400, { error: '缺少参数' });
     const srcPath = getFilePath(body.name);
     if (!srcPath) return sendJSON(res, 404, { error: '文件不存在' });
-    const targetDir = path.join(FILES_DIR, body.targetDir || '');
+    const targetDir = safeJoin(FILES_DIR, body.targetDir || '');
+    if (!targetDir) return sendJSON(res, 403, { error: '非法路径' });
     if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-    const destPath = path.join(targetDir, path.basename(srcPath));
+    const destPath = safeJoin(targetDir, path.basename(srcPath));
     if (fs.existsSync(destPath) && !body.overwrite)
       return sendJSON(res, 409, { error: '目标位置已存在同名文件' });
     fs.copyFileSync(srcPath, destPath);
@@ -726,13 +732,13 @@ const server = http.createServer(async (req, res) => {
     return sendJSON(res, 200, result);
   }
   if (p.startsWith('/api/folders/') && m === 'DELETE') {
-    const name = decodeURIComponent(p.slice('/api/folders/'.length));
+    const name = safeDecode(p.slice('/api/folders/'.length));
     const result = deleteFolder(name);
     if (result.error) return sendJSON(res, 400, result);
     return sendJSON(res, 200, result);
   }
   if (p.startsWith('/api/folders/rename/') && m === 'PUT') {
-    const name = decodeURIComponent(p.slice('/api/folders/rename/'.length));
+    const name = safeDecode(p.slice('/api/folders/rename/'.length));
     const body = parseJSON(await readBody(req));
     if (!body?.newName) return sendJSON(res, 400, { error: '缺少新名称' });
     const result = renameFolder(name, body.newName);
@@ -744,13 +750,13 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/trash' && m === 'GET') return sendJSON(res, 200, listTrash());
   if (p === '/api/trash' && m === 'DELETE') return sendJSON(res, 200, emptyTrash());
   if (p.startsWith('/api/trash/item/') && m === 'DELETE') {
-    const name = decodeURIComponent(p.slice('/api/trash/item/'.length));
+    const name = safeDecode(p.slice('/api/trash/item/'.length));
     const result = deleteTrashItem(name);
     if (result.error) return sendJSON(res, 404, result);
     return sendJSON(res, 200, result);
   }
   if (p.startsWith('/api/trash/restore/') && m === 'POST') {
-    const name = decodeURIComponent(p.slice('/api/trash/restore/'.length));
+    const name = safeDecode(p.slice('/api/trash/restore/'.length));
     const result = restoreFromTrash(name);
     if (result.error) return sendJSON(res, 400, result);
     return sendJSON(res, 200, result);
@@ -838,7 +844,7 @@ const server = http.createServer(async (req, res) => {
     if (!work) return sendJSON(res, 404, { error: 'not found' });
     work.chapters = body.chapterIds;
     work.updated = new Date().toISOString();
-    fs.writeFileSync(path.join(__dirname, 'works', id + '.json'), JSON.stringify(work, null, 2));
+    fs.writeFileSync(safeJoin(path.join(__dirname, 'works'), id + '.json'), JSON.stringify(work, null, 2));
     return sendJSON(res, 200, { ok: true });
   }
   if (p.startsWith('/api/works/') && p.endsWith('/export') && m === 'GET') {
@@ -1011,9 +1017,9 @@ const server = http.createServer(async (req, res) => {
 
   // --- 壁纸缩略图（用于画廊快速加载）---
   if (p.startsWith('/api/wallpaper/thumb/')) {
-    const fname = decodeURIComponent(p.slice('/api/wallpaper/thumb/'.length));
-    const fpath = path.join(WALLPAPER_DIR, fname);
-    if (!fs.existsSync(fpath)) { res.writeHead(404); return res.end('404'); }
+    const fname = safeDecode(p.slice('/api/wallpaper/thumb/'.length));
+    const fpath = safeJoin(WALLPAPER_DIR, fname);
+    if (!fpath || !fs.existsSync(fpath)) { res.writeHead(404); return res.end('404'); }
     try {
       const sharp = require('sharp');
       const buf = await sharp(fpath).resize(300, 300, { fit: 'inside' }).jpeg({ quality: 72 }).toBuffer();
@@ -1031,9 +1037,9 @@ const server = http.createServer(async (req, res) => {
 
   // --- 壁纸专用：直接返回原文件（注意：上面的管理路由必须放在这个通用 catch-all 之前）---
   if (p.startsWith('/api/wallpaper/')) {
-    const fname = decodeURIComponent(p.slice('/api/wallpaper/'.length));
-    const fpath = path.join(WALLPAPER_DIR, fname);
-    if (!fpath.startsWith(WALLPAPER_DIR) || !fs.existsSync(fpath)) { res.writeHead(404); return res.end('404'); }
+    const fname = safeDecode(p.slice('/api/wallpaper/'.length));
+    const fpath = safeJoin(WALLPAPER_DIR, fname);
+    if (!fpath || !fs.existsSync(fpath)) { res.writeHead(404); return res.end('404'); }
     const ext = path.extname(fname).toLowerCase();
     const stat = fs.statSync(fpath);
     const mimes = { '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp','.svg':'image/svg+xml' };
@@ -1045,8 +1051,8 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/api/scrape/thumb/')) {
     const rest = p.slice('/api/scrape/thumb/'.length);
     const [sid, ...nameParts] = rest.split('/');
-    const imgPath = path.join(ROOT, 'scrape', sid, 'images', decodeURIComponent(nameParts.join('/')));
-    if (!fs.existsSync(imgPath)) { res.writeHead(404); return res.end('404'); }
+    const imgPath = safeJoin(path.join(ROOT, 'scrape'), sid + '/images/' + safeDecode(nameParts.join('/')));
+    if (!imgPath || !fs.existsSync(imgPath)) { res.writeHead(404); return res.end('404'); }
     try {
       const sharp = require('sharp');
       const buf = await sharp(imgPath).resize(200, 150, { fit: 'inside' }).jpeg({ quality: 70 }).toBuffer();
@@ -1062,9 +1068,9 @@ const server = http.createServer(async (req, res) => {
     const slashIdx = rest.indexOf('/');
     if (slashIdx === -1) { res.writeHead(404); return res.end('404'); }
     const sid = rest.slice(0, slashIdx);
-    const fname = decodeURIComponent(rest.slice(slashIdx + 1));
-    const fpath = path.join(ROOT, 'scrape', sid, fname);
-    if (!fs.existsSync(fpath)) { res.writeHead(404); return res.end('404'); }
+    const fname = safeDecode(rest.slice(slashIdx + 1));
+    const fpath = safeJoin(path.join(ROOT, 'scrape'), sid + '/' + fname);
+    if (!fpath || !fs.existsSync(fpath)) { res.writeHead(404); return res.end('404'); }
     const text = fs.readFileSync(fpath, 'utf8').slice(0, 30000);
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Length': Buffer.byteLength(text) });
     return res.end(text);
@@ -1074,8 +1080,8 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/api/scrape/img/')) {
     const rest = p.slice('/api/scrape/img/'.length);
     const [sid, ...nameParts] = rest.split('/');
-    const imgPath = path.join(ROOT, 'scrape', sid, 'images', decodeURIComponent(nameParts.join('/')));
-    if (!fs.existsSync(imgPath)) { res.writeHead(404); return res.end('404'); }
+    const imgPath = safeJoin(path.join(ROOT, 'scrape'), sid + '/images/' + safeDecode(nameParts.join('/')));
+    if (!imgPath || !fs.existsSync(imgPath)) { res.writeHead(404); return res.end('404'); }
     const ext = path.extname(imgPath).toLowerCase();
     const mimes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
       '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
@@ -1087,7 +1093,7 @@ const server = http.createServer(async (req, res) => {
 
   // --- VLC 实时转码流 ---
   if (p.startsWith('/api/stream/') && m === 'GET') {
-    const name = decodeURIComponent(p.slice('/api/stream/'.length));
+    const name = safeDecode(p.slice('/api/stream/'.length));
     const quality = url.searchParams.get('q') || '720';
     const fp = getFilePath(name);
     if (!fp) { res.writeHead(404); return res.end('404'); }
@@ -1549,8 +1555,8 @@ const server = http.createServer(async (req, res) => {
             // --- 静态文件 ---
   // 允许加载 node_modules 中的库
   if (p.startsWith('/lib/')) {
-    const libPath = path.join(ROOT, 'node_modules', p.slice(5));
-    if (!libPath.startsWith(path.join(ROOT, 'node_modules'))) { res.writeHead(403); return res.end(); }
+    const libPath = safeJoin(path.join(ROOT, 'node_modules'), p.slice(5));
+    if (!libPath) { res.writeHead(403); return res.end(); }
     if (!fs.existsSync(libPath)) { res.writeHead(404); return res.end('404'); }
     const ext = path.extname(libPath).toLowerCase();
     const mime = { '.js':'application/javascript','.css':'text/css','.wasm':'application/wasm','.map':'application/json' };
@@ -1597,8 +1603,8 @@ const server = http.createServer(async (req, res) => {
   }
   if (p.startsWith('/wallpaper/')) {
     const fname = p.slice('/wallpaper/'.length);
-    const fp = path.join(WALLPAPER_DIR, fname);
-    if (!fs.existsSync(fp)) { res.writeHead(404); return res.end(); }
+    const fp = safeJoin(WALLPAPER_DIR, fname);
+    if (!fp || !fs.existsSync(fp)) { res.writeHead(404); return res.end(); }
     const ext = path.extname(fp).toLowerCase();
     const mime = { '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.gif':'image/gif','.webp':'image/webp' };
     res.writeHead(200, { 'Content-Type': mime[ext]||'image/*', 'Cache-Control': 'public, max-age=31536000' });
