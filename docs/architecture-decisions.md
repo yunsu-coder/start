@@ -45,7 +45,7 @@
 
 ## 三、部署指南（重要）
 
-> ⚠️ 本次改造**已在 git 全部提交并推送 GitHub**，但**尚未部署到生产**（gzhysu.top）。
+> ✅ 本次改造**已于 2026-08-14 部署到生产**（gzhysu.top）并完成线上验证（401/认证/限流/全端点）。
 > 你的 Mac 上的 launchd sync-deploy.sh 会自动增量同步 css/js/lib/index.html/server.js，
 > 但**认证开关需要你手动配置**。按顺序执行：
 
@@ -107,7 +107,7 @@ curl -s https://gzhysu.top/api/config/status      # 返回 auth:true 及 key 有
 
 ## 五、遗留事项
 
-- [ ] 生产 .env 配置 AUTH_USER/AUTH_PASS（未配置前认证不生效）
+- [x] 生产 .env 已配置 AUTH_USER/AUTH_PASS（2026-08-14）
 - [ ] 安装并验证每日备份
 - [ ] Nginx 层可再叠加 rate_limit 与 fail2ban（Node 层限流已生效，可暂缓）
 - [ ] deploy.sh 的 scp 路径是硬编码的 Mac 路径，换机器需同步修改
