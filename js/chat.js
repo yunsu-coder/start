@@ -449,7 +449,7 @@ async function streamAgent() {
       body: JSON.stringify({
         messages: chatHistory,
         apiKey: chatCfg.apiKey || '', baseUrl: chatCfg.baseUrl || '',
-        model: chatCfg.model || 'grok-4.3',
+        model: chatCfg.model || '',
         compress: needCompress, keepRecent: KEEP_RECENT
       }),
     });

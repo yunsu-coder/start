@@ -541,10 +541,11 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/translate/detect' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body?.text) return sendJSON(res, 400, { error: '请输入文字' });
-    const apiKey = body.apiKey;
-    if (!apiKey) return sendJSON(res, 500, { error: '请先配置翻译 API Key（点击导航栏 AK → 翻译 Tab）' });
+    // 未传 Key 时使用服务端 .env（TRANS_API_KEY / TRANS_BASE_URL / TRANS_MODEL）
+    const apiKey = body.apiKey || process.env.TRANS_API_KEY;
+    if (!apiKey) return sendJSON(res, 500, { error: '请先配置翻译 API Key（服务端 .env 的 TRANS_API_KEY 或 AK 弹窗自定义 Key）' });
     try {
-      const lang = await detectLanguage(body.text, apiKey, body.baseUrl, body.model);
+      const lang = await detectLanguage(body.text, apiKey, body.baseUrl || process.env.TRANS_BASE_URL || DEFAULT_BASE_URL, body.model || process.env.TRANS_MODEL || DEFAULT_MODEL);
       return sendJSON(res, 200, { lang });
     } catch(e) {
       return sendJSON(res, 500, { error: e.message });
@@ -557,11 +558,12 @@ const server = http.createServer(async (req, res) => {
     if (!body?.text) return sendJSON(res, 400, { error: '请输入文字' });
     const from = body.from || 'auto';
     const to = body.to || 'zh';
-    const apiKey = body.apiKey;
-    if (!apiKey) return sendJSON(res, 500, { error: '请先配置翻译 API Key（点击导航栏 AK → 翻译 Tab）' });
+    // 未传 Key 时使用服务端 .env（TRANS_API_KEY / TRANS_BASE_URL / TRANS_MODEL）
+    const apiKey = body.apiKey || process.env.TRANS_API_KEY;
+    if (!apiKey) return sendJSON(res, 500, { error: '请先配置翻译 API Key（服务端 .env 的 TRANS_API_KEY 或 AK 弹窗自定义 Key）' });
 
     try {
-      const aiResp = await translateStream(body.text, from, to, apiKey, body.baseUrl, body.model);
+      const aiResp = await translateStream(body.text, from, to, apiKey, body.baseUrl || process.env.TRANS_BASE_URL || DEFAULT_BASE_URL, body.model || process.env.TRANS_MODEL || DEFAULT_MODEL);
 
       if (!aiResp.ok) {
         const err = await aiResp.text().catch(() => '');
@@ -616,15 +618,16 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/translate/grammar' && m === 'POST') {
     const body = parseJSON(await readBody(req));
     if (!body?.text) return sendJSON(res, 400, { error: '请输入文字' });
-    const apiKey = body.apiKey;
-    if (!apiKey) return sendJSON(res, 500, { error: '请先配置翻译 API Key（点击导航栏 AK → 翻译 Tab）' });
+    // 未传 Key 时使用服务端 .env（TRANS_API_KEY / TRANS_BASE_URL / TRANS_MODEL）
+    const apiKey = body.apiKey || process.env.TRANS_API_KEY;
+    if (!apiKey) return sendJSON(res, 500, { error: '请先配置翻译 API Key（服务端 .env 的 TRANS_API_KEY 或 AK 弹窗自定义 Key）' });
 
     try {
-      const aiResp = await fetch(body.baseUrl || DEFAULT_BASE_URL, {
+      const aiResp = await fetch(body.baseUrl || process.env.TRANS_BASE_URL || DEFAULT_BASE_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
         body: JSON.stringify({
-          model: body.model || DEFAULT_MODEL,
+          model: body.model || process.env.TRANS_MODEL || DEFAULT_MODEL,
           stream: false,
           messages: [{
             role: 'system',
@@ -1276,9 +1279,12 @@ const server = http.createServer(async (req, res) => {
 
     // 新流程：客户端传 apiKey + baseUrl（从 localStorage 读取），服务器直接转发
     // 旧版兜底：服务端 .env 中的 DEEPSEEK_API_KEY + 路由表
-    const chatModel = body.model || 'deepseek-chat';
-    const apiKey = body.apiKey || process.env.DEEPSEEK_API_KEY;
-    const chatBaseUrl = resolveBaseUrl(chatModel, body.baseUrl);
+    // 客户端未传 Key 时使用服务端 .env（CHAT_API_KEY / CHAT_BASE_URL / CHAT_MODEL）
+    const chatModel = body.model || process.env.CHAT_MODEL || 'deepseek-chat';
+    const apiKey = body.apiKey || process.env.CHAT_API_KEY || process.env.DEEPSEEK_API_KEY;
+    const chatBaseUrl = !body.apiKey && process.env.CHAT_BASE_URL
+      ? process.env.CHAT_BASE_URL
+      : resolveBaseUrl(chatModel, body.baseUrl);
 
     if (!apiKey) {
       res.writeHead(500, { 'Content-Type': 'application/json' });

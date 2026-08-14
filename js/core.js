@@ -1089,27 +1089,34 @@ document.addEventListener('keydown', e => {
   }
   function save(key, cfg) { localStorage.setItem(key, JSON.stringify(cfg)); }
 
-  // 对话 AI 配置（chat.js 使用）
+  // 对话 AI 配置（chat.js 使用）；未填自定义 Key 时交给服务端 .env（CHAT_API_KEY/CHAT_MODEL/CHAT_BASE_URL）
   window.getChatApiConfig = function () {
     const cfg = load(CHAT_KEY);
-    return { apiKey: cfg.apiKey || '', baseUrl: CHAT_BASE, model: cfg.model || CHAT_MODEL };
+    return { apiKey: cfg.apiKey || '', baseUrl: cfg.apiKey ? CHAT_BASE : '', model: cfg.model || '' };
   };
 
-  // 翻译配置（translate-panel.js / server.js 使用）
+  // 翻译配置（translate-panel.js 使用）；未填自定义 Key 时交给服务端 .env（TRANS_API_KEY/TRANS_MODEL/TRANS_BASE_URL）
   window.getApiConfig = function () {
     const cfg = load(TRANS_KEY);
-    return { apiKey: cfg.apiKey || '', baseUrl: cfg.baseUrl || TRANS_BASE, model: cfg.model || TRANS_MODEL };
+    return { apiKey: cfg.apiKey || '', baseUrl: cfg.baseUrl || '', model: cfg.model || '' };
   };
 
-  // API 按钮绿点（任一 key 已配置即点亮）
+  // API 按钮绿点（自定义 Key 或服务器内置 Key 任一可用即点亮）
+  var serverCfg = null;
+  function fetchServerCfg() {
+    fetch('/api/config/status').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (j) { serverCfg = j; updateDot(); }
+    }).catch(function () {});
+  }
   function updateDot() {
     const dot = document.getElementById('apiDot');
     if (!dot) return;
-    const hasChat = !!load(CHAT_KEY).apiKey;
-    const hasTrans = !!load(TRANS_KEY).apiKey;
-    if (hasChat || hasTrans) dot.classList.add('set'); else dot.classList.remove('set');
+    const hasCustom = !!load(CHAT_KEY).apiKey || !!load(TRANS_KEY).apiKey;
+    const hasServer = !!(serverCfg && (serverCfg.chat.hasServerKey || serverCfg.trans.hasServerKey));
+    if (hasCustom || hasServer) dot.classList.add('set'); else dot.classList.remove('set');
   }
   updateDot();
+  fetchServerCfg();
 
   // Tab 切换
   window.switchApiTab = function (tab) {

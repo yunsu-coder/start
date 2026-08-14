@@ -609,12 +609,12 @@
       <div id="apiTabChat">
         <div class="api-field">
           <label>API Key</label>
-          <input type="password" id="apiChatKey" placeholder="云雾 API Key" autocomplete="off">
+          <input type="password" id="apiChatKey" placeholder="云雾 API Key（留空 = 服务器内置 Key）" autocomplete="off">
         </div>
         <div class="api-field">
           <label>模型（可选）</label>
           <input type="text" id="apiChatModel" placeholder="grok-4.3">
-          <div style="margin-top:.25rem;font-size:.72rem;color:var(--sub);">默认 Grok-4.3，需要图片识别填 <code>claude-sonnet-4-20250514</code></div>
+          <div style="margin-top:.25rem;font-size:.72rem;color:var(--sub);">不填 Key 时使用服务器 .env 配置；自定义 Key 时默认 Grok-4.3，图片识别用 <code>claude-sonnet-4-20250514</code></div>
         </div>
         <div class="api-hint"><span class="mi">info</span><span><a href="https://apiyi.com" target="_blank">API易 apiyi.com →</a> 支付宝/微信 1 元起，Grok + Claude 中转</span></div>
       </div>
@@ -622,7 +622,7 @@
       <div id="apiTabTranslate" style="display:none;">
         <div class="api-field">
           <label>API Key</label>
-          <input type="password" id="apiTransKey" placeholder="智谱 API Key" autocomplete="off">
+          <input type="password" id="apiTransKey" placeholder="智谱 API Key（留空 = 服务器内置 Key）" autocomplete="off">
         </div>
         <div class="api-field">
           <label>接口地址（可选）</label>
