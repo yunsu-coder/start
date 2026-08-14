@@ -35,3 +35,9 @@ js/upscale-engine.js
 
 # 根目录壁纸大文件（已由 wallpapers/ 管理）
 【哲风壁纸】*
+
+# 运行时数据（本地/生产各自生成，不入库）
+analytics/
+tasks/
+.rag_index.json
+text_awesome-llm-apps_*
