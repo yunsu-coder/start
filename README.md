@@ -36,7 +36,7 @@
 ## 安全（2026-08 加固）
 
 - **认证**：.env 配置 `AUTH_USER`/`AUTH_PASS` 后全站 Basic Auth（详见 docs/architecture-decisions.md）
-- **人机验证**：未登录访问先过图形验证码（自托管 SVG，通过后 30 天免验；VLC/播放器直连端点豁免）
+- **人机验证**：滑块拼图验证码（sharp 切图 + 缺口对齐，误差 ≤5px）+ 独立登录页 login.html；通过后 30 天免验，VLC/播放器直连端点走 Basic Auth
 - **API Key**：支持服务端 .env 配置（CHAT_API_KEY/TRANS_API_KEY），前端留空即用服务器 Key
 - **路径安全**：所有文件接口统一 safeJoin 校验，防目录穿越
 - **限流**：chat/scrape/tts/ocr/translate 等敏感接口按 IP 限流

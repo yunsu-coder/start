@@ -105,7 +105,19 @@ curl -s https://gzhysu.top/api/config/status      # 返回 auth:true 及 key 有
 | 笔记/文件被误删 | 服务器回收站（.trash）→ 每日备份（~/dashboard-backups）→ 笔记历史版本 |
 | 线上坏了紧急恢复 | 服务器上有部署前的旧文件（重启前的磁盘状态），或 git revert 后重新部署 |
 
-## 四·五、图形验证码（2026-08-16 新增）
+## 四·五、登录与人机验证（2026-08-16 升级）
+
+### 滑块拼图验证码
+- sharp 服务端切图：随机背景（8 张自生成图）中挖缺口 + 生成带圆弧凸起的拼图块，拖动对齐误差 ≤5px 通过
+- 一次性使用、3 分钟过期、接口独立限流（new 20/min、verify 20/min）
+- 通过后 HMAC 签名 Cookie 30 天免验
+
+### 独立登录页（login.html）
+- 玻璃拟态 UI：滑块拼图 + 用户名/密码表单 + 记住我，登录成功发会话 Cookie（yiwei_auth，30 天 / 会话级）
+- 暴力破解锁定：同 IP 10 分钟内失败 5 次 → 锁 10 分钟
+- Basic Auth 保留：VLC/系统播放器等原生客户端直连端点（/api/m3u /api/view /api/dl /api/stream /wallpaper）走原生登录框
+
+## 四·五·旧、图形验证码（已废弃，被滑块拼图替代）
 
 - 自托管 SVG 验证码（lib/captcha.js，零外部依赖），未登录访问先过人机验证，通过后 30 天内免验（HMAC 签名 Cookie）
 - 一次性使用、5 分钟过期、易混淆字符剔除（0/O/1/I/L）、干扰线+噪点
