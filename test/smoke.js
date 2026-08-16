@@ -4,7 +4,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
-const PORT = 3199;
+const PORT = parseInt(process.env.SMOKE_PORT || '3199', 10);
 const BASE = 'http://127.0.0.1:' + PORT;
 const USE_AUTH = process.argv.includes('--auth');
 const SMOKE_USER = process.env.SMOKE_USER || 'yiwei';
@@ -34,34 +34,54 @@ async function req(method, p, body, headers = {}) {
 async function main() {
   console.log('== 冒烟测试开始' + (USE_AUTH ? '（带认证）' : '') + ' ==');
 
-  // 认证 + 人机验证
+  // 认证 + 滑块拼图 + 会话登录
   if (USE_AUTH) {
     const anon = await fetch(BASE + '/api/status');
-    ok('无凭据 → 401', anon.status === 401);
+    ok('无凭据 → 登录页（200）', anon.status === 200 && (await anon.text()).includes('一苇'));
 
-    // 图形验证码流程
-    const c0 = await fetch(BASE + '/');
-    const c0t = await c0.text();
-    ok('未认证 → 验证码页面（401 + HTML）', c0.status === 401 && c0t.includes('人机验证'));
-
+    // 滑块拼图流程
     const c1 = await fetch(BASE + '/captcha/new');
     const c1j = await c1.json();
-    ok('GET /captcha/new → token+svg', c1.status === 200 && !!c1j.token && typeof c1j.svg === 'string' && c1j.svg.includes('<svg'));
+    ok('GET /captcha/new → token+bg+piece+y', c1.status === 200 && !!c1j.token && typeof c1j.bg === 'string' && typeof c1j.piece === 'string' && typeof c1j.y === 'number');
+    ok('TEST_MODE 暴露 target', typeof c1j.target === 'number');
 
-    const wrong = await fetch(BASE + '/captcha/verify', { method: 'POST', headers: J, body: JSON.stringify({ token: c1j.token, answer: '0000' }) });
-    ok('错误答案 → 400', wrong.status === 400);
+    const bgR = await fetch(BASE + c1j.bg);
+    ok('验证码背景图', bgR.status === 200 && (bgR.headers.get('content-type') || '').includes('image'));
+    const pieceR = await fetch(BASE + c1j.piece);
+    ok('拼图块图片', pieceR.status === 200 && (pieceR.headers.get('content-type') || '').includes('png'));
+
+    const wrong = await fetch(BASE + '/captcha/verify', { method: 'POST', headers: J, body: JSON.stringify({ token: c1j.token, offset: 0 }) });
+    ok('错误位置 → 400', wrong.status === 400);
 
     const c2 = await fetch(BASE + '/captcha/new');
     const c2j = await c2.json();
-    const right = await fetch(BASE + '/captcha/verify', { method: 'POST', headers: J, body: JSON.stringify({ token: c2j.token, answer: c2j.code || 'NOCODE' }) });
+    const right = await fetch(BASE + '/captcha/verify', { method: 'POST', headers: J, body: JSON.stringify({ token: c2j.token, offset: c2j.target }) });
     const sc = right.headers.get('set-cookie') || '';
-    ok('正确答案 → 200 + 验证 Cookie', right.status === 200 && sc.includes('yiwei_captcha'));
+    ok('正确位置 → 200 + 验证 Cookie', right.status === 200 && sc.includes('yiwei_captcha'));
 
-    const withCookie = await fetch(BASE + '/api/status', { headers: { Cookie: sc.split(';')[0] } });
-    ok('带验证 Cookie（未登录）→ 401 + 登录框头', withCookie.status === 401 && (withCookie.headers.get('www-authenticate') || '').startsWith('Basic'));
+    // 登录接口
+    const noCap = await fetch(BASE + '/login', { method: 'POST', headers: J, body: JSON.stringify({ user: SMOKE_USER, pass: SMOKE_PASS }) });
+    ok('无验证 Cookie 登录 → 403', noCap.status === 403);
+    const bad = await fetch(BASE + '/login', { method: 'POST', headers: { ...J, Cookie: sc.split(';')[0] }, body: JSON.stringify({ user: SMOKE_USER, pass: 'wrong-pass' }) });
+    ok('错误密码 → 401', bad.status === 401);
+    const good = await fetch(BASE + '/login', { method: 'POST', headers: { ...J, Cookie: sc.split(';')[0] }, body: JSON.stringify({ user: SMOKE_USER, pass: SMOKE_PASS, remember: true }) });
+    const ac = good.headers.get('set-cookie') || '';
+    ok('正确凭据 → 200 + 会话 Cookie', good.status === 200 && ac.includes('yiwei_auth'));
+
+    // 会话 Cookie 访问 API
+    const sess = await fetch(BASE + '/api/status', { headers: { Cookie: ac.split(';')[0] } });
+    ok('会话 Cookie 访问 API → 200', sess.status === 200);
 
     const media = await fetch(BASE + '/api/m3u/whatever.mp3');
-    ok('媒体直连端点免验证码 → 401 + 登录框头', media.status === 401 && (media.headers.get('www-authenticate') || '').startsWith('Basic'));
+    ok('媒体直连端点 → 401 + 登录框头', media.status === 401 && (media.headers.get('www-authenticate') || '').startsWith('Basic'));
+
+    // 暴力破解锁定：累计 5 次失败后锁定（限 /login，不影响 Basic 认证的 API）
+    let lockStatus = 0;
+    for (let i = 0; i < 4; i++) {
+      const r = await fetch(BASE + '/login', { method: 'POST', headers: { ...J, Cookie: sc.split(';')[0] }, body: JSON.stringify({ user: SMOKE_USER, pass: 'bad-pass-' + i }) });
+      lockStatus = r.status;
+    }
+    ok('累计 5 次登录失败 → 429 锁定', lockStatus === 429);
   }
 
   // 首页与静态

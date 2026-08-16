@@ -73,97 +73,27 @@ function isMediaEndpoint(p) {
          p.startsWith('/api/scrape/thumb/') || p.startsWith('/api/scrape/img/');
 }
 
-function serveCaptchaPage(res) {
-  const html = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>人机验证 · 一苇</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
-background:radial-gradient(1200px 600px at 20% -10%,rgba(120,140,255,.18),transparent),radial-gradient(900px 500px at 110% 110%,rgba(255,120,180,.12),transparent),#10131c;color:#e8ebf2}
-.card{width:min(360px,92vw);padding:2rem 1.6rem;border-radius:1.2rem;background:rgba(30,35,50,.72);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.09);box-shadow:0 20px 60px rgba(0,0,0,.4)}
-h1{font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem}
-h1 .mi{font-size:1.3rem}
-p.sub{font-size:.8rem;color:#9aa3b5;margin-bottom:1.4rem;line-height:1.5}
-.capbox{display:flex;gap:.6rem;align-items:center;margin-bottom:.8rem}
-.capbox svg{width:140px;height:52px;border-radius:.6rem;border:1px solid rgba(255,255,255,.12);background:#f2f5f9;flex-shrink:0}
-.capbox button{border:1px solid rgba(255,255,255,.14);background:transparent;color:#9aa3b5;border-radius:.6rem;padding:.5rem .6rem;cursor:pointer;font-size:.78rem;transition:.15s}
-.capbox button:hover{color:#fff;border-color:rgba(255,255,255,.4)}
-input{width:100%;padding:.65rem .8rem;border-radius:.6rem;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.25);color:#fff;font-size:1rem;letter-spacing:.35em;text-transform:uppercase;text-align:center;outline:none}
-input:focus{border-color:#6d8bff}
-.btn{width:100%;margin-top:.8rem;padding:.7rem;border:none;border-radius:.6rem;background:linear-gradient(135deg,#5a7bff,#7a5cff);color:#fff;font-size:.95rem;font-weight:600;cursor:pointer;transition:.15s}
-.btn:hover{filter:brightness(1.1)}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.msg{font-size:.76rem;margin-top:.6rem;min-height:1.1em;text-align:center}
-.msg.err{color:#ff7d7d}.msg.ok{color:#6fd08c}
-.foot{margin-top:1.2rem;font-size:.7rem;color:#667085;text-align:center}
-</style>
-</head>
-<body>
-<div class="card">
-  <h1>🔐 人机验证</h1>
-  <p class="sub">输入图中字符以证明你不是机器人。<br>通过后浏览器会弹出登录框。</p>
-  <div class="capbox"><span id="capimg"></span><button id="refresh" type="button">换一张</button></div>
-  <input id="answer" placeholder="输入 4 位字符" maxlength="6" autocomplete="off" spellcheck="false">
-  <button class="btn" id="submit" type="button">验证并继续</button>
-  <div class="msg" id="msg"></div>
-  <div class="foot">一苇 · 个人启动页 · gzhysu.top</div>
-</div>
-<script>
-(function () {
-  var token = '';
-  var img = document.getElementById('capimg');
-  var inp = document.getElementById('answer');
-  var msg = document.getElementById('msg');
-  var btn = document.getElementById('submit');
-  function load() {
-    img.textContent = '加载中…';
-    fetch('/captcha/new').then(function (r) { return r.json(); }).then(function (d) {
-      token = d.token;
-      img.innerHTML = d.svg;
-      inp.value = '';
-      inp.focus();
-      msg.textContent = '';
-      msg.className = 'msg';
-    }).catch(function () { img.textContent = '加载失败，点击换一张'; });
+// ===== 登录页与验证码 =====
+
+function serveLogin(res) {
+  try {
+    const html = fs.readFileSync(path.join(ROOT, 'login.html'), 'utf-8');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'SAMEORIGIN' });
+    res.end(html);
+  } catch (e) {
+    res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('login.html 缺失: ' + e.message);
   }
-  function submit() {
-    var val = inp.value.trim();
-    if (val.length < 4) { msg.textContent = '请输入完整字符'; msg.className = 'msg err'; return; }
-    btn.disabled = true;
-    fetch('/captcha/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: token, answer: val })
-    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); }).then(function (r) {
-      if (r.ok) {
-        msg.textContent = '✓ 验证通过，即将弹出登录框…';
-        msg.className = 'msg ok';
-        setTimeout(function () { location.reload(); }, 600);
-      } else {
-        msg.textContent = (r.d && r.d.error) || '验证码错误或已过期';
-        msg.className = 'msg err';
-        btn.disabled = false;
-        load();
-      }
-    }).catch(function () { msg.textContent = '网络错误，请重试'; msg.className = 'msg err'; btn.disabled = false; });
-  }
-  document.getElementById('refresh').addEventListener('click', load);
-  document.getElementById('submit').addEventListener('click', submit);
-  inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
-  load();
-})();
-</script>
-</body>
-</html>`;
-  res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'SAMEORIGIN' });
-  res.end(html);
 }
 
-// ===== 路由（按注册顺序匹配，各模块内部保持原有路由优先级）=====
+// 无需验证码的"机器直连"端点：VLC/系统播放器等原生客户端走 401 登录框
+function isMediaEndpoint(p) {
+  return p.startsWith('/api/m3u/') || p.startsWith('/api/view/') || p.startsWith('/api/dl/') ||
+         p.startsWith('/api/stream/') || p.startsWith('/api/wallpaper/') || p.startsWith('/wallpaper/') ||
+         p.startsWith('/api/scrape/thumb/') || p.startsWith('/api/scrape/img/');
+}
+
+// ===== 路由（按注册顺序匹配// ===== 路由（按注册顺序匹配，各模块内部保持原有路由优先级）=====
 
 const routes = [
   require('./routes/misc'),
@@ -184,34 +114,71 @@ const server = http.createServer(async (req, res) => {
   const p = url.pathname;
   const m = req.method;
 
-  // --- 认证门：未登录先过人机验证，再弹登录框 ---
+  // --- 认证门：未登录 → 滑块拼图登录页 / 验证码接口 / 401 弹窗 ---
   if (!authOK(req)) {
-    // 验证码接口（未认证可访问，单独限流）
+    // 验证码背景图
+    if (p.startsWith('/captcha/bg/') && m === 'GET') {
+      const fname = p.slice('/captcha/bg/'.length);
+      const fp = safeJoin(captcha.BG_DIR, fname);
+      if (!fp || !fs.existsSync(fp)) { res.writeHead(404); return res.end('404'); }
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' });
+      return fs.createReadStream(fp).pipe(res);
+    }
+    // 拼图块
+    if (p.startsWith('/captcha/piece/') && m === 'GET') {
+      const token = p.slice('/captcha/piece/'.length);
+      const rec = captcha.getRecord(token);
+      if (!rec) { res.writeHead(404); return res.end('404'); }
+      try {
+        const buf = await captcha.renderPiece(rec);
+        res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+        return res.end(buf);
+      } catch (e) { console.error('[captcha] piece:', e.message); res.writeHead(500); return res.end('piece error'); }
+    }
+    // 生成拼图
     if (p === '/captcha/new' && m === 'GET') {
       if (!rateLimitOK(p, req)) return sendJSON(res, 429, { error: '请求过于频繁，请稍后再试' });
-      const { token, code, svg } = captcha.generate();
-      const payload = { token, svg };
-      if (process.env.CAPTCHA_TEST_MODE === '1') payload.code = code; // 仅测试环境
+      const { token, bg, x, y } = captcha.generate();
+      const payload = { token, bg, piece: '/captcha/piece/' + token, y, bgW: captcha.BG_W, bgH: captcha.BG_H, pieceW: captcha.PIECE_W, pieceH: captcha.PIECE_H };
+      if (process.env.CAPTCHA_TEST_MODE === '1') payload.target = x; // 仅测试环境
       return sendJSON(res, 200, payload);
     }
+    // 校验滑块位置
     if (p === '/captcha/verify' && m === 'POST') {
       if (!rateLimitOK(p, req)) return sendJSON(res, 429, { error: '请求过于频繁，请稍后再试' });
       const body = parseJSON(await readBody(req));
-      if (!captcha.verify(body?.token, body?.answer)) {
-        return sendJSON(res, 400, { error: '验证码错误或已过期' });
+      if (!captcha.verify(body?.token, body?.offset)) {
+        return sendJSON(res, 400, { error: '验证失败，请重试' });
       }
-      captcha.setCookie(res);
+      captcha.setCaptchaCookie(res);
+      return sendJSON(res, 200, { ok: true });
+    }
+    // 登录（需已通过滑块验证 + 凭据正确 → 会话 Cookie）
+    if (p === '/login' && m === 'POST') {
+      if (!rateLimitOK(p, req)) return sendJSON(res, 429, { error: '请求过于频繁，请稍后再试' });
+      if (captcha.loginLocked(req)) return sendJSON(res, 429, { error: '尝试次数过多，请 10 分钟后再试' });
+      const body = parseJSON(await readBody(req));
+      if (!captcha.captchaCookieOK(req)) return sendJSON(res, 403, { error: '请先完成滑块拼图验证' });
+      if (!captcha.verifyLogin(body?.user, body?.pass)) {
+        captcha.recordLoginFail(req);
+        return sendJSON(res, 401, { error: '用户名或密码错误' });
+      }
+      captcha.clearLoginFails(req);
+      captcha.setAuthCookie(res, body.user, body.remember !== false);
       return sendJSON(res, 200, { ok: true });
     }
 
-    // 已通过人机验证（或原生播放器直连端点）→ 401 弹出登录框
-    if (captcha.cookieOK(req) || isMediaEndpoint(p)) {
+    // favicon 供登录页使用
+    if (p === '/favicon.svg') return serveStatic(p, res, req);
+
+    // 媒体直连端点 → 401 弹出原生登录框（VLC 等）
+    if (isMediaEndpoint(p)) {
       res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Yiwei"', 'Content-Type': 'text/plain; charset=utf-8' });
       return res.end('401 Unauthorized');
     }
 
-    // 未通过人机验证 → 验证码页面
-    return serveCaptchaPage(res);
+    // 其余：登录页（滑块拼图 + 表单）
+    return serveLogin(res);
   }
 
   // --- 限流：敏感接口每 IP 每分钟次数限制 ---

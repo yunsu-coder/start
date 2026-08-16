@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>登录 · 一苇</title>
+<link rel="icon" href="/favicon.svg">
+<style>
+:root{--bg:#0c0f18;--card:rgba(22,26,38,.66);--border:rgba(255,255,255,.09);--text:#e8ebf2;--sub:#98a1b3;--accent:#6d8bff;--accent2:#a78bfa;--ok:#35c07a;--err:#ff6b6b}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+/* 背景光斑 */
+.blob{position:fixed;border-radius:50%;filter:blur(90px);opacity:.32;pointer-events:none;animation:float 16s ease-in-out infinite}
+.blob.b1{width:46vmax;height:46vmax;background:#3b4fd8;top:-18vmax;left:-12vmax}
+.blob.b2{width:38vmax;height:38vmax;background:#7a3b69;bottom:-14vmax;right:-10vmax;animation-delay:-6s}
+.blob.b3{width:22vmax;height:22vmax;background:#1f6f8b;top:38%;left:58%;animation-delay:-11s}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(4vmax,3vmax) scale(1.12)}}
+/* 卡片 */
+.card{position:relative;z-index:2;width:min(400px,92vw);max-height:92vh;overflow-y:auto;padding:2.2rem 2rem 1.6rem;border-radius:1.4rem;background:var(--card);backdrop-filter:blur(22px) saturate(1.2);-webkit-backdrop-filter:blur(22px) saturate(1.2);border:1px solid var(--border);box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06)}
+.brand{display:flex;align-items:center;gap:.8rem;margin-bottom:.2rem}
+.brand img{width:44px;height:44px;border-radius:.9rem;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+.brand h1{font-size:1.5rem;letter-spacing:.04em}
+.brand .sub{font-size:.74rem;color:var(--sub);letter-spacing:.12em;text-transform:uppercase}
+.tag{font-size:.82rem;color:var(--sub);margin:.3rem 0 1.4rem;padding-left:.2rem}
+.tag em{font-style:normal;color:var(--accent)}
+/* 拼图验证码 */
+.capwrap{border:1px solid var(--border);border-radius:.9rem;overflow:hidden;background:rgba(0,0,0,.3);transition:border-color .3s,box-shadow .3s}
+.capwrap.ok{border-color:rgba(53,192,122,.55);box-shadow:0 0 0 3px rgba(53,192,122,.12)}
+.capwrap.err{border-color:rgba(255,107,107,.55);animation:shake .4s}
+@keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+.capimg{position:relative;width:320px;height:180px;margin:0 auto;user-select:none;-webkit-user-select:none}
+.capimg .bgimg{width:320px;height:180px;display:block;pointer-events:none}
+.capimg .piece{position:absolute;top:0;left:0;width:50px;height:50px;pointer-events:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5));transition:left .02s linear}
+.capimg .cap-tip{position:absolute;left:0;right:0;bottom:0;padding:.32rem .5rem;font-size:.7rem;text-align:center;color:#dfe4ee;background:linear-gradient(transparent,rgba(0,0,0,.55))}
+.capimg .cap-tip.ok{color:#b9f3d4;background:linear-gradient(transparent,rgba(35,120,80,.6))}
+.slider{position:relative;height:44px;background:rgba(255,255,255,.04);border-top:1px solid var(--border);cursor:pointer;user-select:none;-webkit-user-select:none}
+.slider .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,rgba(109,139,255,.25),rgba(167,139,250,.25));transition:width .05s linear}
+.slider .track{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:.74rem;color:var(--sub);pointer-events:none;transition:opacity .25s}
+.slider .thumb{position:absolute;top:50%;transform:translateY(-50%);left:0;width:46px;height:34px;border-radius:.55rem;background:linear-gradient(135deg,#5a7bff,#8a5cff);display:flex;align-items:center;justify-content:center;font-size:1.05rem;box-shadow:0 4px 14px rgba(90,123,255,.45);transition:left .02s linear}
+.slider.ok .thumb{background:linear-gradient(135deg,#2bb673,#1f9d63);box-shadow:0 4px 14px rgba(43,182,115,.45)}
+/* 表单 */
+.form{margin-top:1.15rem;display:flex;flex-direction:column;gap:.8rem}
+.field{position:relative}
+.field .icon{position:absolute;left:.8rem;top:50%;transform:translateY(-50%);font-size:.95rem;opacity:.55;pointer-events:none}
+.field input{width:100%;padding:.72rem .9rem .72rem 2.5rem;border-radius:.7rem;border:1px solid var(--border);background:rgba(0,0,0,.28);color:var(--text);font-size:.95rem;outline:none;transition:border-color .2s,box-shadow .2s}
+.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(109,139,255,.15)}
+.field input::placeholder{color:#5c6472}
+.remember{display:flex;align-items:center;gap:.45rem;font-size:.78rem;color:var(--sub);cursor:pointer;user-select:none}
+.remember input{accent-color:var(--accent);width:.95rem;height:.95rem}
+.btn-login{width:100%;margin-top:.3rem;padding:.78rem;border:none;border-radius:.7rem;font-size:.98rem;font-weight:600;color:#fff;background:linear-gradient(135deg,#5a7bff,#7a5cff);cursor:pointer;box-shadow:0 8px 22px rgba(90,123,255,.35);transition:filter .15s,transform .1s}
+.btn-login:hover{filter:brightness(1.08)}
+.btn-login:active{transform:scale(.985)}
+.btn-login:disabled{opacity:.45;cursor:not-allowed;filter:saturate(.4)}
+.msg{min-height:1.4em;margin-top:.7rem;font-size:.78rem;text-align:center}
+.msg.err{color:var(--err)}.msg.ok{color:var(--ok)}
+.foot{margin-top:1.1rem;padding-top:.8rem;border-top:1px solid var(--border);font-size:.7rem;color:#5c6472;text-align:center;letter-spacing:.05em}
+.foot a{color:#7d8bb5;text-decoration:none}
+@media (max-width:380px){.capimg,.capimg .bgimg{width:280px;height:157px}.capimg .piece{width:44px;height:44px}}
+</style>
+</head>
+<body>
+<div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+
+<div class="card">
+  <div class="brand">
+    <img src="/favicon.svg" alt="一苇">
+    <div><h1>一苇</h1><div class="sub">Yiwei · Dashboard</div></div>
+  </div>
+  <div class="tag">个人启动页 · 由 <em>小启</em> 守护</div>
+
+  <!-- 滑块拼图验证 -->
+  <div class="capwrap" id="capwrap">
+    <div class="capimg" id="capimg">
+      <img class="bgimg" id="capBg" alt="验证码背景" draggable="false">
+      <img class="piece" id="capPiece" alt="拼图块" draggable="false">
+      <div class="cap-tip" id="capTip">拖动下方滑块，将拼图对齐缺口</div>
+    </div>
+    <div class="slider" id="slider">
+      <div class="fill" id="sliderFill"></div>
+      <div class="track" id="sliderTrack">按住滑块，拖动完成拼图</div>
+      <div class="thumb" id="sliderThumb">⇢</div>
+    </div>
+  </div>
+
+  <!-- 登录表单 -->
+  <form class="form" id="loginForm" autocomplete="on">
+    <div class="field">
+      <span class="icon">👤</span>
+      <input id="user" name="username" autocomplete="username" placeholder="用户名" spellcheck="false">
+    </div>
+    <div class="field">
+      <span class="icon">🔒</span>
+      <input id="pass" name="password" type="password" autocomplete="current-password" placeholder="密码">
+    </div>
+    <label class="remember"><input type="checkbox" id="remember" checked> 记住我（30 天内免登录）</label>
+    <button class="btn-login" id="loginBtn" type="submit" disabled>登 录</button>
+  </form>
+  <div class="msg" id="msg"></div>
+  <div class="foot">gzhysu.top · 安全验证后登录 · 失败 5 次将临时锁定</div>
+</div>
+
+<script>
+(function () {
+  var token = '', verified = false;
+  var capwrap = document.getElementById('capwrap');
+  var pieceImg = document.getElementById('capPiece');
+  var bgImg = document.getElementById('capBg');
+  var capTip = document.getElementById('capTip');
+  var slider = document.getElementById('slider');
+  var thumb = document.getElementById('sliderThumb');
+  var fill = document.getElementById('sliderFill');
+  var trackHint = document.getElementById('sliderTrack');
+  var msg = document.getElementById('msg');
+  var form = document.getElementById('loginForm');
+  var btn = document.getElementById('loginBtn');
+
+  var BG_W = 320, BG_H = 180, PIECE_W = 50, PIECE_H = 50, PIECE_Y = 0;
+  var dragging = false, startX = 0, startLeft = 0, curLeft = 0;
+
+  function showMsg(text, cls) { msg.textContent = text; msg.className = 'msg ' + (cls || ''); }
+
+  function loadCaptcha() {
+    verified = false;
+    btn.disabled = true;
+    capwrap.classList.remove('ok', 'err');
+    capTip.textContent = '拖动下方滑块，将拼图对齐缺口';
+    capTip.className = 'cap-tip';
+    slider.classList.remove('ok');
+    thumb.style.left = '0px'; fill.style.width = '0px';
+    trackHint.style.opacity = '1';
+    pieceImg.style.display = 'none';
+    fetch('/captcha/new').then(function (r) { return r.json(); }).then(function (d) {
+      token = d.token;
+      PIECE_Y = d.y;
+      if (d.bgW) BG_W = d.bgW;
+      if (d.pieceW) PIECE_W = d.pieceW;
+      bgImg.src = d.bg + '?t=' + Date.now();
+      pieceImg.src = d.piece + '?t=' + Date.now();
+      pieceImg.style.display = '';
+      pieceImg.style.top = d.y + 'px';
+      pieceImg.style.left = '0px';
+      curLeft = 0; startLeft = 0;
+    }).catch(function () { showMsg('验证码加载失败，请刷新页面重试', 'err'); });
+  }
+
+  function moveTo(clientX) {
+    var rect = slider.getBoundingClientRect();
+    var thumbW = thumb.offsetWidth;
+    var maxLeft = rect.width - thumbW;
+    var left = Math.max(0, Math.min(maxLeft, clientX - rect.left - thumbW / 2));
+    thumb.style.left = left + 'px';
+    fill.style.width = (left + thumbW) + 'px';
+    // 映射到拼图偏移
+    var maxOff = BG_W - PIECE_W;
+    curLeft = Math.round((left / maxLeft) * maxOff);
+    pieceImg.style.left = curLeft + 'px';
+  }
+
+  slider.addEventListener('pointerdown', function (e) {
+    if (verified) return;
+    dragging = true;
+    startX = e.clientX;
+    startLeft = curLeft;
+    slider.setPointerCapture(e.pointerId);
+    trackHint.style.opacity = '0';
+  });
+  slider.addEventListener('pointermove', function (e) {
+    if (!dragging || verified) return;
+    moveTo(e.clientX);
+  });
+  slider.addEventListener('pointerup', function (e) {
+    if (!dragging || verified) return;
+    dragging = false;
+    if (Math.abs(curLeft - startLeft) < 6) { /* 未拖动，视为未操作 */ return; }
+    fetch('/captcha/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token, offset: curLeft })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d.ok) {
+        verified = true;
+        slider.classList.add('ok');
+        capwrap.classList.add('ok');
+        thumb.textContent = '✓';
+        capTip.textContent = '✓ 验证通过，请登录';
+        capTip.className = 'cap-tip ok';
+        btn.disabled = false;
+        showMsg('', '');
+      } else {
+        capwrap.classList.add('err');
+        showMsg(d.error || '验证失败，请重试', 'err');
+        setTimeout(function () { capwrap.classList.remove('err'); loadCaptcha(); }, 500);
+      }
+    }).catch(function () { showMsg('网络错误，请重试', 'err'); });
+  });
+  slider.addEventListener('pointercancel', function () { dragging = false; });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!verified) { showMsg('请先完成滑块拼图验证', 'err'); return; }
+    var user = document.getElementById('user').value.trim();
+    var pass = document.getElementById('pass').value;
+    var remember = document.getElementById('remember').checked;
+    if (!user || !pass) { showMsg('请输入用户名和密码', 'err'); return; }
+    btn.disabled = true;
+    fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: user, pass: pass, remember: remember })
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); }).then(function (r) {
+      if (r.ok) {
+        showMsg('✓ 登录成功，正在进入…', 'ok');
+        setTimeout(function () { location.href = '/'; }, 400);
+      } else {
+        showMsg(r.d.error || '用户名或密码错误', 'err');
+        btn.disabled = !verified;
+        // 失败后刷新拼图，重新验证
+        setTimeout(loadCaptcha, 600);
+      }
+    }).catch(function () { showMsg('网络错误，请重试', 'err'); btn.disabled = !verified; });
+  });
+
+  document.getElementById('pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') form.dispatchEvent(new Event('submit')); });
+
+  loadCaptcha();
+})();
+</script>
+</body>
+</html>
