@@ -39,7 +39,6 @@
 - **API Key**：支持服务端 .env 配置（CHAT_API_KEY/TRANS_API_KEY），前端留空即用服务器 Key
 - **路径安全**：所有文件接口统一 safeJoin 校验，防目录穿越
 - **限流**：chat/scrape/tts/ocr/translate 等敏感接口按 IP 限流
-- **备份**：scripts/backup.sh 每日拉取服务器数据快照（保留 14 份）
 - **笔记历史**：每次保存自动快照（10 份），工具栏「历史」可查看/恢复
 
 ## 快速开始

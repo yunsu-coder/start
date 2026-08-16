@@ -108,6 +108,6 @@ curl -s https://gzhysu.top/api/config/status      # 返回 auth:true 及 key 有
 ## 五、遗留事项
 
 - [x] 生产 .env 已配置 AUTH_USER/AUTH_PASS（2026-08-14）
-- [ ] 安装并验证每日备份
+- [x] 备份功能按用户决定停用（2026-08-16）：launchd 任务已卸载、备份目录已清理；scripts/ 保留备用
 - [ ] Nginx 层可再叠加 rate_limit 与 fail2ban（Node 层限流已生效，可暂缓）
 - [ ] deploy.sh 的 scp 路径是硬编码的 Mac 路径，换机器需同步修改
