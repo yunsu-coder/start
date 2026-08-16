@@ -105,6 +105,13 @@ curl -s https://gzhysu.top/api/config/status      # 返回 auth:true 及 key 有
 | 笔记/文件被误删 | 服务器回收站（.trash）→ 每日备份（~/dashboard-backups）→ 笔记历史版本 |
 | 线上坏了紧急恢复 | 服务器上有部署前的旧文件（重启前的磁盘状态），或 git revert 后重新部署 |
 
+## 四·五、图形验证码（2026-08-16 新增）
+
+- 自托管 SVG 验证码（lib/captcha.js，零外部依赖），未登录访问先过人机验证，通过后 30 天内免验（HMAC 签名 Cookie）
+- 一次性使用、5 分钟过期、易混淆字符剔除（0/O/1/I/L）、干扰线+噪点
+- VLC/系统播放器等原生客户端直连端点（/api/m3u /api/view /api/dl /api/stream /wallpaper 等）豁免验证码，走 401 登录框
+- 验证码接口独立限流（new 30/分钟、verify 20/分钟），防枚举
+
 ## 五、遗留事项
 
 - [x] 生产 .env 已配置 AUTH_USER/AUTH_PASS（2026-08-14）

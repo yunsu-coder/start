@@ -7,7 +7,9 @@ const ROOT = path.join(__dirname, '..');
 const PORT = 3199;
 const BASE = 'http://127.0.0.1:' + PORT;
 const USE_AUTH = process.argv.includes('--auth');
-const AUTH = { Authorization: 'Basic ' + Buffer.from('yiwei:test-pass-123').toString('base64') };
+const SMOKE_USER = process.env.SMOKE_USER || 'yiwei';
+const SMOKE_PASS = process.env.SMOKE_PASS || 'test-pass-123';
+const AUTH = { Authorization: 'Basic ' + Buffer.from(SMOKE_USER + ':' + SMOKE_PASS).toString('base64') };
 const H = USE_AUTH ? AUTH : {};
 const J = { 'Content-Type': 'application/json' };
 
@@ -32,10 +34,34 @@ async function req(method, p, body, headers = {}) {
 async function main() {
   console.log('== 冒烟测试开始' + (USE_AUTH ? '（带认证）' : '') + ' ==');
 
-  // 认证
+  // 认证 + 人机验证
   if (USE_AUTH) {
     const anon = await fetch(BASE + '/api/status');
     ok('无凭据 → 401', anon.status === 401);
+
+    // 图形验证码流程
+    const c0 = await fetch(BASE + '/');
+    const c0t = await c0.text();
+    ok('未认证 → 验证码页面（401 + HTML）', c0.status === 401 && c0t.includes('人机验证'));
+
+    const c1 = await fetch(BASE + '/captcha/new');
+    const c1j = await c1.json();
+    ok('GET /captcha/new → token+svg', c1.status === 200 && !!c1j.token && typeof c1j.svg === 'string' && c1j.svg.includes('<svg'));
+
+    const wrong = await fetch(BASE + '/captcha/verify', { method: 'POST', headers: J, body: JSON.stringify({ token: c1j.token, answer: '0000' }) });
+    ok('错误答案 → 400', wrong.status === 400);
+
+    const c2 = await fetch(BASE + '/captcha/new');
+    const c2j = await c2.json();
+    const right = await fetch(BASE + '/captcha/verify', { method: 'POST', headers: J, body: JSON.stringify({ token: c2j.token, answer: c2j.code || 'NOCODE' }) });
+    const sc = right.headers.get('set-cookie') || '';
+    ok('正确答案 → 200 + 验证 Cookie', right.status === 200 && sc.includes('yiwei_captcha'));
+
+    const withCookie = await fetch(BASE + '/api/status', { headers: { Cookie: sc.split(';')[0] } });
+    ok('带验证 Cookie（未登录）→ 401 + 登录框头', withCookie.status === 401 && (withCookie.headers.get('www-authenticate') || '').startsWith('Basic'));
+
+    const media = await fetch(BASE + '/api/m3u/whatever.mp3');
+    ok('媒体直连端点免验证码 → 401 + 登录框头', media.status === 401 && (media.headers.get('www-authenticate') || '').startsWith('Basic'));
   }
 
   // 首页与静态
