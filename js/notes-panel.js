@@ -250,6 +250,8 @@ async function newNote() { Yiwei.sound.play("note-new");
   document.getElementById('noteEditor').style.display = 'flex';
   document.getElementById('noteTitle').value = '';
   document.getElementById('noteContent').value = '';
+  const nc2 = document.getElementById('noteCategory');
+  if (nc2) nc2.value = '';
   document.getElementById('notePreview').innerHTML = '';
   document.getElementById('noteTitle').focus();
   document.querySelectorAll('.note-list-item').forEach(el => el.classList.remove('active'));
@@ -266,6 +268,8 @@ async function openNote(id) {
     document.getElementById('noteEditor').style.display = 'flex';
     document.getElementById('noteTitle').value = note.title;
     document.getElementById('noteContent').value = note.content;
+    const nc = document.getElementById('noteCategory');
+    if (nc) nc.value = note.category || '';
     renderLive(); markClean();
     document.querySelectorAll('.note-list-item').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.note-list-item').forEach(el => { if (el.getAttribute('onclick')?.includes(id)) el.classList.add('active'); });
@@ -273,7 +277,7 @@ async function openNote(id) {
   } catch(e) { localStorage.removeItem('last_note_id'); console.error(e); }
 }
 
-document.addEventListener('DOMContentLoaded', () => { const t = document.getElementById('noteTitle'); if (t) t.addEventListener('input', markDirty); });
+document.addEventListener('DOMContentLoaded', () => { const t = document.getElementById('noteTitle'); if (t) t.addEventListener('input', markDirty); loadCategories(); });
 
 async function saveNote() { Yiwei.sound.play("note-save");
   ensureEditorUnfolded();
@@ -282,6 +286,7 @@ async function saveNote() { Yiwei.sound.play("note-save");
   if (!title && !content) { toast('⚠️ 标题和内容不能都为空', 'warning'); return; }
   const body = { title: title || '无标题', content };
   if (currentNoteId) body.id = currentNoteId;
+  body.category = document.getElementById('noteCategory')?.value || '';
   try {
     const r = await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await r.json();
@@ -566,6 +571,7 @@ async function saveNoteSilent() {
   if (currentNoteId) body.id = currentNoteId;
   // 发送作品关联字段，防止自动保存清空关联
   const workId = document.getElementById('noteWorkId')?.value || '';
+  body.category = document.getElementById('noteCategory')?.value || '';
   const chapterOrder = parseInt(document.getElementById('noteChapterOrder')?.value || '0', 10);
   body.workId = workId;
   if (chapterOrder > 0) body.chapterOrder = chapterOrder;
@@ -1065,6 +1071,104 @@ window.restoreHistoryVersion = async function(ts) {
     closeHistoryModal();
     toast('✅ 已恢复到历史版本', 'info');
   } catch (e) { toast('❌ 恢复失败', 'warning'); }
+};
+
+
+// ===== 笔记自定义分类 =====
+var catList = [];
+const CAT_COLORS = ['#6d8bff', '#f472b6', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#38bdf8', '#fb923c'];
+
+async function loadCategories() {
+  try {
+    const r = await fetch('/api/notes/categories');
+    catList = await r.json() || [];
+  } catch (e) { catList = []; }
+  const filter = document.getElementById('catFilter');
+  if (filter) {
+    const cur = filter.value;
+    filter.innerHTML = '<option value="">🗂 全部分类</option>' +
+      catList.map(function (c) { return '<option value="' + escHtml(c.id) + '">' + escHtml(c.name) + '</option>'; }).join('');
+    if (cur) filter.value = cur;
+  }
+  const sel = document.getElementById('noteCategory');
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">未分类</option>' +
+      catList.map(function (c) { return '<option value="' + escHtml(c.id) + '">' + escHtml(c.name) + '</option>'; }).join('');
+    if (cur) sel.value = cur;
+  }
+}
+
+window.filterByCat = function (catId) {
+  loadNotesList();
+};
+
+// 分类管理弹窗（动态构建）
+window.showCatDialog = function () {
+  closeCatDialog();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay show';
+  overlay.id = 'catModal';
+  overlay.onclick = function (e) { if (e.target === overlay) closeCatDialog(); };
+  const rows = catList.map(function (c) {
+    const swatches = CAT_COLORS.map(function (col) {
+      return '<span class="cat-swatch' + (c.color === col ? ' active' : '') + '" style="background:' + col + '" onclick="catPickColor(this,\'' + c.id + '\')"></span>';
+    }).join('');
+    return '<div class="cat-item" data-id="' + escHtml(c.id) + '">' +
+      '<span class="cat-dot" style="background:' + escHtml(c.color) + '"></span>' +
+      '<input class="cat-name" value="' + escHtml(c.name) + '" onchange="catRename(\'' + c.id + '\', this.value)">' +
+      '<div class="cat-swatches">' + swatches + '</div>' +
+      '<button class="btn-sm" onclick="catDelete(\'' + c.id + '\')" title="删除分类">🗑</button>' +
+    '</div>';
+  }).join('');
+  const addSwatches = CAT_COLORS.map(function (col) {
+    return '<span class="cat-swatch' + (col === CAT_COLORS[0] ? ' active' : '') + '" style="background:' + col + '" onclick="catPickAdd(this)"></span>';
+  }).join('');
+  overlay.innerHTML = '<div class="modal" style="max-width:460px;max-height:70vh;display:flex;flex-direction:column;">' +
+    '<div class="modal-header"><span class="m-title"><span class="mi">label</span> 笔记分类管理</span>' +
+    '<button class="m-close" onclick="closeCatDialog()">✕</button></div>' +
+    '<div class="modal-body" style="overflow:auto;flex:1;">' +
+      '<div class="cat-add-row">' +
+        '<input id="catNewName" placeholder="新分类名称" maxlength="12">' +
+        '<div class="cat-swatches" id="catNewSwatches">' + addSwatches + '</div>' +
+        '<button class="btn accent btn-sm" onclick="catAdd()">添加</button>' +
+      '</div>' +
+      (rows || '<div class="empty-state" style="padding:1rem;text-align:center;">还没有分类</div>') +
+    '</div>' +
+    '<div class="modal-footer"><span style="font-size:.72rem;color:var(--sub);">分类仅用于整理笔记，删除分类不影响笔记本身</span></div>' +
+  '</div>';
+  document.body.appendChild(overlay);
+};
+
+window.closeCatDialog = function () { const m = document.getElementById('catModal'); if (m) m.remove(); };
+let catAddColor = CAT_COLORS[0];
+window.catPickAdd = function (el) {
+  catAddColor = el.style.background;
+  document.querySelectorAll('#catNewSwatches .cat-swatch').forEach(function (x) { x.classList.remove('active'); });
+  el.classList.add('active');
+};
+window.catPickColor = function (el, id) {
+  fetch('/api/notes/categories/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ color: el.style.background }) })
+    .then(function () { loadCategories().then(showCatDialog).then(loadNotesList); });
+};
+window.catAdd = function () {
+  const name = document.getElementById('catNewName').value.trim();
+  if (!name) { toast('⚠️ 请输入分类名', 'warning'); return; }
+  fetch('/api/notes/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, color: catAddColor }) })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.error) { toast('⚠️ ' + d.error, 'warning'); return; }
+      toast('✅ 分类已添加'); loadCategories().then(showCatDialog);
+    });
+};
+window.catRename = function (id, name) {
+  fetch('/api/notes/categories/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }) })
+    .then(function () { loadCategories().then(loadNotesList); });
+};
+window.catDelete = function (id) {
+  if (!confirm('删除该分类？分类下的笔记将变为未分类')) return;
+  fetch('/api/notes/categories/' + id, { method: 'DELETE' })
+    .then(function () { toast('✅ 已删除'); loadCategories().then(showCatDialog).then(loadNotesList); });
 };
 
 

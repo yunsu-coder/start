@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const { listNotes, saveNote, getNote, deleteNote,
         listWorks, saveWork, getWork, deleteWork, exportWork, WORKS_DIR,
-        listNoteVersions, getNoteVersion, restoreNoteVersion } = require('../lib/storage');
+        listNoteVersions, getNoteVersion, restoreNoteVersion,
+        listCategories, saveCategories } = require('../lib/storage');
 const rag = require('../lib/rag');
 const { sendJSON, readBody, parseJSON } = require('../lib/http');
 const { safeJoin } = require('../lib/safePath');
@@ -17,6 +18,7 @@ module.exports = {
       const q = url.searchParams.get('q') || '';
       const type = url.searchParams.get('type') || '';
       const workId = url.searchParams.get('work_id') || '';
+      const category = url.searchParams.get('category') || '';
       let notes = listNotes();
       // 按类型隔离：standalone=独立笔记(无workId), novel=小说章节(有workId)
       if (type === 'standalone') {
@@ -24,6 +26,9 @@ module.exports = {
       } else if (type === 'novel') {
         notes = notes.filter(n => n.workId && n.workId !== '');
         if (workId) notes = notes.filter(n => n.workId === workId);
+      }
+      if (category) {
+        notes = notes.filter(n => (n.category || '') === category);
       }
       if (q) {
         notes = notes.filter(n =>
@@ -45,6 +50,50 @@ module.exports = {
         rag.indexDoc('note_' + result.id, 'note', result.id, body.title || '', body.content || '', '', result.updated || '');
       } catch (e) { console.error('[rag] 笔记索引更新失败:', e.message); }
       sendJSON(res, 200, result);
+      return true;
+    }
+
+    // ===== 笔记分类（须在通用 /api/notes/ 处理之前匹配）=====
+    if (p === '/api/notes/categories' && m === 'GET') {
+      sendJSON(res, 200, listCategories());
+      return true;
+    }
+    if (p === '/api/notes/categories' && m === 'POST') {
+      const body = parseJSON(await readBody(req));
+      const name = (body?.name || '').trim();
+      if (!name) { sendJSON(res, 400, { error: '请输入分类名' }); return true; }
+      const cats = listCategories();
+      if (cats.some(c => c.name === name)) { sendJSON(res, 409, { error: '分类已存在' }); return true; }
+      const cat = { id: 'cat_' + require('crypto').randomBytes(5).toString('hex'), name, color: body.color || '#6d8bff', created: new Date().toISOString() };
+      cats.push(cat);
+      saveCategories(cats);
+      sendJSON(res, 200, cat);
+      return true;
+    }
+    if (p.startsWith('/api/notes/categories/') && m === 'PUT') {
+      const id = p.slice('/api/notes/categories/'.length);
+      const body = parseJSON(await readBody(req));
+      const cats = listCategories();
+      const cat = cats.find(c => c.id === id);
+      if (!cat) { sendJSON(res, 404, { error: '分类不存在' }); return true; }
+      if (body.name !== undefined) cat.name = (body.name || '').trim() || cat.name;
+      if (body.color !== undefined) cat.color = body.color;
+      saveCategories(cats);
+      sendJSON(res, 200, cat);
+      return true;
+    }
+    if (p.startsWith('/api/notes/categories/') && m === 'DELETE') {
+      const id = p.slice('/api/notes/categories/'.length);
+      const cats = listCategories().filter(c => c.id !== id);
+      saveCategories(cats);
+      // 该分类下笔记回到未分类
+      for (const n of listNotes()) {
+        if (n.category === id) {
+          const note = getNote(n.id);
+          if (note) { note.category = ''; saveNote(note); }
+        }
+      }
+      sendJSON(res, 200, { ok: true });
       return true;
     }
 

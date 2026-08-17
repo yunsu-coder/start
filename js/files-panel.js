@@ -115,21 +115,17 @@ async function uploadFiles(fileList) {
   loadFiles();
 }
 
-// ===== 文件模块（支持目录导航）=====
-let currentDir = 'home';
+// ===== 文件模块（支持目录导航；根目录 = 文件站根，取消 home 虚拟层）=====
+let currentDir = '';
 
 function navigateTo(dir) {
-  // 根目录是 home，不允许导航到 home 以上
-  if (dir === '' || dir === '.' || dir === '..' && !currentDir) {
-    currentDir = 'home';
-  } else if (dir === '..' && currentDir === 'home') {
-    // 禁止从 home 向上
-    currentDir = 'home';
-  } else if (dir === '..' && currentDir && currentDir !== 'home') {
-    // 正常向上
-    currentDir = currentDir.split('/').slice(0, -1).join('') || 'home';
+  if (!dir || dir === '.' || dir === '/') {
+    currentDir = '';
+  } else if (dir === '..') {
+    // 正常向上，不越过根
+    if (currentDir) currentDir = currentDir.split('/').slice(0, -1).join('/');
   } else {
-    currentDir = dir || '';
+    currentDir = dir.replace(/^\/+/, '');
   }
   loadFiles();
 }
@@ -1170,7 +1166,7 @@ window.execFileCLI = function() {
   function init() {
     panel = document.getElementById('termPanel');
     body = document.getElementById('termBody');
-    input = document.getElementById('termInput');
+    input = document.getElementById('termGhostInput');
     trigger = document.getElementById('termTrigger');
     if (!panel || !trigger) return;
 
@@ -1195,6 +1191,11 @@ window.execFileCLI = function() {
     // 初始隐藏（默认首页，非文件面板）
     trigger.style.display = 'none';
 
+    // macOS 原生终端体验：点击终端任意位置即输入，无固定输入框
+    body.addEventListener('click', function() {
+      if (open && input) { input.focus(); body.scrollTop = body.scrollHeight; }
+    });
+
     // Tab 补全文件名
     input.addEventListener('keydown', function(e) {
       if (e.key === 'Tab') {
@@ -1202,7 +1203,6 @@ window.execFileCLI = function() {
         var val = input.value;
         var lastWord = val.split(/\s+/).pop() || '';
         if (!lastWord) return;
-        // 获取当前目录文件列表用于补全
         var dir = termDir || '';
         fetch('/api/files?dir=' + encodeURIComponent(dir))
           .then(function(r) { return r.json(); })
@@ -1213,6 +1213,7 @@ window.execFileCLI = function() {
               var parts = val.split(/\s+/);
               parts[parts.length - 1] = matches[0];
               input.value = parts.join(' ');
+              syncTyped();
             } else if (matches.length > 1) {
               termOut(matches.join('  '), 'info');
             }
@@ -1220,7 +1221,9 @@ window.execFileCLI = function() {
       }
     });
 
-    termOut('📟 文件管理终端 — 输入 help 查看命令 | Tab 补全 | ↑↓ 历史\n', 'info');
+    // 欢迎语 + 活动输入行
+    termOut('📟 文件管理终端 — 点击任意位置输入命令 · help 查看帮助', 'info');
+    newActiveLine();
   }
 
   function openTerm() {
@@ -1248,18 +1251,54 @@ window.execFileCLI = function() {
 
   window.termToggle = function() { if (open) closeTerm(); else openTerm(); };
 
+  var activeLine = null, activeTyped = null;
+
+  // 输出（插入到活动输入行之前，输入行始终保持在底部）
   function termOut(msg, cls) {
     if (!body) return;
-    var line = document.createElement('div');
-    line.className = 'term-line ' + (cls || 'out');
-    line.textContent = msg;
-    body.appendChild(line);
+    var lines = String(msg == null ? '' : msg).split('\n');
+    for (var li = 0; li < lines.length; li++) {
+      var line = document.createElement('div');
+      line.className = 'term-line ' + (cls || 'out');
+      line.textContent = lines[li];
+      if (activeLine) body.insertBefore(line, activeLine);
+      else body.appendChild(line);
+    }
     body.scrollTop = body.scrollHeight;
   }
 
+  // 新建活动输入行（macOS 终端风格：提示符 + 内联输入 + 闪烁光标）
+  function newActiveLine() {
+    if (!body) return;
+    activeLine = document.createElement('div');
+    activeLine.className = 'term-line term-active-line';
+    activeLine.innerHTML = '<span class="term-prompt">$</span><span class="term-typed"></span><span class="term-cursor"></span>';
+    body.appendChild(activeLine);
+    activeTyped = activeLine.querySelector('.term-typed');
+    body.scrollTop = body.scrollHeight;
+  }
+
+  // 同步隐藏输入框内容到内联显示
+  function syncTyped() {
+    if (activeTyped) activeTyped.textContent = input ? input.value : '';
+    if (body) body.scrollTop = body.scrollHeight;
+  }
+
+  // 提交当前行：转为历史命令行，再开新行
+  function submitActiveLine() {
+    if (activeLine) {
+      var cur = activeLine.querySelector('.term-cursor');
+      if (cur) cur.remove();
+      activeLine.classList.remove('term-active-line');
+      activeLine.classList.add('cmd');
+      activeLine = null; activeTyped = null;
+    }
+    newActiveLine();
+  }
+
   function termExec(raw) {
-    var cmd = raw.trim(); if (!cmd) return;
-    termOut('$ ' + cmd, 'cmd');
+    var cmd = raw.trim(); if (!cmd) { newActiveLine(); return; }
+    submitActiveLine(); // 活动输入行转为历史命令行（内联显示，无需重复回显）
     cmdHistory.push(cmd); histIdx = cmdHistory.length;
 
     var parts = cmd.split(/\s+/);
@@ -1311,18 +1350,18 @@ window.execFileCLI = function() {
         } else if (target) {
           navigateTo(dir ? dir + '/' + target : target);
         } else {
-          navigateTo('home');
+          navigateTo('');
         }
         setTimeout(function() {
-          termDir = (typeof currentDir !== 'undefined') ? currentDir : 'home';
+          termDir = (typeof currentDir !== 'undefined') ? currentDir : '';
           updateTermDirLabel();
-          termOut('📂 ' + (termDir || 'home'), 'info');
+          termOut('📂 ' + (termDir || '/'), 'info');
         }, 400);
       } else { termOut('cd: 导航功能不可用', 'err'); }
     }
     // pwd
     else if (op === 'pwd') {
-      termOut(dir || 'home');
+      termOut(dir || '/');
     }
     // cat / open
     else if (op === 'cat' || op === 'open') {
@@ -1367,7 +1406,7 @@ window.execFileCLI = function() {
         .catch(function() { termOut('rmdir: 删除失败', 'err'); });
     }
     // clear
-    else if (op === 'clear') { if (body) body.innerHTML = ''; }
+    else if (op === 'clear') { if (body) { body.innerHTML = ''; newActiveLine(); } }
     // mv / cp
     else if (op === 'mv') {
       if (args.length < 2) { termOut('用法: mv <源文件> <目标路径>', 'err'); return; }
@@ -1558,13 +1597,13 @@ window.execFileCLI = function() {
         var files = (data.files || []).map(function(f) {
           return (f.isDir ? '📁 ' : '📄 ') + f.name + (f.isDir ? '/' : '  ' + fmtSize(f.size || 0));
         }).join('\n');
-        var cwdInfo = '当前工作目录: ' + (dir || 'home') + '\n文件列表:\n' + (files || '(空)');
+        var cwdInfo = '当前工作目录: ' + (dir || '/') + '\n文件列表:\n' + (files || '(空)');
         var sysPrompt = '你是文件管理助手。用户会用自然语言描述需求，你给出具体可执行的终端命令。\n' +
           '可用命令: ls, cd, pwd, cat, touch, mkdir, rm, rmdir, mv, cp, echo, head, tail, wc, grep, find, stat, edit, du, clear, exit\n' +
           '回复格式:\n' +
           '1. 先简要说明方案（1-2句）\n' +
           '2. 用 ```sh 代码块给出命令\n' +
-          '根目录是 home，路径相对于 home。';
+          '根目录是 /，路径相对于文件站根目录。';
         return fetch('/api/chat', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1636,24 +1675,29 @@ window.execFileCLI = function() {
 
   window.termKey = function(e) {
     if (e.key === 'Enter') {
+      e.preventDefault();
       var cmd = input.value; input.value = '';
-      if (cmd.trim()) termExec(cmd);
+      syncTyped();
+      termExec(cmd);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (histIdx > 0) { histIdx--; input.value = cmdHistory[histIdx] || ''; }
+      if (histIdx > 0) { histIdx--; input.value = cmdHistory[histIdx] || ''; syncTyped(); }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (histIdx < cmdHistory.length - 1) { histIdx++; input.value = cmdHistory[histIdx] || ''; }
-      else { histIdx = cmdHistory.length; input.value = ''; }
+      if (histIdx < cmdHistory.length - 1) { histIdx++; input.value = cmdHistory[histIdx] || ''; syncTyped(); }
+      else { histIdx = cmdHistory.length; input.value = ''; syncTyped(); }
     } else if (e.key === 'Escape') {
       closeTerm();
     } else if (e.key === 'l' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      if (body) body.innerHTML = '';
+      if (body) { body.innerHTML = ''; newActiveLine(); }
     } else if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
-      if (input.value) { e.preventDefault(); input.value = ''; termOut('^C', 'info'); }
+      if (input.value) { e.preventDefault(); input.value = ''; syncTyped(); termOut('^C', 'info'); }
     }
   };
+
+  // 输入框内容变化 → 同步内联显示
+  window.termTyping = function() { syncTyped(); };
 
   function fmtSize(b) {
     return b < 1024 ? b + 'B' : b < 1024*1024 ? (b/1024).toFixed(1)+'K' : b < 1024*1024*1024 ? (b/1024/1024).toFixed(1)+'M' : (b/1024/1024/1024).toFixed(2)+'G';

@@ -4015,6 +4015,21 @@ body[data-theme="light"] select {
   font-size: .72rem; line-height: 1.55; white-space: pre-wrap; word-break: break-all;
 }
 .term-welcome { color: #58a6ff; margin-bottom: 6px; }
+/* macOS 原生终端风格：内联输入行（无固定输入框） */
+.term-body { cursor: text; }
+.term-ghost {
+  position: absolute; left: 0; bottom: 0; width: 2px; height: 2px;
+  opacity: 0.01; border: none; background: transparent; outline: none;
+  font-size: 1px; color: transparent; caret-color: transparent;
+}
+.term-active-line { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 2px; }
+.term-active-line .term-prompt { line-height: 1.55; }
+.term-typed { flex: 1; color: #e6edf3; white-space: pre-wrap; word-break: break-all; }
+.term-cursor {
+  display: inline-block; width: .5em; height: 1.05em; background: #e6edf3;
+  animation: term-blink 1.1s steps(1) infinite; flex-shrink: 0;
+}
+@keyframes term-blink { 50% { opacity: 0; } }
 .term-line { margin-bottom: 2px; }
 .term-line.cmd { color: #7ee787; }
 .term-line.out { color: #c9d1d9; }
@@ -4042,3 +4057,41 @@ body[data-theme="light"] select {
 .history-title{font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .history-time{font-size:.72rem;color:var(--sub)}
 .history-actions{display:flex;gap:.4rem;flex-shrink:0}
+
+/* ===== 开关组件 ===== */
+.cfg-switch-row { display: flex; align-items: center; justify-content: space-between; }
+.switch { position: relative; display: inline-block; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch-track {
+  display: block; width: 44px; height: 24px; border-radius: 12px;
+  background: var(--border-strong); transition: background .2s; position: relative;
+}
+.switch-knob {
+  position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; transition: left .2s var(--ease-out-expo); box-shadow: 0 2px 6px rgba(0,0,0,.35);
+}
+.switch input:checked + .switch-track { background: var(--accent); }
+.switch input:checked + .switch-track .switch-knob { left: 22px; }
+.switch input:disabled + .switch-track { opacity: .5; }
+
+/* ===== 笔记分类 ===== */
+.ncat{font-size:.62rem;padding:.05rem .4rem;border-radius:8px;background:var(--hover);margin-left:auto;}
+.ncat::before{content:'● ';font-size:.6rem;}
+.cat-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .5rem;border-radius:.6rem;background:var(--card);border:1px solid var(--border);margin-bottom:.4rem;}
+.cat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.cat-name{flex:1;min-width:0;padding:.3rem .4rem;border:1px solid var(--border);border-radius:6px;background:rgba(0,0,0,.2);color:var(--text);font-size:.8rem;outline:none;}
+.cat-swatches{display:flex;gap:.25rem;flex-wrap:wrap;}
+.cat-swatch{width:16px;height:16px;border-radius:50%;cursor:pointer;border:2px solid transparent;box-sizing:border-box;}
+.cat-swatch.active{border-color:#fff;transform:scale(1.15);}
+.cat-add-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.8rem;padding-bottom:.8rem;border-bottom:1px dashed var(--border);flex-wrap:wrap;}
+.cat-add-row input{flex:1;min-width:100px;padding:.4rem .5rem;border:1px solid var(--border);border-radius:6px;background:rgba(0,0,0,.2);color:var(--text);font-size:.8rem;outline:none;}
+
+/* ===== 对话角色智能体 ===== */
+.chat-agents-bar{display:flex;gap:.35rem;padding:.45rem .8rem;overflow-x:auto;flex-shrink:0;border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);scrollbar-width:thin;}
+.chat-agents-bar::-webkit-scrollbar{height:4px}
+.chat-agent-chip{display:inline-flex;align-items:center;gap:.3rem;padding:.28rem .6rem;border-radius:999px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:.74rem;cursor:pointer;white-space:nowrap;transition:.15s;flex-shrink:0;}
+.chat-agent-chip:hover{border-color:var(--accent);color:var(--accent)}
+.chat-agent-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;box-shadow:0 3px 10px rgba(109,139,255,.35)}
+.chat-agent-chip.roll{border-style:dashed;color:var(--sub)}
+.chat-agent-chip .ca-emoji{font-size:.9rem;line-height:1}
+.chat-header-title .ca-emoji{vertical-align:-2px}

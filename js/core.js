@@ -988,6 +988,12 @@ window.openCustomizeModal = function() {
     if (pomodoroEl) pomodoroEl.checked = cfg.get('pomodoro');
     const soundEl = document.getElementById('cfg-sound');
     if (soundEl) soundEl.checked = Yiwei.sound.isEnabled();
+    const soundVolEl = document.getElementById('cfg-sound-vol');
+    if (soundVolEl) {
+      soundVolEl.value = Math.round(Yiwei.sound.getVolume() * 100);
+      document.getElementById('cfgSoundVolVal').textContent = soundVolEl.value + '%';
+      soundVolEl.disabled = !Yiwei.sound.isEnabled();
+    }
     const musicEl = document.getElementById('cfg-music');
     if (musicEl) musicEl.checked = cfg.get('music');
     const pomdoOpacityEl = document.getElementById('cfg-pomodoOpacity');
@@ -1021,7 +1027,13 @@ document.addEventListener('change', e => {
     Yiwei.sound.toggle();
     e.target.checked = Yiwei.sound.isEnabled(); // toggle 已翻转，同步 UI
     Yiwei.sound.syncWidget();
+    const volEl2 = document.getElementById('cfg-sound-vol');
+    if (volEl2) volEl2.disabled = !Yiwei.sound.isEnabled();
     toast(Yiwei.sound.isEnabled() ? '🔊 音效已开启' : '🔇 音效已关闭', 'info');
+  } else if (key === 'sound-vol') {
+    const v = parseInt(e.target.value, 10) || 60;
+    Yiwei.sound.setVolume(v / 100);
+    document.getElementById('cfgSoundVolVal').textContent = v + '%';
   } else if (key === 'wpOpacity') {
     localStorage.setItem('wpOpacity', e.target.value);
     applyWallpaperOpacity(e.target.value);
@@ -1083,6 +1095,16 @@ document.addEventListener('keydown', e => {
   const TRANS_BASE = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
   const TRANS_MODEL = 'glm-4-flash';
 
+  // 平台预设（接口地址为 OpenAI 兼容格式，以各平台官网为准可改）
+  const CHAT_PROVIDERS = {
+    apiyi:       { label: 'API易 apiyi.com — Grok 全系', baseUrl: 'https://vip.apiyi.com/v1/chat/completions', model: 'grok-4.3' },
+    quickrouter: { label: 'QuickRouter — Grok + 多模型',   baseUrl: 'https://api.quickrouter.ai/v1/chat/completions', model: 'grok-4.2' },
+    getgoapi:    { label: 'GetGoAPI — 国内直连 Grok',      baseUrl: 'https://api.getgoapi.com/v1/chat/completions', model: 'grok-4-0709' },
+    maynor:      { label: 'MaynorAPI — Grok 新模型',       baseUrl: 'https://api.maynorapi.com/v1/chat/completions', model: 'grok-4.2' },
+    xai:         { label: '官方 xAI — 需境外支付',          baseUrl: 'https://api.x.ai/v1/chat/completions', model: 'grok-4-latest' },
+    custom:      { label: '自定义接口',                     baseUrl: '', model: '' },
+  };
+
   function load(key) {
     try { return JSON.parse(localStorage.getItem(key)) || {}; }
     catch { return {}; }
@@ -1092,7 +1114,12 @@ document.addEventListener('keydown', e => {
   // 对话 AI 配置（chat.js 使用）；未填自定义 Key 时交给服务端 .env（CHAT_API_KEY/CHAT_MODEL/CHAT_BASE_URL）
   window.getChatApiConfig = function () {
     const cfg = load(CHAT_KEY);
-    return { apiKey: cfg.apiKey || '', baseUrl: cfg.apiKey ? CHAT_BASE : '', model: cfg.model || '' };
+    return {
+      apiKey: cfg.apiKey || '',
+      baseUrl: cfg.apiKey ? (cfg.baseUrl || CHAT_BASE) : '',
+      model: cfg.model || '',
+      nsfw: !!cfg.nsfw,
+    };
   };
 
   // 翻译配置（translate-panel.js 使用）；未填自定义 Key 时交给服务端 .env（TRANS_API_KEY/TRANS_MODEL/TRANS_BASE_URL）
@@ -1136,11 +1163,17 @@ document.addEventListener('keydown', e => {
     var trans = load(TRANS_KEY);
     var ck = document.getElementById('apiChatKey');
     var cm = document.getElementById('apiChatModel');
+    var cp = document.getElementById('apiChatProvider');
+    var cu = document.getElementById('apiChatUrl');
+    var cn = document.getElementById('apiChatNsfw');
     var tk = document.getElementById('apiTransKey');
     var tu = document.getElementById('apiTransUrl');
     var tm = document.getElementById('apiTransModel');
     if (ck) ck.value = chat.apiKey || '';
     if (cm) { cm.value = chat.model || ''; cm.placeholder = CHAT_MODEL; }
+    if (cp) { cp.value = chat.provider || 'apiyi'; }
+    if (cu) { cu.value = chat.baseUrl || (CHAT_PROVIDERS[chat.provider || 'apiyi']?.baseUrl || CHAT_BASE); cu.placeholder = CHAT_BASE; }
+    if (cn) cn.checked = !!chat.nsfw;
     if (tk) tk.value = trans.apiKey || '';
     if (tu) { tu.value = trans.baseUrl || ''; tu.placeholder = TRANS_BASE; }
     if (tm) { tm.value = trans.model || ''; tm.placeholder = TRANS_MODEL; }
@@ -1165,14 +1198,28 @@ document.addEventListener('keydown', e => {
     Yiwei.sound.play('api-save');
     var chatKey = document.getElementById('apiChatKey').value.trim();
     var chatModel = document.getElementById('apiChatModel').value.trim();
+    var chatProvider = document.getElementById('apiChatProvider').value;
+    var chatUrl = document.getElementById('apiChatUrl').value.trim();
+    var chatNsfw = document.getElementById('apiChatNsfw').checked;
     var transKey = document.getElementById('apiTransKey').value.trim();
     var transUrl = document.getElementById('apiTransUrl').value.trim();
     var transModel = document.getElementById('apiTransModel').value.trim();
-    save(CHAT_KEY, { apiKey: chatKey, model: chatModel });
+    save(CHAT_KEY, { apiKey: chatKey, model: chatModel, provider: chatProvider, baseUrl: chatUrl, nsfw: chatNsfw });
     save(TRANS_KEY, { apiKey: transKey, baseUrl: transUrl, model: transModel });
     updateDot();
-    toast('✅ API 配置已保存');
+    toast('✅ API 配置已保存' + (chatNsfw ? ' · 成人模式已开启' : ''));
     closeApiModal();
+  });
+
+  // 平台预设切换 → 自动填充接口地址与模型
+  document.getElementById('apiChatProvider').addEventListener('change', function() {
+    var p = CHAT_PROVIDERS[this.value];
+    if (!p) return;
+    var cu = document.getElementById('apiChatUrl');
+    var cm = document.getElementById('apiChatModel');
+    if (cu) { cu.value = p.baseUrl || ''; cu.placeholder = CHAT_BASE; }
+    if (cm) cm.placeholder = p.model || CHAT_MODEL;
+    if (this.value === 'custom') { if (cu) cu.focus(); }
   });
 
   // 清除
@@ -1180,10 +1227,13 @@ document.addEventListener('keydown', e => {
     Yiwei.sound.play('api-reset');
     document.getElementById('apiChatKey').value = '';
     document.getElementById('apiChatModel').value = '';
+    document.getElementById('apiChatProvider').value = 'apiyi';
+    document.getElementById('apiChatUrl').value = '';
+    document.getElementById('apiChatNsfw').checked = false;
     document.getElementById('apiTransKey').value = '';
     document.getElementById('apiTransUrl').value = '';
     document.getElementById('apiTransModel').value = '';
-    save(CHAT_KEY, { apiKey: '', model: '' });
+    save(CHAT_KEY, { apiKey: '', model: '', provider: 'apiyi', baseUrl: '', nsfw: false });
     save(TRANS_KEY, { apiKey: '', baseUrl: '', model: '' });
     updateDot();
     toast('↩ 已清除');

@@ -322,6 +322,8 @@ function switchNoteTab(tab) {
     tabNovel.style.border = 'none';
     tabNovel.style.fontWeight = '500';
     if (workFilter) workFilter.style.display = 'block';
+  var catRow = document.getElementById('catFilterRow');
+  if (catRow) catRow.style.display = 'none';
     if (titleEl) titleEl.innerHTML = '<span class="mi">book</span> 小说';
     // 侧栏视觉隔离
     if (sidebar) { sidebar.classList.add('novel-sidebar'); sidebar.classList.remove('note-sidebar'); }
@@ -345,6 +347,8 @@ function switchNoteTab(tab) {
     tabNotes.style.border = 'none';
     tabNotes.style.fontWeight = '500';
     if (workFilter) { workFilter.style.display = 'none'; workFilter.value = ''; currentWorkFilter = ''; }
+  var catRow2 = document.getElementById('catFilterRow');
+  if (catRow2) catRow2.style.display = 'flex';
     if (titleEl) titleEl.innerHTML = '<span class="mi">note</span> 笔记';
     // 侧栏视觉隔离
     if (sidebar) { sidebar.classList.add('note-sidebar'); sidebar.classList.remove('novel-sidebar'); }
@@ -375,6 +379,8 @@ loadNotesList = async function() {
       if (wf && wf.value) params.set('work_id', wf.value);
     } else {
       params.set('type', 'standalone');
+      const cf = document.getElementById('catFilter');
+      if (cf && cf.value) params.set('category', cf.value);
     }
     const qs = params.toString();
     const url = '/api/notes' + (qs ? '?' + qs : '');
@@ -389,6 +395,8 @@ loadNotesList = async function() {
     }
     list.innerHTML = notes.map(n => {
       const orderStr = n.chapterOrder > 0 ? ` #${n.chapterOrder}` : '';
+      const cat = (typeof catList !== 'undefined' ? catList : []).find(c => c.id === n.category);
+      const catBadge = cat ? `<span class="ncat" style="color:${cat.color};flex-shrink:0;">${escHtml(cat.name)}</span>` : '';
       const cls = 'note-list-item' + (currentNoteId === n.id ? ' active' : '');
       return `<div class="${cls}" data-note-id="${n.id}" draggable="true"
         ondragstart="noteDragStart(event,'${n.id}')"
@@ -398,6 +406,7 @@ loadNotesList = async function() {
         ondragend="noteDragEnd(event)"
         onclick="openNote('${n.id}')">
         <span class="ntitle">${escHtml(n.title || '无标题')}${orderStr}</span>
+        ${catBadge}
         <span class="ndate">${new Date(n.updated).toLocaleDateString('zh-CN')}</span>
       </div>`;
     }).join('');

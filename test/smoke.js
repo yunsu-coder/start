@@ -182,6 +182,29 @@ async function main() {
   const td = await req('DELETE', '/api/tasks/' + tid);
   ok('DELETE /api/tasks/:id', td.status === 200);
 
+  // 笔记分类
+  const catCreate = await req('POST', '/api/notes/categories', { name: '测试分类', color: '#6d8bff' });
+  ok('POST /api/notes/categories', catCreate.status === 200 && catCreate.data.id);
+  const catId = catCreate.data.id;
+  const catList2 = await req('GET', '/api/notes/categories');
+  ok('GET /api/notes/categories', catList2.status === 200 && Array.isArray(catList2.data) && catList2.data.length >= 1);
+  const catNote = await req('POST', '/api/notes', { title: '分类笔记', content: 'x', category: catId });
+  ok('创建带分类笔记', catNote.status === 200);
+  const catFiltered = await req('GET', '/api/notes?category=' + catId);
+  ok('按分类过滤', catFiltered.status === 200 && Array.isArray(catFiltered.data) && catFiltered.data.some(n => n.category === catId));
+  const catDel = await req('DELETE', '/api/notes/categories/' + catId);
+  ok('DELETE /api/notes/categories', catDel.status === 200);
+  const catNoteDel = await req('DELETE', '/api/notes/' + catNote.data.id);
+  ok('清理分类笔记', catNoteDel.status === 200);
+
+  // 交互小说角色
+  const agents = await req('GET', '/api/novel/agents');
+  ok('GET /api/novel/agents', agents.status === 200 && Array.isArray(agents.data) && agents.data.length >= 4 && agents.data[0].name);
+  const roll = await req('GET', '/api/novel/roll?agent=' + encodeURIComponent(agents.data[0].id));
+  ok('GET /api/novel/roll', roll.status === 200 && typeof roll.data.event === 'string' && roll.data.event.length > 5);
+  const mem = await req('POST', '/api/novel/memory', { agentId: agents.data[0].id, messages: [{ role: 'user', content: '你好' }], apiKey: '', baseUrl: '', model: '' });
+  ok('POST /api/novel/memory（无 key 跳过）', mem.status === 200);
+
   // 翻译
   const lg = await req('GET', '/api/translate/langs');
   ok('GET /api/translate/langs', lg.status === 200 && Array.isArray(lg.data));

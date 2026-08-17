@@ -62,6 +62,9 @@ const ChatDB = (() => {
 let activeConvId = null;
 let chatHistory = [];
 let chatStreaming = false;
+let activeAgentId = '';
+let pendingRoll = '';
+let lastChatCfg = {};
 let currentMsgEl = null;
 let currentToolEls = {};
 let pendingImages = [];
@@ -125,15 +128,86 @@ async function loadConv(id) {
   updateChatCount();
 }
 
+// ===== 交互小说角色智能体 =====
+async function loadAgents() {
+  try {
+    const agents = await (await fetch('/api/novel/agents')).json();
+    renderAgentsBar(agents || []);
+  } catch (e) { console.warn('[Agents] load failed', e.message); }
+}
+
+function renderAgentsBar(agents) {
+  const bar = document.getElementById('chatAgentsBar');
+  if (!bar) return;
+  let chips = '<button class="chat-agent-chip' + (activeAgentId === '' ? ' active' : '') + '" onclick="selectAgent(\'\')" title="默认助手小苇"><span class="ca-emoji">🤖</span>小苇</button>';
+  (agents || []).forEach(function (a) {
+    chips += '<button class="chat-agent-chip' + (activeAgentId === a.id ? ' active' : '') + '" onclick="selectAgent(\'' + a.id + '\')" title="' + escapeHtml(a.tagline) + '"><span class="ca-emoji">' + a.emoji + '</span>' + escapeHtml(a.name) + '</button>';
+  });
+  chips += '<button class="chat-agent-chip roll" onclick="rollPlot()" title="剧情骰子：随机剧情转折"><span class="ca-emoji">🎲</span>剧情</button>';
+  bar.innerHTML = chips;
+}
+
+function agentTitle(a) {
+  if (!a) return '<span class="mi">smart_toy</span> 小苇';
+  return '<span class="ca-emoji" style="font-size:.9rem">' + a.emoji + '</span> ' + escapeHtml(a.name) + '<span class="chat-agent-tag" style="font-size:.62rem;color:var(--sub);margin-left:.4rem;">' + escapeHtml(a.tagline) + '</span>';
+}
+
+window.selectAgent = async function (agentId) {
+  if (chatStreaming) return;
+  if (activeConvId && chatHistory.length) await saveConv().catch(function () {});
+  activeAgentId = agentId || '';
+  pendingRoll = '';
+  const key = 'yiwei_agent_conv_' + (agentId || 'default');
+  const storedId = localStorage.getItem(key);
+  try {
+    const agents = await (await fetch('/api/novel/agents')).json();
+    const a = agents.find(function (x) { return x.id === agentId; });
+    if (!storedId) {
+      activeConvId = convId();
+      localStorage.setItem(key, activeConvId);
+      chatHistory = [];
+      if (a) {
+        chatHistory.push({ role: 'assistant', content: a.intro });
+        chatMessages.innerHTML = '';
+        const div = document.createElement('div');
+        div.className = 'chat-msg assistant';
+        div.innerHTML = '<div class="chat-msg-avatar mi">smart_toy</div><div class="chat-msg-body"><div class="chat-content">' + renderMarkdown(a.intro) + '</div></div>';
+        chatMessages.appendChild(div);
+      }
+      if (chatHeaderTitle) chatHeaderTitle.innerHTML = agentTitle(a);
+    } else {
+      await loadConv(storedId);
+      if (chatHeaderTitle) chatHeaderTitle.innerHTML = agentTitle(a);
+    }
+    renderAgentsBar(agents);
+    refreshConvList();
+    if (a) toast('🎭 已进入「' + a.name + '」的剧情 · ' + a.tagline, 'info');
+    else toast('🤖 已切回默认助手小苇', 'info');
+  } catch (e) { console.warn('[Agents] select failed', e.message); }
+};
+
+// 剧情骰子：随机剧情转折，注入下一次对话
+window.rollPlot = async function () {
+  if (!activeAgentId) { toast('⚠️ 先选择一个角色，再掷剧情骰子', 'warning'); return; }
+  try {
+    const d = await (await fetch('/api/novel/roll?agent=' + encodeURIComponent(activeAgentId))).json();
+    pendingRoll = d.event || '';
+    toast('🎲 ' + d.event, 'info');
+  } catch (e) { toast('❌ 剧情骰子失败', 'warning'); }
+};
+
 async function newConversation() { Yiwei.sound.play("chat-new");
   if (chatStreaming) return;
   if (activeConvId && chatHistory.length) await saveConv().catch(function(){});
   activeConvId = convId();
   chatHistory = [];
+  activeAgentId = '';
+  pendingRoll = '';
   chatMessages.innerHTML = '<div class="chat-welcome"><div class="chat-welcome-icon mi">smart_toy</div><h3>小苇 · 你的 AI 伴侣</h3><p>你的专属男人——聊天、命令、疼爱，我在这里</p></div>';
   if (chatHeaderTitle) chatHeaderTitle.innerHTML = '<span class="mi">smart_toy</span> 小苇';
   updateChatCount();
   refreshConvList();
+  loadAgents();
 }
 
 // 自动锁定当前对话（保存 + 清除解锁状态，不渲染 UI）
@@ -157,7 +231,8 @@ async function deleteConversation(id) {
 async function handleConvClick(id) {
   if (chatStreaming) return;
   Yiwei.sound.play('chat-conv-sw');
-  switchConversation(id);
+  await switchConversation(id);
+  if (activeAgentId) { activeAgentId = ''; pendingRoll = ''; loadAgents(); }
 }
 
 function handleDeleteConv(id) {
@@ -441,8 +516,10 @@ async function streamAgent() {
   const MAX_MSGS = 40, KEEP_RECENT = 20;
   try {
     const chatCfg = typeof getChatApiConfig === 'function' ? getChatApiConfig() : {};
+    lastChatCfg = chatCfg;
     const nonSys = chatHistory.filter(m => m.role !== 'system');
     const needCompress = nonSys.length > MAX_MSGS;
+    const rollForThis = pendingRoll; pendingRoll = '';
     const resp = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -450,6 +527,9 @@ async function streamAgent() {
         messages: chatHistory,
         apiKey: chatCfg.apiKey || '', baseUrl: chatCfg.baseUrl || '',
         model: chatCfg.model || '',
+        nsfw: !!chatCfg.nsfw,
+        agentId: activeAgentId || '',
+        rollEvent: rollForThis || '',
         compress: needCompress, keepRecent: KEEP_RECENT
       }),
     });
@@ -625,6 +705,21 @@ async function finishStream() {
   currentMsgEl = null;
   currentToolEls = {};
   await saveConv();
+  // 角色模式下异步更新长期记忆
+  if (activeAgentId) {
+    const cfg = lastChatCfg || {};
+    try {
+      fetch('/api/novel/memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: activeAgentId,
+          messages: chatHistory.slice(-8),
+          apiKey: cfg.apiKey || '', baseUrl: cfg.baseUrl || '', model: cfg.model || '',
+        })
+      }).catch(function () {});
+    } catch (e) {}
+  }
 }
 
 // ---- Markdown 增强版 ----
@@ -1002,4 +1097,5 @@ chatInput.addEventListener('input', () => {
     }
   }
   initChatSidebarDock();
+  loadAgents();
 })();

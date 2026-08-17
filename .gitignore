@@ -37,6 +37,7 @@ js/upscale-engine.js
 【哲风壁纸】*
 
 # 运行时数据（本地/生产各自生成，不入库）
+chat-memory/
 analytics/
 tasks/
 .rag_index.json

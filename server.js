@@ -104,6 +104,7 @@ const routes = [
   require('./routes/scrape'),
   require('./routes/wallpaper'),
   require('./routes/chat'),
+  require('./routes/novel'),
 ];
 
 const server = http.createServer(async (req, res) => {
