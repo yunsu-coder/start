@@ -1170,9 +1170,13 @@ document.addEventListener('keydown', e => {
     var tu = document.getElementById('apiTransUrl');
     var tm = document.getElementById('apiTransModel');
     if (ck) ck.value = chat.apiKey || '';
-    if (cm) { cm.value = chat.model || ''; cm.placeholder = CHAT_MODEL; }
+    const preset0 = CHAT_PROVIDERS[chat.provider || 'apiyi'] || CHAT_PROVIDERS.apiyi;
+    if (cm) {
+      cm.value = chat.model || preset0.model || '';
+      cm.placeholder = preset0.model || CHAT_MODEL;
+    }
     if (cp) { cp.value = chat.provider || 'apiyi'; }
-    if (cu) { cu.value = chat.baseUrl || (CHAT_PROVIDERS[chat.provider || 'apiyi']?.baseUrl || CHAT_BASE); cu.placeholder = CHAT_BASE; }
+    if (cu) { cu.value = chat.baseUrl || preset0.baseUrl || CHAT_BASE; cu.placeholder = CHAT_BASE; }
     if (cn) cn.checked = !!chat.nsfw;
     if (tk) tk.value = trans.apiKey || '';
     if (tu) { tu.value = trans.baseUrl || ''; tu.placeholder = TRANS_BASE; }
@@ -1204,6 +1208,10 @@ document.addEventListener('keydown', e => {
     var transKey = document.getElementById('apiTransKey').value.trim();
     var transUrl = document.getElementById('apiTransUrl').value.trim();
     var transModel = document.getElementById('apiTransModel').value.trim();
+    // 模型/接口为空时用平台预设兜底，避免请求落到 deepseek-chat 这种平台不认识的模型
+    var preset1 = CHAT_PROVIDERS[chatProvider] || {};
+    if (!chatUrl && preset1.baseUrl) chatUrl = preset1.baseUrl;
+    if (!chatModel && preset1.model) chatModel = preset1.model;
     save(CHAT_KEY, { apiKey: chatKey, model: chatModel, provider: chatProvider, baseUrl: chatUrl, nsfw: chatNsfw });
     save(TRANS_KEY, { apiKey: transKey, baseUrl: transUrl, model: transModel });
     updateDot();
@@ -1218,7 +1226,7 @@ document.addEventListener('keydown', e => {
     var cu = document.getElementById('apiChatUrl');
     var cm = document.getElementById('apiChatModel');
     if (cu) { cu.value = p.baseUrl || ''; cu.placeholder = CHAT_BASE; }
-    if (cm) cm.placeholder = p.model || CHAT_MODEL;
+    if (cm) { if (p.model && !cm.value) cm.value = p.model; cm.placeholder = p.model || CHAT_MODEL; }
     if (this.value === 'custom') { if (cu) cu.focus(); }
   });
 
